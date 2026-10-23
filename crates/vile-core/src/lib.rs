@@ -11,4 +11,8 @@ pub mod keycode;
 pub mod ops;
 pub mod pyjson;
 pub mod validate;
+pub use document::{
+    AltRepeatKey, Combo, Document, KeyOverride, LoadError, LoadIssue, LoadReport, Macro,
+    MacroAction, Setting, Slot, TapDance, TopKey,
+};
 pub use keycode::{Catalog, CatalogContext, Keycode, KeycodeError, KeycodeKind, LayerOp};
