@@ -9,6 +9,7 @@
   import LayerBar from "./components/LayerBar.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import KeycodeInput from "./components/KeycodeInput.svelte";
+  import DiffPanel from "./components/DiffPanel.svelte";
 
   function onkeyclick(id: string, shift: boolean): void {
     if (shift) {
@@ -206,6 +207,11 @@
     return cells[index]?.wire ?? "";
   }
 
+  function onjump(layer: number, keyId: string): void {
+    ui.layer = layer;
+    ui.cursor = keyId;
+  }
+
   function onInsertSubmit(wire: string): void {
     const keys = targets();
     ui.mode = "normal";
@@ -234,15 +240,20 @@
       diff={ui.view.diff}
       onselect={(layer: number) => (ui.layer = layer)}
     />
-    <main class="board">
-      <Keyboard
-        keys={ui.view.board.keys}
-        cells={ui.view.layers[ui.layer] ?? []}
-        cursor={ui.cursor}
-        selection={ui.selection}
-        {onkeyclick}
-      />
-    </main>
+    <div class="workspace">
+      <main class="board">
+        <Keyboard
+          keys={ui.view.board.keys}
+          cells={ui.view.layers[ui.layer] ?? []}
+          cursor={ui.cursor}
+          selection={ui.selection}
+          {onkeyclick}
+        />
+      </main>
+      <aside class="side">
+        <DiffPanel diff={ui.view.diff} base={ui.view.diffBase} {onjump} />
+      </aside>
+    </div>
   {:else}
     <main class="empty">
       <p>No file open. Start vile with a .vil path, or press ⌘O.</p>
@@ -269,9 +280,19 @@
     grid-template-rows: auto 1fr auto;
     height: 100vh;
   }
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    min-height: 0;
+  }
   .board {
     padding: 12px;
     overflow: auto;
+  }
+  .side {
+    padding: 12px;
+    overflow: auto;
+    border-left: 1px solid var(--key-border);
   }
   .empty {
     display: grid;
