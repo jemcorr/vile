@@ -1,0 +1,39 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --bg: #f6f6f4;
+  --fg: #1d1d1f;
+  --muted: #8a8a8e;
+  --key-bg: #ffffff;
+  --key-fg: #1d1d1f;
+  --key-border: #c7c7cc;
+  --key-layer: #e3ecff;
+  --key-mod: #fff1db;
+  --key-macro: #eadcff;
+  --selected: #b9d4ff;
+  --changed: #e8590c;
+  --cursor: #d6336c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --fg: #f2f2f7;
+    --muted: #8e8e93;
+    --key-bg: #2c2c2e;
+    --key-fg: #f2f2f7;
+    --key-border: #48484a;
+    --key-layer: #233457;
+    --key-mod: #4a3b1f;
+    --key-macro: #3b2d57;
+    --selected: #2f5aa8;
+    --changed: #ff922b;
+    --cursor: #f06595;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
