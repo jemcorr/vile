@@ -2,9 +2,11 @@
 
 mod catalog;
 mod label;
+mod search;
 mod table;
 
 pub use catalog::{Catalog, CatalogContext};
+pub use search::SearchHit;
 pub use table::{Group, TableEntry, table};
 
 // Code ranges of Vial protocol v6 (QMK 0.19 and later).
