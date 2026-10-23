@@ -1,6 +1,7 @@
 //! Editing operations on a Document. Every operation validates its inputs
 //! first and leaves the document unchanged when it returns an error.
 
+use crate::board::Board;
 use crate::document::{Document, Slot};
 use crate::keycode::{Keycode, KeycodeError};
 use std::collections::HashSet;
@@ -342,4 +343,64 @@ pub fn paste_targets(copied: &[Pos], selection: &[Pos]) -> Result<Vec<Pos>, OpEr
         expected: copied.len(),
         actual: selection.len(),
     })
+}
+
+fn put(doc: &mut Document, layer: usize, pos: Pos, slot: Slot) {
+    doc.layout[layer][pos.row][pos.col] = slot;
+}
+
+/// Moves layer `from` to index `to`; the layers in between shift by one.
+pub fn move_layer(doc: &mut Document, from: usize, to: usize) -> OpResult {
+    check_layer(doc, from)?;
+    check_layer(doc, to)?;
+    if from == to {
+        return Ok(vec![]);
+    }
+    let n = doc.layer_count();
+    let mut order: Vec<usize> = (0..n).collect();
+    let moved = order.remove(from);
+    order.insert(to, moved);
+    // order[new] = old, so perm[old] = new.
+    let mut perm = vec![0; n];
+    for (new, &old) in order.iter().enumerate() {
+        perm[old] = new;
+    }
+    permute_layers(doc, &perm)
+}
+
+/// Mirrors the left half of one layer onto the right half, or the reverse, or
+/// exchanges both halves. Only that layer changes.
+pub fn mirror_layer(doc: &mut Document, board: &Board, layer: usize, mode: MirrorMode) -> OpResult {
+    check_layer(doc, layer)?;
+    if !board.matches(doc) {
+        return Err(OpError::BoardMismatch);
+    }
+    for key in board.keys.iter().filter(|key| key.id.contains("-left-")) {
+        let Some(mirror) = board.mirror_of(key) else {
+            continue;
+        };
+        let left_pos = Pos {
+            row: key.row,
+            col: key.col,
+        };
+        let right_pos = Pos {
+            row: mirror.row,
+            col: mirror.col,
+        };
+        let (Some(left), Some(right)) = (
+            doc.get(layer, left_pos.row, left_pos.col),
+            doc.get(layer, right_pos.row, right_pos.col),
+        ) else {
+            continue;
+        };
+        match mode {
+            MirrorMode::Swap => {
+                put(doc, layer, left_pos, right);
+                put(doc, layer, right_pos, left);
+            }
+            MirrorMode::LeftToRight => put(doc, layer, right_pos, left),
+            MirrorMode::RightToLeft => put(doc, layer, left_pos, right),
+        }
+    }
+    Ok(vec![])
 }
