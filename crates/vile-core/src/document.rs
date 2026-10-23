@@ -1109,3 +1109,115 @@ impl Loader {
         out
     }
 }
+
+impl Document {
+    /// Set a key. Errors: NoSuchLayer, NoKey (out of range or an Absent position).
+    pub fn set(
+        &mut self,
+        layer: usize,
+        row: usize,
+        col: usize,
+        kc: Keycode,
+    ) -> Result<(), crate::ops::OpError> {
+        let count = self.layer_count();
+        let slot = self
+            .layout
+            .get_mut(layer)
+            .ok_or(crate::ops::OpError::NoSuchLayer { layer, count })?
+            .get_mut(row)
+            .and_then(|cells| cells.get_mut(col))
+            .ok_or(crate::ops::OpError::NoKey { row, col })?;
+        if *slot == Slot::Absent {
+            return Err(crate::ops::OpError::NoKey { row, col });
+        }
+        *slot = Slot::Key(kc);
+        Ok(())
+    }
+
+    /// Call f on every keycode in every section: layout, encoder_layout, macros
+    /// (tap/down/up keycodes), tap_dance (4 keycodes), combo (5), key_override
+    /// (trigger, replacement), alt_repeat_key (keycode, alt_keycode).
+    pub fn for_each_keycode_mut(&mut self, f: &mut dyn FnMut(&mut Keycode)) {
+        self.visit_keycodes(&mut |_, kc| f(kc));
+    }
+
+    /// Every keycode with its JSON path ("layout[1][0][0]", "combo[3][4]",
+    /// "key_override[2].trigger", ...), in the order for_each_keycode_mut visits them.
+    pub fn keycodes(&self) -> Vec<(String, Keycode)> {
+        let mut copy = self.clone();
+        let mut out = Vec::new();
+        copy.visit_keycodes(&mut |path, kc| out.push((path, *kc)));
+        out
+    }
+
+    /// The single traversal behind for_each_keycode_mut and keycodes.
+    fn visit_keycodes(&mut self, f: &mut dyn FnMut(String, &mut Keycode)) {
+        for (l, layer) in self.layout.iter_mut().enumerate() {
+            for (r, row) in layer.iter_mut().enumerate() {
+                for (c, slot) in row.iter_mut().enumerate() {
+                    if let Slot::Key(kc) = slot {
+                        f(format!("layout[{l}][{r}][{c}]"), kc);
+                    }
+                }
+            }
+        }
+        if let Some(encoders) = &mut self.encoder_layout {
+            for (l, layer) in encoders.iter_mut().enumerate() {
+                for (e, pair) in layer.iter_mut().enumerate() {
+                    for (i, slot) in pair.iter_mut().enumerate() {
+                        if let Slot::Key(kc) = slot {
+                            f(format!("encoder_layout[{l}][{e}][{i}]"), kc);
+                        }
+                    }
+                }
+            }
+        }
+        for (m, slot) in self.macros.iter_mut().enumerate() {
+            for (a, action) in slot.actions.iter_mut().enumerate() {
+                match action {
+                    MacroAction::Tap(keys) | MacroAction::Down(keys) | MacroAction::Up(keys) => {
+                        for (k, kc) in keys.iter_mut().enumerate() {
+                            // The JSON array holds the action name at index 0.
+                            f(format!("macro[{m}][{a}][{}]", k + 1), kc);
+                        }
+                    }
+                    MacroAction::Text(_) | MacroAction::Delay(_) => {}
+                }
+            }
+        }
+        if let Some(list) = &mut self.tap_dance {
+            for (i, td) in list.iter_mut().enumerate() {
+                f(format!("tap_dance[{i}][0]"), &mut td.on_tap);
+                f(format!("tap_dance[{i}][1]"), &mut td.on_hold);
+                f(format!("tap_dance[{i}][2]"), &mut td.on_double_tap);
+                f(format!("tap_dance[{i}][3]"), &mut td.on_tap_hold);
+            }
+        }
+        if let Some(list) = &mut self.combo {
+            for (i, combo) in list.iter_mut().enumerate() {
+                for (k, kc) in combo.keys.iter_mut().enumerate() {
+                    f(format!("combo[{i}][{k}]"), kc);
+                }
+                f(format!("combo[{i}][4]"), &mut combo.output);
+            }
+        }
+        if let Some(list) = &mut self.key_override {
+            for (i, ko) in list.iter_mut().enumerate() {
+                f(format!("key_override[{i}].trigger"), &mut ko.trigger);
+                f(
+                    format!("key_override[{i}].replacement"),
+                    &mut ko.replacement,
+                );
+            }
+        }
+        if let Some(list) = &mut self.alt_repeat_key {
+            for (i, ar) in list.iter_mut().enumerate() {
+                f(format!("alt_repeat_key[{i}].keycode"), &mut ar.keycode);
+                f(
+                    format!("alt_repeat_key[{i}].alt_keycode"),
+                    &mut ar.alt_keycode,
+                );
+            }
+        }
+    }
+}

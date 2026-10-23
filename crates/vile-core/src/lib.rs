@@ -17,3 +17,4 @@ pub use document::{
     MacroAction, Setting, Slot, TapDance, TopKey,
 };
 pub use keycode::{Catalog, CatalogContext, Keycode, KeycodeError, KeycodeKind, LayerOp};
+pub use ops::{KeyRef, MirrorMode, OpError, OpResult, Pos};
