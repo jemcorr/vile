@@ -11,6 +11,9 @@
   import KeycodeInput from "./components/KeycodeInput.svelte";
   import DiffPanel from "./components/DiffPanel.svelte";
   import Palette from "./components/Palette.svelte";
+  import ComboEditor from "./components/ComboEditor.svelte";
+  import { comboOverlays } from "./lib/combos";
+  import { PANELS } from "./lib/modes";
 
   function onkeyclick(id: string, shift: boolean): void {
     if (shift) {
@@ -180,8 +183,15 @@
         );
         return;
       }
-      case "nextPanel":
+      case "nextPanel": {
+        const index = PANELS.indexOf(ui.panel);
+        ui.panel = PANELS[(index + 1) % PANELS.length] ?? "diff";
+        ui.message = `panel: ${ui.panel}`;
+        return;
+      }
       case "toggleCombos":
+        ui.showCombos = !ui.showCombos;
+        ui.message = ui.showCombos ? "combo overlay on" : "combo overlay off";
         return;
     }
   }
@@ -307,6 +317,10 @@
     }
   }
 
+  function onComboSave(index: number, keys: string[], output: string): void {
+    void apply({ type: "setCombo", index, keys, output }, `combo ${index} saved`);
+  }
+
   function onjump(layer: number, keyId: string): void {
     ui.layer = layer;
     ui.cursor = keyId;
@@ -348,10 +362,15 @@
           cursor={ui.cursor}
           selection={ui.selection}
           {onkeyclick}
+          overlays={ui.showCombos ? comboOverlays(ui.view.combos, ui.view.layers[ui.layer] ?? [], ui.view.board.keys) : []}
         />
       </main>
       <aside class="side">
-        <DiffPanel diff={ui.view.diff} base={ui.view.diffBase} {onjump} />
+        {#if ui.panel === "combos"}
+          <ComboEditor combos={ui.view.combos} onsave={onComboSave} />
+        {:else}
+          <DiffPanel diff={ui.view.diff} base={ui.view.diffBase} {onjump} />
+        {/if}
       </aside>
     </div>
   {:else}

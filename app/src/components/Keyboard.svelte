@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { BoardKeyDto, KeyCellDto } from "../lib/types";
+  import type { ComboOverlay } from "../lib/combos";
 
   interface Props {
     keys: BoardKeyDto[];
@@ -7,9 +8,10 @@
     cursor: string;
     selection: string[];
     onkeyclick: (id: string, shift: boolean) => void;
+    overlays?: ComboOverlay[];
   }
 
-  let { keys, cells, cursor, selection, onkeyclick }: Props = $props();
+  let { keys, cells, cursor, selection, onkeyclick, overlays = [] }: Props = $props();
 
   // One key unit in SVG user units.
   const U = 60;
@@ -40,6 +42,24 @@
           y={(k.y + k.h / 2) * U + GAP / 2 + (li - (lines.length - 1) / 2) * 15 + 5}
         >{line}</text>
       {/each}
+    </g>
+  {/each}
+  {#each overlays as overlay (overlay.index)}
+    {#each overlay.keyIds as id (id)}
+      {@const target = keys.find((k) => k.id === id)}
+      {#if target}
+        <line
+          class="combo-line"
+          x1={overlay.cx * U + GAP / 2}
+          y1={overlay.cy * U + GAP / 2}
+          x2={(target.x + target.w / 2) * U + GAP / 2}
+          y2={(target.y + target.h / 2) * U + GAP / 2}
+        />
+      {/if}
+    {/each}
+    <g class="combo-badge">
+      <rect x={overlay.cx * U + GAP / 2 - 22} y={overlay.cy * U + GAP / 2 - 11} width="44" height="22" rx="6" />
+      <text x={overlay.cx * U + GAP / 2} y={overlay.cy * U + GAP / 2 + 4}>{overlay.label}</text>
     </g>
   {/each}
 </svg>
@@ -89,5 +109,21 @@
     stroke: var(--cursor);
     stroke-width: 3;
     stroke-dasharray: none;
+  }
+  .combo-line {
+    stroke: var(--cursor);
+    stroke-width: 1;
+    pointer-events: none;
+  }
+  .combo-badge rect {
+    fill: var(--selected);
+    stroke: var(--key-border);
+    pointer-events: none;
+  }
+  .combo-badge text {
+    fill: var(--key-fg);
+    font-size: 11px;
+    text-anchor: middle;
+    pointer-events: none;
   }
 </style>
