@@ -12,6 +12,7 @@ pub mod ops;
 pub mod pyjson;
 pub mod validate;
 pub use board::{Board, BoardKey};
+pub use diff::{DiffEntry, DiffSection};
 pub use document::{
     AltRepeatKey, Combo, Document, KeyOverride, LoadError, LoadIssue, LoadReport, Macro,
     MacroAction, Setting, Slot, TapDance, TopKey,
