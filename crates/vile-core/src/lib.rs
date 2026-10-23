@@ -17,6 +17,7 @@ pub use document::{
     AltRepeatKey, Combo, Document, KeyOverride, LoadError, LoadIssue, LoadReport, Macro,
     MacroAction, Setting, Slot, TapDance, TopKey,
 };
+pub use editor::{Clipboard, DiffBase, Editor, SaveError};
 pub use keycode::{
     Catalog, CatalogContext, Keycode, KeycodeError, KeycodeKind, LayerOp, SearchHit,
 };
