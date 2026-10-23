@@ -11,3 +11,4 @@ pub mod keycode;
 pub mod ops;
 pub mod pyjson;
 pub mod validate;
+pub use keycode::{Keycode, KeycodeError, KeycodeKind, LayerOp};
