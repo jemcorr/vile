@@ -3,6 +3,7 @@
 
 use crate::document::{Document, Slot};
 use crate::keycode::{Keycode, KeycodeError};
+use std::collections::HashSet;
 
 /// A matrix position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -221,4 +222,124 @@ pub fn swap_layers(doc: &mut Document, a: usize, b: usize) -> OpResult {
     let mut perm: Vec<usize> = (0..doc.layer_count()).collect();
     perm.swap(a, b);
     permute_layers(doc, &perm)
+}
+
+/// Checks the layer, then that every position holds a key.
+fn check_positions(doc: &Document, layer: usize, positions: &[Pos]) -> Result<(), OpError> {
+    check_layer(doc, layer)?;
+    for pos in positions {
+        if !matches!(doc.get(layer, pos.row, pos.col), Some(Slot::Key(_))) {
+            return Err(OpError::NoKey {
+                row: pos.row,
+                col: pos.col,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn write_slot(doc: &mut Document, layer: usize, pos: Pos, kc: Keycode) {
+    doc.layout[layer][pos.row][pos.col] = Slot::Key(kc);
+}
+
+pub fn set_keys(doc: &mut Document, layer: usize, positions: &[Pos], kc: Keycode) -> OpResult {
+    check_positions(doc, layer, positions)?;
+    for &pos in positions {
+        write_slot(doc, layer, pos, kc);
+    }
+    Ok(vec![])
+}
+
+pub fn clear_keys(doc: &mut Document, layer: usize, positions: &[Pos]) -> OpResult {
+    set_keys(doc, layer, positions, Keycode::NO)
+}
+
+pub fn transparent_keys(doc: &mut Document, layer: usize, positions: &[Pos]) -> OpResult {
+    set_keys(doc, layer, positions, Keycode::TRNS)
+}
+
+/// The keycodes at `positions`, in the order of `positions`.
+pub fn read_keys(doc: &Document, layer: usize, positions: &[Pos]) -> Result<Vec<Keycode>, OpError> {
+    check_positions(doc, layer, positions)?;
+    Ok(positions
+        .iter()
+        .map(|pos| match doc.get(layer, pos.row, pos.col) {
+            Some(Slot::Key(kc)) => kc,
+            _ => Keycode::NO,
+        })
+        .collect())
+}
+
+/// `positions[i]` gets `values[i]`.
+pub fn write_keys(
+    doc: &mut Document,
+    layer: usize,
+    positions: &[Pos],
+    values: &[Keycode],
+) -> OpResult {
+    check_layer(doc, layer)?;
+    if positions.len() != values.len() {
+        return Err(OpError::SizeMismatch {
+            expected: values.len(),
+            actual: positions.len(),
+        });
+    }
+    check_positions(doc, layer, positions)?;
+    for (&pos, &kc) in positions.iter().zip(values) {
+        write_slot(doc, layer, pos, kc);
+    }
+    Ok(vec![])
+}
+
+/// Exchanges the keys of `a` and `b` pairwise. The two lists may use different layers.
+pub fn swap_keys(doc: &mut Document, a: &[KeyRef], b: &[KeyRef]) -> OpResult {
+    if a.len() != b.len() {
+        return Err(OpError::SizeMismatch {
+            expected: a.len(),
+            actual: b.len(),
+        });
+    }
+    if a.iter().any(|r| b.contains(r)) {
+        return Err(OpError::Overlap);
+    }
+    for r in a.iter().chain(b) {
+        check_positions(doc, r.layer, &[r.pos])?;
+    }
+    let read = |doc: &Document, refs: &[KeyRef]| -> Vec<Keycode> {
+        refs.iter()
+            .map(|r| match doc.get(r.layer, r.pos.row, r.pos.col) {
+                Some(Slot::Key(kc)) => kc,
+                _ => Keycode::NO,
+            })
+            .collect()
+    };
+    let values_a = read(doc, a);
+    let values_b = read(doc, b);
+    for (r, kc) in a.iter().zip(values_b) {
+        write_slot(doc, r.layer, r.pos, kc);
+    }
+    for (r, kc) in b.iter().zip(values_a) {
+        write_slot(doc, r.layer, r.pos, kc);
+    }
+    Ok(vec![])
+}
+
+/// Where pasted keys go: the copied positions, or the selection when it is
+/// given and fits.
+pub fn paste_targets(copied: &[Pos], selection: &[Pos]) -> Result<Vec<Pos>, OpError> {
+    if selection.is_empty() {
+        return Ok(copied.to_vec());
+    }
+    let copied_set: HashSet<Pos> = copied.iter().copied().collect();
+    let selection_set: HashSet<Pos> = selection.iter().copied().collect();
+    if copied_set == selection_set {
+        return Ok(copied.to_vec());
+    }
+    if selection.len() == copied.len() {
+        return Ok(selection.to_vec());
+    }
+    Err(OpError::SizeMismatch {
+        expected: copied.len(),
+        actual: selection.len(),
+    })
 }
