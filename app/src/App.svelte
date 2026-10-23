@@ -10,6 +10,7 @@
   import StatusBar from "./components/StatusBar.svelte";
   import KeycodeInput from "./components/KeycodeInput.svelte";
   import DiffPanel from "./components/DiffPanel.svelte";
+  import Palette from "./components/Palette.svelte";
 
   function onkeyclick(id: string, shift: boolean): void {
     if (shift) {
@@ -57,6 +58,10 @@
   }
 
   async function run(action: Action): Promise<void> {
+    if (action.kind === "palette") {
+      ui.mode = "palette";
+      return;
+    }
     if (ui.view === null && !["open", "save", "escape"].includes(action.kind)) {
       ui.message = "open a file first (⌘O)";
       return;
@@ -175,7 +180,6 @@
         );
         return;
       }
-      case "palette":
       case "nextPanel":
       case "toggleCombos":
         return;
@@ -205,6 +209,102 @@
     const index = ui.view?.board?.keys.findIndex((k) => k.id === keys[0]) ?? -1;
     const cells = ui.view?.layers[ui.layer] ?? [];
     return cells[index]?.wire ?? "";
+  }
+
+  /** Runs a command chosen in the palette. */
+  async function onPaletteRun(id: string, arg: number | null): Promise<void> {
+    ui.mode = "normal";
+    const pureUi = [
+      "panelDiff",
+      "panelCombos",
+      "panelMacros",
+      "panelTapDances",
+      "panelKeyOverrides",
+      "panelAltRepeat",
+      "toggleComboOverlay",
+    ];
+    if (ui.view === null && !["open", "saveAs", ...pureUi].includes(id)) {
+      ui.message = "open a file first (⌘O)";
+      return;
+    }
+    const layer = ui.layer;
+    switch (id) {
+      case "open":
+        await run({ kind: "open" });
+        return;
+      case "save":
+        await run({ kind: "save" });
+        return;
+      case "undo":
+        await run({ kind: "undo" });
+        return;
+      case "redo":
+        await run({ kind: "redo" });
+        return;
+      case "clearLayer":
+        await run({ kind: "clearLayer" });
+        return;
+      case "transparentLayer":
+        await run({ kind: "transparentLayer" });
+        return;
+      case "copyLayer":
+        await run({ kind: "copyLayer" });
+        return;
+      case "pasteLayer":
+        await run({ kind: "pasteLayer" });
+        return;
+      case "saveAs":
+        await runView(() => api.saveAsDialog(), (view) => `saved ${view.path ?? ""}`);
+        return;
+      case "swapLayer":
+        if (arg !== null) {
+          await apply({ type: "swapLayers", a: layer, b: arg }, `swapped layers ${layer} and ${arg}`);
+          ui.layer = arg;
+        }
+        return;
+      case "moveLayer":
+        if (arg !== null) {
+          await apply({ type: "moveLayer", from: layer, to: arg }, `moved layer ${layer} to ${arg}`);
+          ui.layer = arg;
+        }
+        return;
+      case "mirrorLeftToRight":
+        await apply({ type: "mirrorLayer", layer, mode: "leftToRight" }, `mirrored layer ${layer}`);
+        return;
+      case "mirrorRightToLeft":
+        await apply({ type: "mirrorLayer", layer, mode: "rightToLeft" }, `mirrored layer ${layer}`);
+        return;
+      case "mirrorSwap":
+        await apply({ type: "mirrorLayer", layer, mode: "swap" }, `mirrored layer ${layer}`);
+        return;
+      case "diffDisk":
+        await runView(() => api.setDiffBase("disk"), () => "diff against the file on disk");
+        return;
+      case "diffGit":
+        await runView(() => api.setDiffBase("git"), () => "diff against git HEAD");
+        return;
+      case "panelDiff":
+        ui.panel = "diff";
+        return;
+      case "panelCombos":
+        ui.panel = "combos";
+        return;
+      case "panelMacros":
+        ui.panel = "macros";
+        return;
+      case "panelTapDances":
+        ui.panel = "tapDances";
+        return;
+      case "panelKeyOverrides":
+        ui.panel = "keyOverrides";
+        return;
+      case "panelAltRepeat":
+        ui.panel = "altRepeat";
+        return;
+      case "toggleComboOverlay":
+        ui.showCombos = !ui.showCombos;
+        return;
+    }
   }
 
   function onjump(layer: number, keyId: string): void {
@@ -272,6 +372,13 @@
     selectionSize={ui.selection.length}
     message={ui.message}
   />
+  {#if ui.mode === "palette"}
+    <Palette
+      layerCount={ui.view?.layerCount ?? 0}
+      onrun={(id, arg) => void onPaletteRun(id, arg)}
+      onclose={() => (ui.mode = "normal")}
+    />
+  {/if}
 </div>
 
 <style>
