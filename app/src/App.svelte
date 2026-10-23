@@ -4,7 +4,7 @@
   import { setView, ui } from "./lib/state.svelte";
   import { neighbor } from "./lib/grid";
   import { actionFor, type Action } from "./lib/keymap";
-  import type { KeyRefDto, OpDto, ViewModel } from "./lib/types";
+  import type { KeyRefDto, MacroActionDto, OpDto, ViewModel } from "./lib/types";
   import Keyboard from "./components/Keyboard.svelte";
   import LayerBar from "./components/LayerBar.svelte";
   import StatusBar from "./components/StatusBar.svelte";
@@ -12,6 +12,7 @@
   import DiffPanel from "./components/DiffPanel.svelte";
   import Palette from "./components/Palette.svelte";
   import ComboEditor from "./components/ComboEditor.svelte";
+  import MacroEditor from "./components/MacroEditor.svelte";
   import { comboOverlays } from "./lib/combos";
   import { PANELS } from "./lib/modes";
 
@@ -317,6 +318,10 @@
     }
   }
 
+  function onMacroSave(index: number, actions: MacroActionDto[]): void {
+    void apply({ type: "setMacro", index, actions }, `macro M${index} saved`);
+  }
+
   function onComboSave(index: number, keys: string[], output: string): void {
     void apply({ type: "setCombo", index, keys, output }, `combo ${index} saved`);
   }
@@ -368,6 +373,8 @@
       <aside class="side">
         {#if ui.panel === "combos"}
           <ComboEditor combos={ui.view.combos} onsave={onComboSave} />
+        {:else if ui.panel === "macros"}
+          <MacroEditor macros={ui.view.macros} onsave={onMacroSave} />
         {:else}
           <DiffPanel diff={ui.view.diff} base={ui.view.diffBase} {onjump} />
         {/if}
