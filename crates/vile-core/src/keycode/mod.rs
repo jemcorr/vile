@@ -1,6 +1,7 @@
 //! Keycodes in Vial protocol v6 numbering, their kinds, and layer references.
 
 mod catalog;
+mod label;
 mod table;
 
 pub use catalog::{Catalog, CatalogContext};

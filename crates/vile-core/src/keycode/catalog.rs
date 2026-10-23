@@ -425,3 +425,67 @@ fn modifiers(expr: &str, input: &str) -> Result<u16, KeycodeError> {
     }
     Ok(value)
 }
+
+/// Symbols a person may type as one character, and their keycode strings (US layout).
+pub(super) const SYMBOLS: &[(char, &str)] = &[
+    ('-', "KC_MINUS"),
+    ('=', "KC_EQUAL"),
+    ('[', "KC_LBRACKET"),
+    (']', "KC_RBRACKET"),
+    ('\\', "KC_BSLASH"),
+    (';', "KC_SCOLON"),
+    ('\'', "KC_QUOTE"),
+    ('`', "KC_GRAVE"),
+    (',', "KC_COMMA"),
+    ('.', "KC_DOT"),
+    ('/', "KC_SLASH"),
+    ('_', "LSFT(KC_MINUS)"),
+    ('+', "LSFT(KC_EQUAL)"),
+    ('{', "LSFT(KC_LBRACKET)"),
+    ('}', "LSFT(KC_RBRACKET)"),
+    ('|', "LSFT(KC_BSLASH)"),
+    (':', "LSFT(KC_SCOLON)"),
+    ('"', "LSFT(KC_QUOTE)"),
+    ('~', "LSFT(KC_GRAVE)"),
+    ('<', "LSFT(KC_COMMA)"),
+    ('>', "LSFT(KC_DOT)"),
+    ('?', "LSFT(KC_SLASH)"),
+    ('!', "LSFT(KC_1)"),
+    ('@', "LSFT(KC_2)"),
+    ('#', "LSFT(KC_3)"),
+    ('$', "LSFT(KC_4)"),
+    ('%', "LSFT(KC_5)"),
+    ('^', "LSFT(KC_6)"),
+    ('&', "LSFT(KC_7)"),
+    ('*', "LSFT(KC_8)"),
+    ('(', "LSFT(KC_9)"),
+    (')', "LSFT(KC_0)"),
+];
+
+impl Catalog {
+    /// Lenient parse for text a person typed: trims, accepts one symbol, any
+    /// letter case, optional KC_ prefixes, and missing closing parentheses.
+    pub fn parse_input(&self, s: &str) -> Result<Keycode, KeycodeError> {
+        let text = s.trim();
+        if text.is_empty() {
+            return Err(KeycodeError::Empty);
+        }
+        let mut chars = text.chars();
+        if let (Some(only), None) = (chars.next(), chars.next())
+            && let Some((_, name)) = SYMBOLS.iter().find(|(symbol, _)| *symbol == only)
+        {
+            return self.parse_code(name, false).map(Keycode);
+        }
+        let mut upper: String = text
+            .to_ascii_uppercase()
+            .chars()
+            .filter(|c| *c != ' ')
+            .collect();
+        let opens = upper.matches('(').count();
+        let closes = upper.matches(')').count();
+        for _ in closes..opens {
+            upper.push(')');
+        }
+        self.parse_code(&upper, true).map(Keycode)
+    }
+}
