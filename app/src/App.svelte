@@ -4,7 +4,15 @@
   import { setView, ui } from "./lib/state.svelte";
   import { neighbor } from "./lib/grid";
   import { actionFor, type Action } from "./lib/keymap";
-  import type { KeyRefDto, MacroActionDto, OpDto, ViewModel } from "./lib/types";
+  import type {
+    AltRepeatDto,
+    KeyOverrideDto,
+    KeyRefDto,
+    MacroActionDto,
+    OpDto,
+    TapDanceDto,
+    ViewModel,
+  } from "./lib/types";
   import Keyboard from "./components/Keyboard.svelte";
   import LayerBar from "./components/LayerBar.svelte";
   import StatusBar from "./components/StatusBar.svelte";
@@ -13,6 +21,9 @@
   import Palette from "./components/Palette.svelte";
   import ComboEditor from "./components/ComboEditor.svelte";
   import MacroEditor from "./components/MacroEditor.svelte";
+  import TapDanceEditor from "./components/TapDanceEditor.svelte";
+  import KeyOverrideEditor from "./components/KeyOverrideEditor.svelte";
+  import AltRepeatEditor from "./components/AltRepeatEditor.svelte";
   import { comboOverlays } from "./lib/combos";
   import { PANELS } from "./lib/modes";
 
@@ -318,6 +329,52 @@
     }
   }
 
+  function onTapDanceSave(td: TapDanceDto): void {
+    void apply(
+      {
+        type: "setTapDance",
+        index: td.index,
+        onTap: td.onTap,
+        onHold: td.onHold,
+        onDoubleTap: td.onDoubleTap,
+        onTapHold: td.onTapHold,
+        tappingTerm: td.tappingTerm,
+      },
+      `tap dance TD(${td.index}) saved`,
+    );
+  }
+
+  function onKeyOverrideSave(ko: KeyOverrideDto): void {
+    void apply(
+      {
+        type: "setKeyOverride",
+        index: ko.index,
+        trigger: ko.trigger,
+        replacement: ko.replacement,
+        layers: ko.layers,
+        triggerMods: ko.triggerMods,
+        negativeModMask: ko.negativeModMask,
+        suppressedMods: ko.suppressedMods,
+        options: ko.options,
+      },
+      `key override ${ko.index} saved`,
+    );
+  }
+
+  function onAltRepeatSave(ar: AltRepeatDto): void {
+    void apply(
+      {
+        type: "setAltRepeat",
+        index: ar.index,
+        keycode: ar.keycode,
+        altKeycode: ar.altKeycode,
+        allowedMods: ar.allowedMods,
+        options: ar.options,
+      },
+      `alt repeat key ${ar.index} saved`,
+    );
+  }
+
   function onMacroSave(index: number, actions: MacroActionDto[]): void {
     void apply({ type: "setMacro", index, actions }, `macro M${index} saved`);
   }
@@ -375,6 +432,12 @@
           <ComboEditor combos={ui.view.combos} onsave={onComboSave} />
         {:else if ui.panel === "macros"}
           <MacroEditor macros={ui.view.macros} onsave={onMacroSave} />
+        {:else if ui.panel === "tapDances"}
+          <TapDanceEditor tapDances={ui.view.tapDances} onsave={onTapDanceSave} />
+        {:else if ui.panel === "keyOverrides"}
+          <KeyOverrideEditor keyOverrides={ui.view.keyOverrides} layerCount={ui.view.layerCount} onsave={onKeyOverrideSave} />
+        {:else if ui.panel === "altRepeat"}
+          <AltRepeatEditor altRepeatKeys={ui.view.altRepeatKeys} onsave={onAltRepeatSave} />
         {:else}
           <DiffPanel diff={ui.view.diff} base={ui.view.diffBase} {onjump} />
         {/if}
