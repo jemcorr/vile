@@ -1,0 +1,18 @@
+[package]
+name = "vile-session"
+description = "Editing session and view models for the vile desktop app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+vile-core = { path = "../vile-core" }
+
+[dev-dependencies]
+tempfile = "=3.27.0"
