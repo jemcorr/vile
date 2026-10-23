@@ -1,7 +1,9 @@
 //! Keycodes in Vial protocol v6 numbering, their kinds, and layer references.
 
+mod catalog;
 mod table;
 
+pub use catalog::{Catalog, CatalogContext};
 pub use table::{Group, TableEntry, table};
 
 // Code ranges of Vial protocol v6 (QMK 0.19 and later).
