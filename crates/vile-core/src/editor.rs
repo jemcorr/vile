@@ -1,0 +1,1 @@
+//! Editing session with undo.
