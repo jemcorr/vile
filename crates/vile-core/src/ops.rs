@@ -2,7 +2,9 @@
 //! first and leaves the document unchanged when it returns an error.
 
 use crate::board::Board;
-use crate::document::{Document, Slot};
+use crate::document::{
+    AltRepeatKey, Combo, Document, KeyOverride, Macro, MacroAction, Slot, TapDance,
+};
 use crate::keycode::{Keycode, KeycodeError};
 use std::collections::HashSet;
 
@@ -403,4 +405,60 @@ pub fn mirror_layer(doc: &mut Document, board: &Board, layer: usize, mode: Mirro
         }
     }
     Ok(vec![])
+}
+
+/// Replaces entry `index` of an optional or list section. The section must
+/// exist and the index must be in range; the list is unchanged on error.
+fn set_entry<T>(
+    list: Option<&mut Vec<T>>,
+    section: &'static str,
+    index: usize,
+    value: T,
+) -> OpResult {
+    let list =
+        list.ok_or_else(|| OpError::Invalid(format!("this file has no {section} section")))?;
+    let count = list.len();
+    let slot = list.get_mut(index).ok_or(OpError::NoSuchSlot {
+        section,
+        index,
+        count,
+    })?;
+    *slot = value;
+    Ok(vec![])
+}
+
+pub fn set_combo(doc: &mut Document, index: usize, combo: Combo) -> OpResult {
+    set_entry(doc.combo.as_mut(), "combo", index, combo)
+}
+
+pub fn set_macro(doc: &mut Document, index: usize, m: Macro) -> OpResult {
+    for action in &m.actions {
+        match action {
+            MacroAction::Text(text) if text.chars().any(|c| (c as u32) <= 7) => {
+                return Err(OpError::Invalid(
+                    "macro text must not contain characters U+0000 to U+0007".to_string(),
+                ));
+            }
+            MacroAction::Delay(ms) if *ms > 65024 => {
+                return Err(OpError::Invalid(
+                    "macro delay must be at most 65024 ms".to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+    // The number of macro slots never changes (G9).
+    set_entry(Some(&mut doc.macros), "macro", index, m)
+}
+
+pub fn set_tap_dance(doc: &mut Document, index: usize, td: TapDance) -> OpResult {
+    set_entry(doc.tap_dance.as_mut(), "tap_dance", index, td)
+}
+
+pub fn set_key_override(doc: &mut Document, index: usize, ko: KeyOverride) -> OpResult {
+    set_entry(doc.key_override.as_mut(), "key_override", index, ko)
+}
+
+pub fn set_alt_repeat_key(doc: &mut Document, index: usize, ar: AltRepeatKey) -> OpResult {
+    set_entry(doc.alt_repeat_key.as_mut(), "alt_repeat_key", index, ar)
 }
