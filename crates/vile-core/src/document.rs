@@ -366,7 +366,7 @@ impl Document {
             settings,
         };
         let catalog = loader.catalog;
-        let warnings = loader
+        let mut warnings: Vec<LoadIssue> = loader
             .seen
             .iter()
             .filter_map(|(path, original, code)| {
@@ -377,6 +377,7 @@ impl Document {
                 })
             })
             .collect();
+        warnings.extend(crate::validate::validate(&doc));
         let canonical = doc.to_vil_bytes() == bytes;
         Ok((
             doc,
