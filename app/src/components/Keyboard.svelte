@@ -308,8 +308,8 @@
     font-size: 10px;
     fill: var(--muted);
   }
-  .kind-trns text {
-    fill: var(--key-trns);
+  .kind-trns rect {
+    fill: var(--key-trns-bg);
   }
   .key .matrix-label,
   .empty-cell text {

@@ -329,6 +329,7 @@
         <div class="tiles">
           {#each section.hits as hit (hit.name)}<button
               class="tile"
+              class:transparent-key={hit.code === 1}
               class:word-label={hit.pickerLabel.length > 5}
               title={macroTooltip(hit)}
               aria-label={`${hit.pickerLabel}. ${hit.description} (${hit.name})`}

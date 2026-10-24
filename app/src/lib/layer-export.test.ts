@@ -82,7 +82,7 @@ const theme: ExportTheme = {
   background: "#1c1c1e",
   foreground: "#f2f2f7",
   muted: "#8e8e93",
-  transparent: "#6b6b72",
+  transparent: "#202023",
   key: "#2c2c2e",
   keyForeground: "#f2f2f7",
   border: "#48484a",
@@ -209,7 +209,7 @@ describe("layer PNG rendering", () => {
         { ...cell("a", 4, "S\nCtrl"), kind: "modTap" },
       ],
       [cell("a", 0, ""), cell("b", 1, "▽")],
-      [cell("a", 4, "X"), cell("b", 5, "Y")],
+      [cell("a", 4, "X"), cell("b", 1, "▽")],
     ]);
     const snapshot = JSON.stringify(model);
     const result = await renderLayerSheet(model, theme);
@@ -219,8 +219,8 @@ describe("layer PNG rendering", () => {
       theme.media,
       theme.media,
       theme.key,
-      theme.key,
-      theme.key,
+      theme.transparent,
+      theme.transparent,
     ]);
     expect(mock.text.map((entry) => entry.text)).toEqual([
       "Layer 0 · Base",
@@ -229,7 +229,7 @@ describe("layer PNG rendering", () => {
       "Mouse",
       "Layer 2",
       "X",
-      "Y",
+      "▽",
     ]);
     expect(mock.text.find((entry) => entry.text === "Ctrl")).toEqual({
       text: "Ctrl",
@@ -237,6 +237,7 @@ describe("layer PNG rendering", () => {
       color: theme.muted,
     });
     expect(mock.text.find((entry) => entry.text === "Mouse")?.color).toBe(theme.keyForeground);
+    expect(mock.text.find((entry) => entry.text === "▽")?.color).toBe(theme.keyForeground);
     expect(mock.context.rotate).toHaveBeenCalledWith((35 * Math.PI) / 180);
     expect(mock.context.roundRect).toHaveBeenCalledTimes(8); // Two tiles and three key rectangles per tile.
     expect(JSON.stringify(model)).toBe(snapshot);

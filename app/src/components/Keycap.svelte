@@ -71,8 +71,8 @@
     font-size: 10px;
     fill: var(--muted);
   }
-  .kind-trns text {
-    fill: var(--key-trns);
+  .kind-trns rect {
+    fill: var(--key-trns-bg);
   }
   .kind-layer rect,
   .kind-layerTap rect,

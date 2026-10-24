@@ -18,13 +18,12 @@
   --subtle-edge: #2b2b31;
   --key-bg: #2c2d33;
   --key-fg: #efeff2;
+  --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
   --key-border: #45464f;
   --key-layer: #27394e;
   --key-mod: #423a2b;
   --key-macro: #3c304d;
   --key-media: #1f4440;
-  /* Transparent keycap glyph: 75% muted over the keycap fill, about 3.7:1 on --key-bg. */
-  --key-trns: color-mix(in srgb, var(--muted) 75%, var(--key-bg));
   --selected: #2e5585;
   --selected-hover: #3a679d;
   --changed: #efad60;
@@ -54,6 +53,7 @@
   --subtle-edge: #e3e3e9;
   --key-bg: #ffffff;
   --key-fg: #282830;
+  --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
   --key-border: #ccccd6;
   --key-layer: #e1e9f5;
   --key-mod: #f1e9db;
@@ -572,8 +572,11 @@ kbd {
   border-color: var(--cursor);
   background: var(--hover);
 }
-.canvas-app .tile > span.transparent-glyph {
-  color: var(--key-trns);
+.canvas-app .tile.transparent-key {
+  background: var(--key-trns-bg);
+}
+.canvas-app .tile.transparent-key:hover {
+  background: var(--hover);
 }
 .canvas-app .tile > span {
   font-size: 16px;
