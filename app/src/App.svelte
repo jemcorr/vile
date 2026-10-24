@@ -4,6 +4,7 @@
   import { api, errorText } from "./lib/api";
   import { notify, ui, setView } from "./lib/state.svelte";
   import { PENDING_DELAY_MS } from "./lib/pending";
+  import { effectiveTheme, nextThemeMode, readThemeMode, writeThemeMode, type ThemeMode } from "./lib/theme";
   import { neighbor } from "./lib/grid";
   import { actionFor, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
@@ -73,6 +74,32 @@
       /* Editing still works without preference storage. */
     }
   });
+  // Theme: the stored mode (system, light or dark) resolves to the effective theme on
+  // <html data-theme>, which the stylesheets and the PNG export read.
+  let themeMode: ThemeMode = $state(readThemeMode());
+  const systemDark = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
+  let prefersDark = $state(systemDark?.matches ?? true);
+  $effect(() => {
+    if (!systemDark) return;
+    const update = () => (prefersDark = systemDark.matches);
+    systemDark.addEventListener("change", update);
+    return () => systemDark.removeEventListener("change", update);
+  });
+  $effect(() => {
+    document.documentElement.dataset.theme = effectiveTheme(themeMode, prefersDark);
+  });
+  const themeIcon = $derived(themeMode === "system" ? "half" : themeMode === "light" ? "sun" : "moon");
+  const themeLabel = $derived(
+    themeMode === "system"
+      ? "Theme: system (click for light)"
+      : themeMode === "light"
+        ? "Theme: light (click for dark)"
+        : "Theme: dark (click for system)",
+  );
+  function cycleTheme(): void {
+    themeMode = nextThemeMode(themeMode);
+    writeThemeMode(themeMode);
+  }
   let busy = $state(false);
   // Shows the busy toast only when a call is still running after PENDING_DELAY_MS.
   let busyShown = $state(false);
@@ -797,7 +824,7 @@
     {#if drafts}<button class="draft-indicator" onclick={() => { switchPanel('macros'); ui.sideVisible = true; ui.revealMacro = ui.draftMacro; }}>Macro draft M{ui.draftMacro}</button>{/if}
     <span class="spacer"></span>
     <button class="command-button" onclick={() => (ui.mode = 'palette')}><Icon name="command"/>Commands<kbd>⌘K</kbd></button>
-    <button class="icon-button theme-button" aria-label="Switch theme" title="Switch light and dark theme" onclick={() => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; }}><Icon name="sun"/></button>
+    <button class="icon-button theme-button" aria-label={themeLabel} title={themeLabel} onclick={cycleTheme}><Icon name={themeIcon}/></button>
     <button class="pending-button" onclick={() => { switchPanel('diff'); ui.sideVisible = true; }}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
     <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>⌘S</kbd></button>
   </header>

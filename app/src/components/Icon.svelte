@@ -9,7 +9,8 @@
     close: "m6 6 12 12M6 18 18 6",
     search: "M21 21 16 16M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
     sliders: "M4 7h16M4 17h16M9 4v6M15 14v6",
-    sun: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 1.4 1.4M17 17l1.4 1.4M5.6 18.4 1.4-1.4M17 7l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+    sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+    moon: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z",
     file: "M14 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9zM14 2v7h7",
     command:
       "M8 9H6a3 3 0 1 1 3-3v12a3 3 0 1 1-3-3h12a3 3 0 1 1-3 3V6a3 3 0 1 1 3 3H8",
@@ -18,7 +19,16 @@
   const gripDots = [6, 12, 18].flatMap((cy) => [9, 15].map((cx) => ({ cx, cy })));
 </script>
 
-{#if name === "grip"}
+{#if name === "half"}
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.5"
+  aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" /></svg>
+{:else if name === "grip"}
 <svg
   width={size}
   height={size}
