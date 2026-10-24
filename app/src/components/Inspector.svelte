@@ -39,8 +39,9 @@
   $effect(() => {
     const code = base;
     let current = true;
-    baseView = null;
-    if (code !== null)
+    // Keep the previous label until the new one arrives. Only a null base clears it.
+    if (code === null) baseView = null;
+    else
       void api.keycodeView(`0x${code.toString(16)}`).then((view) => {
         if (current) baseView = view;
       });

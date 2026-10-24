@@ -6,6 +6,7 @@
   import Field from "./Field.svelte";
   import Icon from "./Icon.svelte";
   import { moveAction, macroSummary } from "../lib/macros";
+  import { createPendingTracker } from "../lib/pending";
   let {
     macros,
     onsave,
@@ -18,6 +19,10 @@
   let ids: string[] = $state([]);
   let nextId = 0;
   let usage: MacroUsage | null = $state(null);
+  let usagePending = $state(false);
+  // The last usage stays rendered until the next one arrives. usagePending turns on
+  // only after PENDING_DELAY_MS, so fast edits never flash "Calculating".
+  const usageTracker = createPendingTracker((pending) => (usagePending = pending));
   let committedUsage: MacroUsage | null = $state(null);
   let error = $state("");
   const macro = $derived(macros.find((m) => m.index === selected));
@@ -48,31 +53,27 @@
   });
   $effect(() => {
     const actions = projectedActions;
-    let current = true;
-    usage = null;
     if (
       actions.some(
         (a) => a.kind === "delay" && (!Number.isInteger(a.delay) || a.delay < 0 || a.delay > 65024),
       )
     ) {
+      usageTracker.cancel();
       error = "Delay must be an integer from 0 to 65024 ms";
-      return () => {
-        current = false;
-      };
+      return;
     }
     error = "";
+    const request = usageTracker.start();
     void api.macroUsage(actions).then(
       (next) => {
-        if (current) usage = next;
+        if (usageTracker.finish(request)) usage = next;
       },
       (e) => {
-        if (current) error = errorText(e);
+        if (usageTracker.finish(request)) error = errorText(e);
       },
     );
     if (ids.length !== actions.length) ids = actions.map(() => `action-${nextId++}`);
-    return () => {
-      current = false;
-    };
+    return () => usageTracker.cancel();
   });
   $effect(() => {
     const actions = macro?.actions ?? [];
@@ -172,6 +173,6 @@
     if (selected === next) (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-slot-index="' + next + '"]')?.focus();
   }</script>
 
-<section class="slot-editor macro-slot-editor" data-slot-editor="macro"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><div class="slot-list" role="group" style="--per-column:8" aria-label="Macro slots" onkeydown={(e) => slotKeys(e, 8, select)}>{#each macros as m}<button class="slot-cell" data-slot-index={m.index} data-state={slotSet(m) ? "set" : "empty"} class:active={selected === m.index} class:dirty={dirty && selected === m.index} aria-pressed={selected === m.index} aria-label={"Macro slot M" + m.index} title={dirty && selected === m.index ? "Unapplied draft" : slotText(m) || "Empty"} onclick={() => select(m.index)}><span class="slot-id">{m.index}</span><span class="slot-desc">{#if ui.view?.names.macros[m.index]}{slotText(m)}{:else}{#each macroParts(m) as part}<span class="macro-chip">{part}</span>{/each}{/if}</span>{#if dirty && selected === m.index}<i class="draft-mark" aria-hidden="true"></i>{/if}</button>{/each}</div><div class="slot-form">{#if macro}<article class="slot-edit-panel" aria-label={`Editing macro M${selected}`}><div class="slot-edit-title"><div><span class="slot-kicker">Macro {selected}</span>{#if ui.view?.names.macros[selected]}<h3>{ui.view.names.macros[selected]}</h3>{/if}</div><div class="slot-title-actions"><button class="quiet-button" onclick={() => window.dispatchEvent(new CustomEvent("canvas-rename-macro", { detail: selected }))}>Rename</button>{#if dirty}<span class="slot-draft">Draft</span>{/if}</div></div><p class="macro-usage">{dirty && projectedTotal === null ? "Calculating bytes" : `${dirty ? projectedTotal : (ui.view?.macroBytes ?? 0)} bytes total${dirty ? " projected" : ""}`} <span aria-hidden="true">·</span> {ui.view?.macroCapacity === null ? "capacity unknown" : `${ui.view?.macroCapacity} byte capacity`}</p>{#if ui.view?.macroCapacity !== null && (dirty ? (projectedTotal ?? 0) : (ui.view?.macroBytes ?? 0)) > (ui.view?.macroCapacity ?? Infinity)}<p class="macro-alert" role="alert">Macro memory exceeded. No actions will be truncated.</p>{/if}<p class="macro-slot-usage">{usage ? `${usage.bytes} bytes in this slot${dirty ? " projected" : ""}` : "Calculating slot size"}</p><div class="macro-actions">{#each macro.actions as action, i (ids[i] ?? `row-${i}`)}<div class="action"><div class="row macro-action-head"><button class="action-grip" disabled={dirty} title="Drag to reorder action" aria-label={`Drag action ${i + 1}`} style:touch-action="none" onpointerdown={(e) => startPointerDrag(e, { kind: "macro", slot: selected, index: i }, action.kind)}><Icon name="grip" size={14} /></button><span class="action-index">{i + 1}</span><span class="action-title"><strong>{action.kind}</strong><small>{usage?.actionBytes[i] ?? 0} bytes</small></span><span class="action-spacer"></span><button disabled={dirty || i === 0} title="Move action up" aria-label={`Move action ${i + 1} up`} onclick={() => reorder(i, i - 1)}>↑</button><button disabled={dirty || i === macro!.actions.length - 1} title="Move action down" aria-label={`Move action ${i + 1} down`} onclick={() => reorder(i, i + 1)}>↓</button><button disabled={dirty} onclick={() => { ui.inspectorPaths = []; void commit(macro!.actions.filter((_, j) => j !== i), ids.filter((_, j) => j !== i)); }}>Delete</button></div>{#if action.kind === "text"}<label>Text <input value={draft[i] ?? action.text} oninput={(e) => (draft[i] = e.currentTarget.value)} /></label>{:else if action.kind === "delay"}<label>Delay <input type="number" min="0" max="65024" value={draft[i] ?? action.delay} oninput={(e) => (draft[i] = e.currentTarget.value)} /> ms</label>{:else}<div class="macro-keys">{#each action.keys as _, k}<div class="macro-key"><Field path={`macro[${selected}][${i}][${k + 1}]`} label={`Key ${k + 1}`} size="sm" /><button class="macro-remove" disabled={dirty} aria-label={`Remove key ${k + 1}`} title="Remove key from action" onclick={() => void commit(macro!.actions.map((a, j) => j === i ? { ...a, keys: a.keys.filter((_, n) => n !== k) } : a))}>−</button></div>{/each}<button class="keycap-add" disabled={dirty} aria-label="Add key" title="Add key" onclick={() => void commit(macro!.actions.map((a, j) => (j === i ? { ...a, keys: [...a.keys, "KC_NO"] } : a)))}>+</button></div>{/if}</div>{/each}</div><div class="row macro-add-actions">{#each ["tap", "down", "up", "text", "delay"] as kind}<button disabled={dirty} onclick={() => add(kind as MacroActionKind)}>+ {kind}</button>{/each}</div>{#if dirty}<div class="row macro-draft-actions"><button onclick={() => void applyDraft()}>Apply draft</button><button onclick={() => { draft = {}; error = ""; }}>Revert draft</button></div>{/if}{#if error}<p class="macro-alert" role="alert">{error}</p>{/if}</article>{/if}</div></section>
+<section class="slot-editor macro-slot-editor" data-slot-editor="macro"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><div class="slot-list" role="group" style="--per-column:8" aria-label="Macro slots" onkeydown={(e) => slotKeys(e, 8, select)}>{#each macros as m}<button class="slot-cell" data-slot-index={m.index} data-state={slotSet(m) ? "set" : "empty"} class:active={selected === m.index} class:dirty={dirty && selected === m.index} aria-pressed={selected === m.index} aria-label={"Macro slot M" + m.index} title={dirty && selected === m.index ? "Unapplied draft" : slotText(m) || "Empty"} onclick={() => select(m.index)}><span class="slot-id">{m.index}</span><span class="slot-desc">{#if ui.view?.names.macros[m.index]}{slotText(m)}{:else}{#each macroParts(m) as part}<span class="macro-chip">{part}</span>{/each}{/if}</span>{#if dirty && selected === m.index}<i class="draft-mark" aria-hidden="true"></i>{/if}</button>{/each}</div><div class="slot-form">{#if macro}<article class="slot-edit-panel" aria-label={`Editing macro M${selected}`}><div class="slot-edit-title"><div><span class="slot-kicker">Macro {selected}</span>{#if ui.view?.names.macros[selected]}<h3>{ui.view.names.macros[selected]}</h3>{/if}</div><div class="slot-title-actions"><button class="quiet-button" onclick={() => window.dispatchEvent(new CustomEvent("canvas-rename-macro", { detail: selected }))}>Rename</button>{#if dirty}<span class="slot-draft">Draft</span>{/if}</div></div><p class="macro-usage">{dirty && projectedTotal === null ? (usagePending ? "Calculating bytes" : "— bytes total projected") :`${dirty ? projectedTotal : (ui.view?.macroBytes ?? 0)} bytes total${dirty ? " projected" : ""}`} <span aria-hidden="true">·</span> {ui.view?.macroCapacity === null ? "capacity unknown" : `${ui.view?.macroCapacity} byte capacity`}</p>{#if ui.view?.macroCapacity !== null && (dirty ? (projectedTotal ?? 0) : (ui.view?.macroBytes ?? 0)) > (ui.view?.macroCapacity ?? Infinity)}<p class="macro-alert" role="alert">Macro memory exceeded. No actions will be truncated.</p>{/if}<p class="macro-slot-usage">{usage ? `${usage.bytes} bytes in this slot${dirty ? " projected" : ""}` : usagePending ? "Calculating slot size" : "— bytes in this slot"}</p><div class="macro-actions">{#each macro.actions as action, i (ids[i] ?? `row-${i}`)}<div class="action"><div class="row macro-action-head"><button class="action-grip" disabled={dirty} title="Drag to reorder action" aria-label={`Drag action ${i + 1}`} style:touch-action="none" onpointerdown={(e) => startPointerDrag(e, { kind: "macro", slot: selected, index: i }, action.kind)}><Icon name="grip" size={14} /></button><span class="action-index">{i + 1}</span><span class="action-title"><strong>{action.kind}</strong><small>{usage?.actionBytes[i] ?? 0} bytes</small></span><span class="action-spacer"></span><button disabled={dirty || i === 0} title="Move action up" aria-label={`Move action ${i + 1} up`} onclick={() => reorder(i, i - 1)}>↑</button><button disabled={dirty || i === macro!.actions.length - 1} title="Move action down" aria-label={`Move action ${i + 1} down`} onclick={() => reorder(i, i + 1)}>↓</button><button disabled={dirty} onclick={() => { ui.inspectorPaths = []; void commit(macro!.actions.filter((_, j) => j !== i), ids.filter((_, j) => j !== i)); }}>Delete</button></div>{#if action.kind === "text"}<label>Text <input value={draft[i] ?? action.text} oninput={(e) => (draft[i] = e.currentTarget.value)} /></label>{:else if action.kind === "delay"}<label>Delay <input type="number" min="0" max="65024" value={draft[i] ?? action.delay} oninput={(e) => (draft[i] = e.currentTarget.value)} /> ms</label>{:else}<div class="macro-keys">{#each action.keys as _, k}<div class="macro-key"><Field path={`macro[${selected}][${i}][${k + 1}]`} label={`Key ${k + 1}`} size="sm" /><button class="macro-remove" disabled={dirty} aria-label={`Remove key ${k + 1}`} title="Remove key from action" onclick={() => void commit(macro!.actions.map((a, j) => j === i ? { ...a, keys: a.keys.filter((_, n) => n !== k) } : a))}>−</button></div>{/each}<button class="keycap-add" disabled={dirty} aria-label="Add key" title="Add key" onclick={() => void commit(macro!.actions.map((a, j) => (j === i ? { ...a, keys: [...a.keys, "KC_NO"] } : a)))}>+</button></div>{/if}</div>{/each}</div><div class="row macro-add-actions">{#each ["tap", "down", "up", "text", "delay"] as kind}<button disabled={dirty} onclick={() => add(kind as MacroActionKind)}>+ {kind}</button>{/each}</div>{#if dirty}<div class="row macro-draft-actions"><button onclick={() => void applyDraft()}>Apply draft</button><button onclick={() => { draft = {}; error = ""; }}>Revert draft</button></div>{/if}{#if error}<p class="macro-alert" role="alert">{error}</p>{/if}</article>{/if}</div></section>
 
 

@@ -3,6 +3,7 @@
   import { api, errorText } from "../lib/api";
   import type { KeycodeView, SearchHitDto, KeyParts, ViewModel } from "../lib/types";
   import { pointerDrag, startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
+  import { createPendingTracker } from "../lib/pending";
   import Modifiers from "./Modifiers.svelte";
   let {
     view,
@@ -125,6 +126,10 @@
   let builderBase = $state(false);
   let preview: KeycodeView | null = $state(null);
   let previewError = $state("");
+  let previewPending = $state(false);
+  // The previous preview stays rendered until the new one arrives. The pending
+  // flag turns on only after PENDING_DELAY_MS, so fast edits never flash.
+  const previewTracker = createPendingTracker((pending) => (previewPending = pending));
   $effect(() => {
     const search = query;
     const revision = view.revision;
@@ -171,8 +176,7 @@
     const n = layer;
     const bits = mods;
     const base = tap;
-    let current = true;
-    preview = null;
+    const request = previewTracker.start();
     let parts: KeyParts;
     if (kind === "LT")
       parts = { kind: "tap", base, wrapMods: 0, hold: { kind: "layer", layer: n } };
@@ -196,17 +200,15 @@
     void api
       .composeKeycode(parts)
       .then((next) => {
-        if (current) {
+        if (previewTracker.finish(request)) {
           preview = next;
           previewError = "";
         }
       })
       .catch((e) => {
-        if (current) previewError = errorText(e);
+        if (previewTracker.finish(request)) previewError = errorText(e);
       });
-    return () => {
-      current = false;
-    };
+    return () => previewTracker.cancel();
   });
   async function choose(hit: SearchHitDto): Promise<void> {
     try {
@@ -283,6 +285,8 @@
         >{/if}
       {#if preview}<button
           class="tile preview"
+          class:pending={previewPending}
+          aria-busy={previewPending}
           title={`${preview.tooltip}\n${preview.wire}`}
           onpointerdown={(e) =>
             startPointerDrag(

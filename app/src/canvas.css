@@ -1003,6 +1003,9 @@ kbd {
 .canvas-app .floating-popup .preview {
   width: 130px;
 }
+.canvas-app .floating-popup .preview.pending {
+  opacity: 0.6;
+}
 .canvas-app .board-caption {
   position: absolute;
   bottom: 10px;

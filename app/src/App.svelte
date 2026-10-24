@@ -3,6 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { api, errorText } from "./lib/api";
   import { notify, ui, setView } from "./lib/state.svelte";
+  import { PENDING_DELAY_MS } from "./lib/pending";
   import { neighbor } from "./lib/grid";
   import { actionFor, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
@@ -73,6 +74,16 @@
     }
   });
   let busy = $state(false);
+  // Shows the busy toast only when a call is still running after PENDING_DELAY_MS.
+  let busyShown = $state(false);
+  $effect(() => {
+    if (!busy) {
+      busyShown = false;
+      return;
+    }
+    const timer = setTimeout(() => (busyShown = true), PENDING_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
   let toastVisible = $state(false);
   $effect(() => {
     void ui.messageSeq;
@@ -979,7 +990,7 @@
         /><button onclick={() => (ui.mode = "normal")}>Cancel <kbd>Esc</kbd></button>
       </div>
     </div>{/if}
-  <div class="toast" class:shown={toastVisible || busy} role="status" aria-live="polite">
+  <div class="toast" class:shown={toastVisible || busyShown} role="status" aria-live="polite">
     <span>{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span>{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
   </div>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
