@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod layer_export;
+
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -107,6 +109,43 @@ async fn save_as_dialog(
         s.save_as(&path)
     })
     .map(Some)
+}
+
+#[tauri::command]
+async fn export_layers_dialog(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    revision: u64,
+    png: Vec<u8>,
+) -> Result<Option<String>, String> {
+    layer_export::validate_png(&png)?;
+    let filename = with_session(&state, |s| {
+        s.check_revision(revision)?;
+        let view = s.view().ok_or_else(|| "Open a layout first".to_string())?;
+        let stem = view
+            .path
+            .as_deref()
+            .and_then(|path| std::path::Path::new(path).file_stem())
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "layout".into());
+        Ok(format!("{stem}-layers.png"))
+    })?;
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("PNG image", &["png"])
+        .set_file_name(filename)
+        .blocking_save_file();
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    with_session(&state, |s| {
+        s.check_revision(revision)?;
+        let view = s.view().ok_or_else(|| "Open a layout first".to_string())?;
+        layer_export::write_png(&path, view.path.as_deref().map(std::path::Path::new), &png)
+    })?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -273,6 +312,7 @@ fn main() {
             open_dialog,
             save,
             save_as_dialog,
+            export_layers_dialog,
             apply_op,
             undo,
             redo,

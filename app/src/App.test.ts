@@ -9,6 +9,7 @@ const fake = vi.hoisted(() => ({
   applyOp: vi.fn(),
   save: vi.fn(),
   saveAsDialog: vi.fn(),
+  exportLayers: vi.fn(),
   openDialog: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
@@ -22,6 +23,8 @@ const fake = vi.hoisted(() => ({
   closeWindow: vi.fn(),
   setDiffBase: vi.fn(),
 }));
+const renderSheet = vi.hoisted(() => vi.fn());
+vi.mock("./lib/layer-export", () => ({ renderLayerSheet: renderSheet }));
 vi.mock("./lib/api", () => ({ api: fake, errorText: (e: unknown) => String(e) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: () => Promise.resolve(() => {}) }));
 let app: ReturnType<typeof mount> | undefined;
@@ -162,6 +165,8 @@ beforeEach(() => {
   fake.smokeReport.mockResolvedValue(undefined);
   fake.save.mockResolvedValue({ ...view(), dirty: false, revision: 2 });
   fake.applyOp.mockResolvedValue({ ...view(), revision: 2 });
+  renderSheet.mockResolvedValue({ png: new Uint8Array([137, 80, 78, 71]), layerCount: 3 });
+  fake.exportLayers.mockResolvedValue("/test/layout-layers.png");
 });
 afterEach(async () => {
   if (app) await unmount(app);
@@ -169,6 +174,48 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 describe("desktop editing workflow", () => {
+  it("exports the complete view without changing the current layer, selection or document", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    ui.selection = ["r0c0"];
+    const original = ui.view;
+    button("Export PNG").click();
+    await settle();
+    expect(renderSheet).toHaveBeenCalledWith(original);
+    expect(fake.exportLayers).toHaveBeenCalledWith(new Uint8Array([137, 80, 78, 71]), 1);
+    expect(ui.message).toBe("Exported 3 layers to /test/layout-layers.png");
+    expect(ui.view).toBe(original);
+    expect(ui.selection).toEqual(["r0c0"]);
+    expect(fake.save).not.toHaveBeenCalled();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+  });
+
+  it("reports a canceled or failed PNG save and allows a retry", async () => {
+    fake.exportLayers.mockResolvedValueOnce(null).mockRejectedValueOnce("Disk full");
+    app = mount(App, { target: document.body });
+    await settle();
+    button("Export PNG").click();
+    await settle();
+    expect(ui.message).toBe("PNG export canceled");
+    expect(button("Export PNG").disabled).toBe(false);
+    button("Export PNG").click();
+    await settle();
+    expect(ui.message).toBe("Disk full");
+    expect(button("Export PNG").disabled).toBe(false);
+    expect(ui.view?.dirty).toBe(true);
+  });
+
+  it("reports a layer rendering failure before opening the native save dialog", async () => {
+    renderSheet.mockRejectedValueOnce(new Error("No layers to export"));
+    app = mount(App, { target: document.body });
+    await settle();
+    button("Export PNG").click();
+    await settle();
+    expect(ui.message).toContain("No layers to export");
+    expect(fake.exportLayers).not.toHaveBeenCalled();
+    expect(button("Export PNG").disabled).toBe(false);
+  });
+
   it("makes a completed board background click clear the same targets as Escape", async () => {
     app = mount(App, { target: document.body });
     await settle();

@@ -9,6 +9,7 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "open", title: "Open file…", arg: "none" },
   { id: "save", title: "Save", arg: "none" },
   { id: "saveAs", title: "Save as…", arg: "none" },
+  { id: "exportPng", title: "Export PNG…", arg: "none" },
   { id: "undo", title: "Undo", arg: "none" },
   { id: "redo", title: "Redo", arg: "none" },
   { id: "clearLayer", title: "Layer: clear to KC_NO", arg: "none" },

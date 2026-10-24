@@ -8,6 +8,7 @@
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
+  import { renderLayerSheet } from "./lib/layer-export";
   import type {
     OpDto,
     KeycodeView,
@@ -434,6 +435,23 @@
       beginSave(id === "saveAs");
       return;
     }
+    if (id === "exportPng" && ui.view) {
+      const view = ui.view;
+      busy = true;
+      ui.message = "Rendering layer PNG…";
+      try {
+        const { png, layerCount } = await renderLayerSheet(view);
+        const path = await api.exportLayers(png, view.revision);
+        ui.message = path
+          ? `Exported ${layerCount} ${layerCount === 1 ? "layer" : "layers"} to ${path}`
+          : "PNG export canceled";
+      } catch (e) {
+        ui.message = errorText(e);
+      } finally {
+        busy = false;
+      }
+      return;
+    }
     if (id === "undo" || id === "redo") {
       if (drafts) {
         ui.message = "Apply or revert the macro draft first";
@@ -715,9 +733,12 @@
 >
   <header class="toolbar">
     <strong class="brand">vile</strong
-    >{#each COMMANDS.filter((c) => ["open", "save", "undo", "redo"].includes(c.id)) as c}<button
+    >{#each COMMANDS.filter( (c) => ["open", "save", "exportPng", "undo", "redo"].includes(c.id) ) as c}<button
         disabled={!!reason(c.id)}
-        title={reason(c.id) || c.title}
+        title={reason(c.id) ||
+          (c.id === "exportPng"
+            ? "Export all layers with non-blank, non-transparent keys as one PNG grid"
+            : c.title)}
         onclick={() => void command(c.id)}>{c.title} <kbd>{c.shortcut}</kbd></button
       >{#if ui.view && reason(c.id)}<small class="disabled-reason">{reason(c.id)}</small>{/if}
     {/each}

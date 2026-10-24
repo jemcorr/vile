@@ -34,6 +34,8 @@ export const api = {
     mutation<ViewModel | null>("open_dialog", { discard }),
   save: (): Promise<ViewModel> => mutation<ViewModel>("save"),
   saveAsDialog: (): Promise<ViewModel | null> => mutation<ViewModel | null>("save_as_dialog"),
+  exportLayers: (png: Uint8Array, revision: number): Promise<string | null> =>
+    invoke<string | null>("export_layers_dialog", { png: Array.from(png), revision }),
   applyOp: (op: OpDto): Promise<ViewModel> => mutation<ViewModel>("apply_op", { op }),
   undo: (): Promise<ViewModel> => mutation<ViewModel>("undo"),
   redo: (): Promise<ViewModel> => mutation<ViewModel>("redo"),
