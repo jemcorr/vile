@@ -134,6 +134,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   ui.view = null;
   ui.layer = 0;
+  ui.cursor = "";
   ui.selection = [];
   ui.inspectorPaths = [];
   ui.mode = "normal";
@@ -265,6 +266,7 @@ describe("desktop editing workflow", () => {
     app = mount(App, { target: document.body });
     await settle();
     ui.selection = ["r0c0"];
+    ui.cursor = "r0c0";
     ui.inspectorPaths = ["combo[0][4]"];
     ui.baseTarget = true;
     ui.comboEditing = 0;
@@ -278,8 +280,10 @@ describe("desktop editing workflow", () => {
       base: ui.baseTarget,
       combo: ui.comboEditing,
       swap: ui.swapMark,
+      cursor: ui.cursor,
     };
     ui.selection = ["r0c0"];
+    ui.cursor = "r0c0";
     ui.inspectorPaths = ["combo[0][4]"];
     ui.baseTarget = true;
     ui.comboEditing = 0;
@@ -293,6 +297,7 @@ describe("desktop editing workflow", () => {
       base: ui.baseTarget,
       combo: ui.comboEditing,
       swap: ui.swapMark,
+      cursor: ui.cursor,
     }).toEqual(afterEscape);
     expect(ui.drafts).toEqual({ "0": true });
     expect(ui.draftMacro).toBe(0);

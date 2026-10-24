@@ -669,6 +669,7 @@
     settings = false;
     if (ui.mode === "insert" || ui.mode === "palette") ui.mode = "normal";
     if (!hadTransient && clearSelection) {
+      ui.cursor = "";
       ui.selection = [];
       ui.inspectorPaths = [];
       ui.swapMark = null;
