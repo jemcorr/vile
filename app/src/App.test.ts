@@ -203,6 +203,16 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 describe("desktop editing workflow", () => {
+  it("shows the file name from a Windows path", async () => {
+    const windowsView = view();
+    windowsView.path = "C:\\Users\\example\\layout.vil";
+    fake.getView.mockResolvedValue(windowsView);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.querySelector(".document-title")?.textContent).toContain("layout.vil");
+    expect(document.querySelector(".document-title")?.textContent).not.toContain("C:\\Users");
+  });
+
   it("shows only definition-confirmed knob bindings and keeps unknown slots accessible", async () => {
     const known = view();
     known.board = { ...known.board!, encoderIndices: [1] };

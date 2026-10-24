@@ -7,7 +7,7 @@
   import { effectiveTheme, nextThemeMode, readThemeMode, writeThemeMode, type ThemeMode } from "./lib/theme";
   import { neighbor } from "./lib/grid";
   import { emptyMatrixCells, matrixGeometry, readBoardView, writeBoardView, type BoardView } from "./lib/matrix";
-  import { actionFor, type Action } from "./lib/keymap";
+  import { actionFor, primaryModifierDown, primaryModifierLabel, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
@@ -640,7 +640,7 @@
       e.preventDefault();
       return;
     }
-    if (review && e.metaKey && e.key.toLowerCase() === "s") {
+    if (review && primaryModifierDown(e, navigator.platform) && e.key.toLowerCase() === "s") {
       e.preventDefault();
       void confirmSave();
       return;
@@ -653,12 +653,12 @@
       if (
         control &&
         !target.closest("[data-key-id]") &&
-        (!e.metaKey || !["s", "o", "k", "z"].includes(e.key.toLowerCase()))
+        (!primaryModifierDown(e, navigator.platform) || !["s", "o", "k", "z"].includes(e.key.toLowerCase()))
       )
         return;
     }
     if (ui.mode !== "normal" && ui.mode !== "visual") return;
-    const action = actionFor(ui.mode, e, ui.vimKeys, ui.vimRemaps);
+    const action = actionFor(ui.mode, e, ui.vimKeys, ui.vimRemaps, navigator.platform);
     if (!action) return;
     e.preventDefault();
     if (action.kind === "move") {
@@ -826,21 +826,21 @@
 >
   <header class="toolbar canvas-toolbar">
     <strong class="brand">vile<span class="brand-dot">.</span></strong>
-    <div class="document-title"><Icon name="file"/><span>{ui.view?.path?.split('/').pop() || 'No layout open'}</span><span class="document-type">Vial layout</span></div>
+    <div class="document-title"><Icon name="file"/><span>{ui.view?.path?.split(/[\\/]/).pop() || 'No layout open'}</span><span class="document-type">Vial layout</span></div>
     <div class="history-actions">
-      <button class="icon-button" aria-label="Undo" title="Undo · ⌘Z" disabled={!!reason('undo')} onclick={() => void command('undo')}><Icon name="undo"/></button>
-      <button class="icon-button" aria-label="Redo" title="Redo · ⇧⌘Z" disabled={!!reason('redo')} onclick={() => void command('redo')}><Icon name="redo"/></button>
+      <button class="icon-button" aria-label="Undo" title={`Undo · ${primaryModifierLabel(navigator.platform)}Z`} disabled={!!reason('undo')} onclick={() => void command('undo')}><Icon name="undo"/></button>
+      <button class="icon-button" aria-label="Redo" title={`Redo · ${primaryModifierLabel(navigator.platform)}${primaryModifierLabel(navigator.platform) === '⌘' ? '⇧' : 'Shift+'}Z`} disabled={!!reason('redo')} onclick={() => void command('redo')}><Icon name="redo"/></button>
     </div>
     {#if drafts}<button class="draft-indicator" onclick={() => { switchPanel('macros'); ui.sideVisible = true; ui.revealMacro = ui.draftMacro; }}>Macro draft M{ui.draftMacro}</button>{/if}
     <span class="spacer"></span>
-    <button class="command-button" onclick={() => (ui.mode = 'palette')}><Icon name="command"/>Commands<kbd>⌘K</kbd></button>
+    <button class="command-button" onclick={() => (ui.mode = 'palette')}><Icon name="command"/>Commands<kbd>{primaryModifierLabel(navigator.platform)}K</kbd></button>
     <nav class="board-view-switch" aria-label="Board view">
       <button class:active={boardView === "keyboard"} aria-pressed={boardView === "keyboard"} title="Physical layout from the definition" onclick={() => setBoardView("keyboard")}>Keyboard</button>
       <button class:active={boardView === "matrix"} aria-pressed={boardView === "matrix"} title="Electrical rows and columns, as stored in the .vil file" onclick={() => setBoardView("matrix")}>Matrix</button>
     </nav>
     <button class="icon-button theme-button" aria-label={themeLabel} title={themeLabel} onclick={cycleTheme}><Icon name={themeIcon}/></button>
     <button class="pending-button" onclick={() => { switchPanel('diff'); ui.sideVisible = true; }}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
-    <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>⌘S</kbd></button>
+    <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button>
   </header>
   {#if ui.view && ui.view.board}
     <div class="canvas-context">
@@ -1010,7 +1010,7 @@
     </div>
   {:else}<main class="empty">
       <h1>Edit your keyboard visually.</h1>
-      <button onclick={() => void command("open")}>Open a Vial layout <kbd>⌘O</kbd></button>
+      <button onclick={() => void command("open")}>Open a Vial layout <kbd>{primaryModifierLabel(navigator.platform)}O</kbd></button>
     </main>{/if}
   {#if ui.mode === "insert"}<div class="overlay">
       <div
@@ -1098,7 +1098,7 @@
               ? "Review current changes"
               : review.saveAs
                 ? "Save reviewed changes as…"
-                : "Save reviewed changes"} <kbd>⌘S</kbd></button
+                : "Save reviewed changes"} <kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button
         >{#if review.error && !review.saveAs}<button
             onclick={() => {
               if (review) review = { ...review, saveAs: true };
@@ -1197,7 +1197,7 @@
           rows="5"
           placeholder={JSON.stringify({ a: "h" })}></textarea></label
       >
-      <p>Arrows, digits, Delete and conventional Cmd shortcuts work by default.</p>
+      <p>Arrows, digits, Delete and conventional platform shortcuts work by default.</p>
       <div class="row">
         <button
           onclick={() => {

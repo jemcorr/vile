@@ -9,6 +9,20 @@ export interface KeyLike {
   altKey: boolean;
 }
 
+export function isMacPlatform(platform: string): boolean {
+  return /Mac|iPhone|iPad|iPod/i.test(platform);
+}
+
+export function primaryModifierDown(e: KeyLike, platform: string): boolean {
+  return isMacPlatform(platform)
+    ? e.metaKey && !e.ctrlKey && !e.altKey
+    : e.ctrlKey && !e.metaKey && !e.altKey;
+}
+
+export function primaryModifierLabel(platform: string): string {
+  return isMacPlatform(platform) ? "⌘" : "Ctrl+";
+}
+
 export type Action =
   | { kind: "move"; dir: Dir; extend?: boolean }
   | { kind: "layer"; layer: number }
@@ -71,9 +85,10 @@ export function actionFor(
   e: KeyLike,
   vim = false,
   remaps: Record<string, string> = {},
+  platform = typeof navigator === "undefined" ? "" : navigator.platform,
 ): Action | null {
   if (mode !== "normal" && mode !== "visual") return null;
-  if (e.metaKey && !e.ctrlKey && !e.altKey) {
+  if (primaryModifierDown(e, platform)) {
     switch (e.key.toLowerCase()) {
       case "c":
         return { kind: "copy" };
@@ -89,11 +104,16 @@ export function actionFor(
         return { kind: "palette" };
       case "z":
         return e.shiftKey ? { kind: "redo" } : { kind: "undo" };
+      case "r":
+        return vim ? { kind: "redo" } : null;
       default:
         return null;
     }
   }
-  if (e.ctrlKey && !e.metaKey && !e.altKey) {
+  if (
+    (isMacPlatform(platform) && e.ctrlKey && !e.metaKey && !e.altKey) ||
+    (!isMacPlatform(platform) && e.metaKey && !e.ctrlKey && !e.altKey)
+  ) {
     return vim && e.key === "r" ? { kind: "redo" } : null;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return null;

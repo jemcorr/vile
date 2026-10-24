@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMANDS, filterCommands, parseLayerArg } from "./palette";
+import { COMMANDS, filterCommands, parseLayerArg, updateShortcutLabels } from "./palette";
 
 describe("filterCommands", () => {
   it("returns everything for an empty query", () => {
@@ -23,6 +23,15 @@ describe("filterCommands", () => {
   it("has unique ids", () => {
     const ids = COMMANDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("shows the platform primary modifier", () => {
+    updateShortcutLabels("Win32");
+    expect(COMMANDS.find((command) => command.id === "save")?.shortcut).toBe("Ctrl+S");
+    expect(COMMANDS.find((command) => command.id === "redo")?.shortcut).toBe("Ctrl+Shift+Z");
+    updateShortcutLabels("MacIntel");
+    expect(COMMANDS.find((command) => command.id === "save")?.shortcut).toBe("⌘S");
+    expect(COMMANDS.find((command) => command.id === "redo")?.shortcut).toBe("⇧⌘Z");
   });
 });
 

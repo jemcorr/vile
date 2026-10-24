@@ -3,7 +3,7 @@ import { actionFor as resolveAction } from "./keymap";
 import type { KeyLike } from "./keymap";
 
 function actionFor(mode: Parameters<typeof resolveAction>[0], event: KeyLike) {
-  return resolveAction(mode, event, true);
+  return resolveAction(mode, event, true, {}, "MacIntel");
 }
 
 function key(k: string, mods: Partial<KeyLike> = {}): KeyLike {
@@ -100,9 +100,33 @@ describe("default layout-independent bindings", () => {
       dir: "left",
       extend: true,
     });
-    expect(resolveAction("normal", key("c", { metaKey: true }))).toEqual({ kind: "copy" });
-    expect(resolveAction("normal", key("v", { metaKey: true }))).toEqual({ kind: "paste" });
-    expect(resolveAction("normal", key("x", { metaKey: true }))).toEqual({ kind: "cut" });
+    expect(resolveAction("normal", key("c", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+      kind: "copy",
+    });
+    expect(resolveAction("normal", key("v", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+      kind: "paste",
+    });
+    expect(resolveAction("normal", key("x", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+      kind: "cut",
+    });
     expect(resolveAction("normal", key("Delete"))).toEqual({ kind: "clear" });
+  });
+
+  it("uses Ctrl shortcuts on Windows and Linux, while leaving AltGr input alone", () => {
+    for (const platform of ["Win32", "Linux x86_64"]) {
+      expect(resolveAction("normal", key("s", { ctrlKey: true }), false, {}, platform)).toEqual({
+        kind: "save",
+      });
+      expect(
+        resolveAction("normal", key("z", { ctrlKey: true, shiftKey: true }), false, {}, platform),
+      ).toEqual({ kind: "redo" });
+      expect(resolveAction("normal", key("s", { metaKey: true }), false, {}, platform)).toBeNull();
+    }
+    expect(
+      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), false, {}, "Win32"),
+    ).toBeNull();
+    expect(
+      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), false, {}, "Linux x86_64"),
+    ).toBeNull();
   });
 });

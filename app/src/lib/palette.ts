@@ -1,3 +1,5 @@
+import { primaryModifierLabel } from "./keymap";
+
 export interface PaletteCommand {
   id: string;
   title: string;
@@ -32,17 +34,17 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "toggleComboOverlay", title: "View: toggle combo overlay", arg: "none" },
 ];
 
-const SHORTCUTS: Record<string, string> = {
-  open: "⌘O",
-  save: "⌘S",
-  undo: "⌘Z",
-  redo: "⇧⌘Z",
-  copyKeys: "⌘C",
-  pasteKeys: "⌘V",
-  cutKeys: "⌘X",
+const SHORTCUTS: Record<string, string | ((modifier: string) => string)> = {
+  open: (modifier) => `${modifier}O`,
+  save: (modifier) => `${modifier}S`,
+  undo: (modifier) => `${modifier}Z`,
+  redo: (modifier) => (isMacModifier(modifier) ? `⇧${modifier}Z` : `${modifier}Shift+Z`),
+  copyKeys: (modifier) => `${modifier}C`,
+  pasteKeys: (modifier) => `${modifier}V`,
+  cutKeys: (modifier) => `${modifier}X`,
   clearKeys: "Delete",
   editKey: "Enter",
-  palette: "⌘K",
+  palette: (modifier) => `${modifier}K`,
 };
 COMMANDS.push(
   { id: "clearKeys", title: "Clear selected keys", arg: "none" },
@@ -53,7 +55,19 @@ COMMANDS.push(
   { id: "swapKeys", title: "Swap selected keys with…", arg: "none" },
   { id: "editKey", title: "Type keycode", arg: "none" },
 );
-for (const command of COMMANDS) command.shortcut = SHORTCUTS[command.id] ?? "";
+function isMacModifier(modifier: string): boolean {
+  return modifier === "⌘";
+}
+
+export function updateShortcutLabels(platform: string): void {
+  const modifier = primaryModifierLabel(platform);
+  for (const command of COMMANDS) {
+    const shortcut = SHORTCUTS[command.id];
+    command.shortcut = typeof shortcut === "function" ? shortcut(modifier) : (shortcut ?? "");
+  }
+}
+
+updateShortcutLabels(typeof navigator === "undefined" ? "" : navigator.platform);
 export function commandReason(
   id: string,
   view: { canUndo: boolean; canRedo: boolean; board: { canMirror?: boolean } | null } | null,
