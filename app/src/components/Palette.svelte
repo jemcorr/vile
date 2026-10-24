@@ -101,20 +101,20 @@
       />
       <ul>
         {#each list as command, i (command.id)}
+          {@const disabledReason = commandReason(command.id, ui.view, ui.selection.length > 0)}
           <li>
             <button
               type="button"
               class:active={i === active}
-              disabled={!!commandReason(command.id, ui.view, ui.selection.length > 0)}
-              title={commandReason(command.id, ui.view, ui.selection.length > 0)}
+              disabled={!!disabledReason}
+              title={disabledReason}
+              aria-describedby={disabledReason ? `palette-reason-${command.id}` : undefined}
               onclick={() => choose(command)}
             >
-              {command.title}
-              {command.shortcut}
+              <span class="command-title">{command.title}</span>
+              {#if disabledReason}<small id={`palette-reason-${command.id}`} class="command-reason">{disabledReason}</small>{/if}
+              {#if command.shortcut}<kbd>{command.shortcut}</kbd>{/if}
             </button>
-            {#if commandReason(command.id, ui.view, ui.selection.length > 0)}<small
-                >{commandReason(command.id, ui.view, ui.selection.length > 0)}</small
-              >{/if}
           </li>
         {/each}
       </ul>
@@ -170,8 +170,14 @@
     padding: 0;
     overflow-y: auto;
   }
+  li {
+    min-width: 0;
+  }
   ul button {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
     width: 100%;
     text-align: left;
     background: transparent;
@@ -180,6 +186,35 @@
     font: inherit;
     color: inherit;
     cursor: pointer;
+  }
+  ul button:disabled {
+    color: var(--muted);
+    cursor: default;
+    opacity: 1;
+  }
+  .command-title {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .command-reason {
+    flex: 0 1 50%;
+    max-width: 50%;
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 0.82em;
+    font-weight: 400;
+  }
+  ul button kbd {
+    flex: none;
+    margin-left: auto;
+    white-space: nowrap;
   }
   ul button.active {
     background: var(--selected);
