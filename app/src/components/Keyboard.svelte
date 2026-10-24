@@ -291,7 +291,7 @@
     fill: var(--muted);
   }
   .kind-trns text {
-    fill: var(--muted);
+    fill: var(--key-trns);
   }
   .kind-layer rect,
   .kind-layerTap rect,

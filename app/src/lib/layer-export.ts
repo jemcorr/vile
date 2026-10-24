@@ -59,6 +59,7 @@ export interface ExportTheme {
   background: string;
   foreground: string;
   muted: string;
+  transparent: string;
   key: string;
   keyForeground: string;
   border: string;
@@ -69,6 +70,20 @@ export interface ExportTheme {
   font: string;
 }
 
+// Blends two #rrggbb colors; t is the share of `a`. Mirrors --key-trns in canvas.css.
+export function mixHex(a: string, b: string, t: number): string {
+  const parse = (hex: string): [number, number, number] => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+  const [ra, ga, ba] = parse(a);
+  const [rb, gb, bb] = parse(b);
+  const channel = (x: number, y: number) => Math.round(x * t + y * (1 - t));
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(channel(ra, rb))}${hex(channel(ga, gb))}${hex(channel(ba, bb))}`;
+}
+
 export function readExportTheme(): ExportTheme {
   const style = getComputedStyle(document.documentElement);
   const color = (name: string) => style.getPropertyValue(name).trim();
@@ -76,6 +91,7 @@ export function readExportTheme(): ExportTheme {
     background: color("--bg"),
     foreground: color("--fg"),
     muted: color("--muted"),
+    transparent: mixHex(color("--muted"), color("--key-bg"), 0.75),
     key: color("--key-bg"),
     keyForeground: color("--key-fg"),
     border: color("--key-border"),
@@ -597,7 +613,7 @@ function drawCap(
   lines.forEach((line, index) => {
     const small = hold && index === 0;
     ctx.font = `${small ? 10 : 14}px ${theme.font}`;
-    ctx.fillStyle = small || kind === "trns" ? theme.muted : theme.keyForeground;
+    ctx.fillStyle = kind === "trns" ? theme.transparent : small ? theme.muted : theme.keyForeground;
     ctx.fillText(
       line,
       x + CAP / 2,
@@ -705,7 +721,7 @@ function drawKey(
   lines.forEach((line, index) => {
     const small = hold && index === 0;
     ctx.font = `${small ? Math.min(10, lineHeight) : Math.min(16, lineHeight)}px ${theme.font}`;
-    ctx.fillStyle = small || cell?.kind === "trns" ? theme.muted : theme.keyForeground;
+    ctx.fillStyle = cell?.kind === "trns" ? theme.transparent : small ? theme.muted : theme.keyForeground;
     ctx.fillText(
       line,
       (key.x + key.w / 2) * UNIT + GAP / 2,

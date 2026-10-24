@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bounds, rotate } from "./interactions";
-import { planLayerSheet, renderLayerSheet, type ExportTheme } from "./layer-export";
+import { mixHex, planLayerSheet, renderLayerSheet, type ExportTheme } from "./layer-export";
 import type { BoardKeyDto, KeyCellDto, KeycodeView } from "./types";
 
 const keys: BoardKeyDto[] = [
@@ -82,6 +82,7 @@ const theme: ExportTheme = {
   background: "#1c1c1e",
   foreground: "#f2f2f7",
   muted: "#8e8e93",
+  transparent: "#6b6b72",
   key: "#2c2c2e",
   keyForeground: "#f2f2f7",
   border: "#48484a",
@@ -317,5 +318,13 @@ describe("feature sections in the PNG", () => {
     expect(lightResult.layerCount).toBe(dark.layerCount);
     expect(mock.text.map((entry) => entry.text)).toEqual(darkText);
     expect(mock.text.find((entry) => entry.text === "Esc")?.color).toBe(light.keyForeground);
+  });
+});
+
+describe("mixHex", () => {
+  it("blends channels by the share of the first color", () => {
+    expect(mixHex("#ffffff", "#000000", 0.5)).toBe("#808080");
+    expect(mixHex("#a2a2ab", "#2c2d33", 1)).toBe("#a2a2ab");
+    expect(mixHex("#a2a2ab", "#2c2d33", 0)).toBe("#2c2d33");
   });
 });

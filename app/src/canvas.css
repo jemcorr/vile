@@ -23,6 +23,8 @@
   --key-mod: #423a2b;
   --key-macro: #3c304d;
   --key-media: #1f4440;
+  /* Transparent keycap glyph: 75% muted over the keycap fill, about 3.7:1 on --key-bg. */
+  --key-trns: color-mix(in srgb, var(--muted) 75%, var(--key-bg));
   --selected: #2e5585;
   --selected-hover: #3a679d;
   --changed: #efad60;
@@ -569,6 +571,9 @@ kbd {
 .canvas-app .tile:hover {
   border-color: var(--cursor);
   background: var(--hover);
+}
+.canvas-app .tile > span.transparent-glyph {
+  color: var(--key-trns);
 }
 .canvas-app .tile > span {
   font-size: 16px;

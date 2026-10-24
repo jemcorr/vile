@@ -230,6 +230,8 @@
     if (next === "Modifiers") buildKind = "MT";
   }
   function macroTooltip(hit: SearchHitDto): string {
+    // The transparent card's main label is the ▽ glyph, so its title leads with the name.
+    if (hit.code === 1) return `${hit.pickerLabel}\n${hit.description}\n${hit.name}`;
     const index = Number(hit.name.slice(1));
     return hit.category === "Macros"
       ? `${hit.description}\n${hit.name}\n${view.names.macros[index] ?? ""}\n${view.macros[index]?.actions.map((a) => (a.kind === "text" ? a.text : a.kind === "delay" ? `${a.delay} ms` : `${a.kind} ${a.keys.join(" + ")}`)).join("; ") ?? ""}`
@@ -338,7 +340,7 @@
                 )}
               onclick={() => {
                 if (!suppressDragClick()) void choose(hit);
-              }}><span>{hit.pickerLabel}</span><small>{hit.summary}</small></button
+              }}><span class:transparent-glyph={hit.code === 1}>{hit.code === 1 ? "▽" : hit.pickerLabel}</span><small>{hit.summary}</small></button
             >{/each}
         </div>
       </section>
