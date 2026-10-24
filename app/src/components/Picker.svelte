@@ -314,6 +314,7 @@
     height: 100%;
     min-height: 0;
     overflow: auto;
+    scrollbar-gutter: stable;
   }
   .picker-head {
     display: flex;
