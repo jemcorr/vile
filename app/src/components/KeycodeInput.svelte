@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { api, errorText } from "../lib/api";
   import type { SearchHitDto } from "../lib/types";
+  import { hitLabel } from "../lib/keycode-hits";
 
   interface Props {
     initial: string;
@@ -93,21 +94,20 @@
 </script>
 
 <div class="keycode-input">
-  {#if hits.length > 0}
-    <div class="hits">
-      {#each hits as hit, i (i)}
-        <button
-          type="button"
-          title={`${hit.description}\n${hit.name}`}
-          class:active={i === active}
-          onclick={() => complete(hit)}
-        >
-          <span class="name">{hit.name}</span>
-          <span class="label">{hit.label.replace(/\n/g, " ")}</span>
-        </button>
-      {/each}
-    </div>
-  {/if}
+  <!-- Always rendered at the reserved height, so the dialog does not resize while typing. -->
+  <div class="hits">
+    {#each hits as hit, i (i)}
+      <button
+        type="button"
+        title={`${hit.description}\n${hit.name}`}
+        class:active={i === active}
+        onclick={() => complete(hit)}
+      >
+        <span class="name">{hit.name}</span>
+        <span class="label">{hitLabel(hit.name, hit.label)}</span>
+      </button>
+    {/each}
+  </div>
   <input
     bind:this={input}
     bind:value={text}
@@ -128,16 +128,25 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    box-sizing: border-box;
+    width: min(560px, calc(100vw - 32px));
   }
+  /* Two shared columns: every row's code starts at one x, and every label at another. */
   .hits {
-    max-height: 40vh;
+    display: grid;
+    grid-template-columns: 16ch minmax(0, 1fr);
+    align-content: start;
+    height: min(40vh, 264px);
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
   }
   .hits button {
-    display: flex;
-    gap: 12px;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    column-gap: 12px;
+    align-items: baseline;
+    width: 100%;
+    min-width: 0;
     text-align: left;
     background: transparent;
     border: none;
@@ -148,6 +157,13 @@
   }
   .hits button.active {
     background: var(--selected);
+  }
+  .name,
+  .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .name {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
