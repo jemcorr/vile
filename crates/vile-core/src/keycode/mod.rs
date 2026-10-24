@@ -2,10 +2,14 @@
 
 mod catalog;
 mod label;
+mod parts;
+mod presentation;
 mod search;
 mod table;
 
 pub use catalog::{Catalog, CatalogContext};
+pub use parts::{HoldBehavior, KeyParts, KeyPartsPatch, compose, decompose};
+pub use presentation::PickerCategory;
 pub use search::SearchHit;
 pub use table::{Group, TableEntry, table};
 
@@ -35,7 +39,7 @@ pub struct Keycode(pub u16);
 
 /// Layer functions that take one layer number: TO(n), MO(n), DF(n), TG(n),
 /// OSL(n), TT(n), PDF(n).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum LayerOp {
     To,
     Mo,

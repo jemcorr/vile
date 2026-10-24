@@ -54,24 +54,19 @@ pub fn validate(doc: &Document) -> Vec<LoadIssue> {
 }
 
 /// Bytes the macros take in the keyboard's macro buffer (Vial protocol >= 2).
+pub fn macro_action_bytes(action: &MacroAction) -> usize {
+    match action {
+        MacroAction::Tap(keys) | MacroAction::Down(keys) | MacroAction::Up(keys) => keys
+            .iter()
+            .map(|kc| if kc.code() < 256 { 3 } else { 4 })
+            .sum(),
+        MacroAction::Text(text) => text.len(),
+        MacroAction::Delay(_) => 4,
+    }
+}
+pub fn macro_slot_bytes(slot: &crate::Macro) -> usize {
+    1 + slot.actions.iter().map(macro_action_bytes).sum::<usize>()
+}
 pub fn macro_buffer_bytes(doc: &Document) -> usize {
-    doc.macros
-        .iter()
-        .map(|slot| {
-            let actions: usize = slot
-                .actions
-                .iter()
-                .map(|action| match action {
-                    MacroAction::Tap(keys) | MacroAction::Down(keys) | MacroAction::Up(keys) => {
-                        keys.iter()
-                            .map(|kc| if kc.code() < 256 { 3 } else { 4 })
-                            .sum::<usize>()
-                    }
-                    MacroAction::Text(text) => text.len(),
-                    MacroAction::Delay(_) => 4,
-                })
-                .sum();
-            actions + 1
-        })
-        .sum()
+    doc.macros.iter().map(macro_slot_bytes).sum()
 }

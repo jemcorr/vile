@@ -148,6 +148,7 @@ impl Catalog {
             }
             let mut keys = vec![name.clone(), entry.name.to_string()];
             keys.extend(entry.aliases.iter().map(|alias| alias.to_string()));
+            keys.push(self.description(Keycode(entry.code)));
             out.push(Candidate {
                 insert: name.clone(),
                 label: self.label(Keycode(entry.code)),
@@ -166,7 +167,7 @@ impl Catalog {
             group,
         };
         for op in LayerOp::ALL {
-            for n in 0..u16::from(ctx.layers) {
+            for n in 0..u16::from(ctx.layers.min(32)) {
                 out.push(generated(
                     format!("{}({n})", op.name()),
                     op.base() + n,

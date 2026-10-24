@@ -19,6 +19,7 @@ pub use document::{
 };
 pub use editor::{Clipboard, DiffBase, Editor, SaveError};
 pub use keycode::{
-    Catalog, CatalogContext, Keycode, KeycodeError, KeycodeKind, LayerOp, SearchHit,
+    Catalog, CatalogContext, HoldBehavior, KeyParts, KeyPartsPatch, Keycode, KeycodeError,
+    KeycodeKind, LayerOp, SearchHit,
 };
 pub use ops::{KeyRef, MirrorMode, OpError, OpResult, Pos};

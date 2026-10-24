@@ -28,6 +28,7 @@ pub enum Group {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableEntry {
     pub group: Group,
+    pub category: super::PickerCategory,
     pub name: &'static str,
     pub code: u16,
     pub aliases: Vec<&'static str>,
@@ -123,6 +124,7 @@ fn parse_line(number: usize, line: &'static str) -> TableEntry {
         fields[3].split(',').collect()
     };
     TableEntry {
+        category: super::PickerCategory::for_entry(group, code),
         group,
         name: fields[1],
         code,

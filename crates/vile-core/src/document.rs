@@ -1151,6 +1151,31 @@ impl Document {
         out
     }
 
+    /// Replace a validated set of existing keycode fields, without partial edits.
+    pub fn replace_keycodes(
+        &mut self,
+        replacements: &std::collections::BTreeMap<String, Keycode>,
+    ) -> crate::ops::OpResult {
+        let existing: std::collections::BTreeSet<_> =
+            self.keycodes().into_iter().map(|(path, _)| path).collect();
+        for path in replacements.keys() {
+            if !existing.contains(path) {
+                return Err(crate::ops::OpError::Invalid(format!(
+                    "Keycode field no longer exists: {path}"
+                )));
+            }
+        }
+        self.visit_keycodes(&mut |path, key| {
+            if let Some(value) = replacements.get(&path) {
+                *key = *value;
+            }
+        });
+        Ok(crate::validate::validate(self)
+            .into_iter()
+            .map(|issue| format!("{}: {}", issue.path, issue.message))
+            .collect())
+    }
+
     /// The single traversal behind for_each_keycode_mut and keycodes.
     fn visit_keycodes(&mut self, f: &mut dyn FnMut(String, &mut Keycode)) {
         for (l, layer) in self.layout.iter_mut().enumerate() {
