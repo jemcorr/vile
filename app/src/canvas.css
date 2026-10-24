@@ -322,7 +322,7 @@ kbd {
   grid-template-rows: minmax(0, 1fr);
 }
 .canvas-app .board {
-  padding: var(--space-5) var(--space-5) var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-5);
   overflow: hidden;
 }
 .canvas-app .board-heading {
@@ -599,21 +599,32 @@ kbd {
 .canvas-app .builder .build-target {
   font-size: 10px;
 }
-.canvas-app footer {
-  min-height: 29px;
-  flex-shrink: 0;
-  padding: var(--space-2) var(--space-5);
-  background: var(--chrome);
-  border-top: 1px solid var(--subtle-edge);
-  color: var(--muted);
-  font-size: 10px;
+.canvas-app .toast {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 50;
+  max-width: min(420px, calc(100vw - 2 * var(--space-5)));
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--chrome);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
 }
-.footer-help {
-  margin-left: auto;
+.canvas-app .toast.shown {
+  opacity: 1;
+  pointer-events: auto;
 }
-.canvas-app footer [role="status"]:empty {
-  display: none;
+.canvas-app .toast-dismiss {
+  padding: 2px var(--space-2);
+  font-size: 11px;
 }
 .canvas-app .dialog {
   background: var(--chrome);
@@ -774,9 +785,6 @@ kbd {
   .canvas-app .picker > nav button {
     white-space: nowrap;
   }
-  .footer-help {
-    display: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -856,7 +864,7 @@ kbd {
 /* One floating category bar. The picker opens over the canvas without reflow. */
 .canvas-app .board {
   position: relative;
-  padding-bottom: 32px;
+  padding-bottom: var(--space-5);
 }
 .canvas-app .keyboard-viewport {
   padding-bottom: 45px;
@@ -1365,7 +1373,7 @@ kbd {
   grid-template-columns: minmax(0, 1fr) 280px;
 }
 .canvas-app aside.feature-editor:not(.has-feature-inspection) {
-  padding-bottom: 32px;
+  padding-bottom: var(--space-5);
 }
 .feature-editor .inspector-heading {
   grid-column: 1 / -1;

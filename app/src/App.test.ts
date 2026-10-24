@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount, tick } from "svelte";
 import App from "./App.svelte";
-import { ui } from "./lib/state.svelte";
+import { notify, ui } from "./lib/state.svelte";
 import type { ViewModel, KeycodeView, SearchHitDto } from "./lib/types";
 const fake = vi.hoisted(() => ({
   getView: vi.fn(),
@@ -359,7 +359,6 @@ describe("desktop editing workflow", () => {
       "header .spacer",
       "nav.layers",
       "aside",
-      "footer",
     ]) {
       ui.selection = ["r0c0"];
       ui.swapMark = [{ layer: 0, key: "r0c0" }];
@@ -402,10 +401,37 @@ describe("desktop editing workflow", () => {
     expect(fake.applyOp).not.toHaveBeenCalled();
     button("Review & save").click();
     await settle();
-    const footer = document.querySelector("footer")!;
-    pointer(footer, "pointerdown");
-    pointer(footer, "pointerup");
+    const toast = document.querySelector(".toast")!;
+    pointer(toast, "pointerdown");
+    pointer(toast, "pointerup");
     expect(document.querySelector('[aria-label="Review changes before save"]')).not.toBeNull();
+  });
+  it("shows status messages in a toast that fades, and keeps failures until dismissed", async () => {
+    vi.useFakeTimers();
+    try {
+      app = mount(App, { target: document.body });
+      await settle();
+      const toast = document.querySelector(".toast")!;
+      expect(toast.getAttribute("role")).toBe("status");
+      expect(toast.getAttribute("aria-live")).toBe("polite");
+      notify("Updated");
+      await tick();
+      expect(toast.textContent).toContain("Updated");
+      expect(toast.classList.contains("shown")).toBe(true);
+      vi.advanceTimersByTime(3000);
+      await tick();
+      expect(toast.classList.contains("shown")).toBe(false);
+      notify("Disk full", true);
+      await tick();
+      vi.advanceTimersByTime(10000);
+      await tick();
+      expect(toast.classList.contains("shown")).toBe(true);
+      button("Dismiss").click();
+      await tick();
+      expect(toast.classList.contains("shown")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it("does not swap a key when the pointer lands in its visible gutter", async () => {
     app = mount(App, { target: document.body });

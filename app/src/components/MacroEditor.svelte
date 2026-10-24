@@ -2,7 +2,7 @@
   import { pointerDrop, startPointerDrag } from "../lib/pointer-drag.svelte";
   import type { MacroActionDto, MacroActionKind, MacroDto, MacroUsage } from "../lib/types";
   import { api, errorText } from "../lib/api";
-  import { ui } from "../lib/state.svelte";
+  import { notify, ui } from "../lib/state.svelte";
   import Field from "./Field.svelte";
   import Icon from "./Icon.svelte";
   import { moveAction, macroSummary } from "../lib/macros";
@@ -91,7 +91,7 @@
   });
   function select(index: number): void {
     if (dirty) {
-      ui.message = "Apply or revert the macro draft first";
+      notify("Apply or revert the macro draft first");
       return;
     }
     selected = index;

@@ -11,6 +11,8 @@ export const ui = $state({
   selection: [] as string[],
   mode: "normal" as Mode,
   message: "",
+  messageError: false,
+  messageSeq: 0,
   panel: "diff" as Panel,
   showCombos: false,
   inspectorPaths: [] as string[],
@@ -24,6 +26,13 @@ export const ui = $state({
   vimRemaps: {} as Record<string, string>,
   swapMark: null as KeyRefDto[] | null,
 });
+
+/** Show a status message. Failures pass error=true and stay until dismissed. */
+export function notify(text: string, error = false): void {
+  ui.message = text;
+  ui.messageError = error;
+  ui.messageSeq += 1;
+}
 
 /** Replace the view model and keep layer, cursor and selection valid. */
 export function setView(view: ViewModel | null): void {

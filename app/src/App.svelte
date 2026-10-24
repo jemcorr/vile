@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { api, errorText } from "./lib/api";
-  import { ui, setView } from "./lib/state.svelte";
+  import { notify, ui, setView } from "./lib/state.svelte";
   import { neighbor } from "./lib/grid";
   import { actionFor, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
@@ -73,6 +73,18 @@
     }
   });
   let busy = $state(false);
+  let toastVisible = $state(false);
+  $effect(() => {
+    void ui.messageSeq;
+    if (!ui.message) {
+      toastVisible = false;
+      return;
+    }
+    toastVisible = true;
+    if (ui.messageError) return;
+    const timer = setTimeout(() => (toastVisible = false), 3000);
+    return () => clearTimeout(timer);
+  });
   let definitionStatus = $state("");
   async function refreshGeometry(): Promise<void> {
     try {
@@ -104,7 +116,7 @@
       ui.mode === "palette" ||
       !(e.target instanceof Element) ||
       !e.target.matches(
-        ".app,.toolbar,.spacer,.layers,.workspace,.board,.board-heading,aside,.panels,.picker-dock,.picker,.picker-head,.tiles,footer",
+        ".app,.toolbar,.spacer,.layers,.workspace,.board,.board-heading,aside,.panels,.picker-dock,.picker,.picker-head,.tiles",
       )
     )
       return false;
@@ -258,7 +270,7 @@
       setView(await api.getView());
       return true;
     } catch (e) {
-      ui.message = errorText(e);
+      notify(errorText(e), true);
       return false;
     }
   }
@@ -267,10 +279,10 @@
     busy = true;
     try {
       setView(await api.applyOp(op));
-      ui.message = ui.view?.warnings.length ? ui.view.warnings.join("; ") : done;
+      notify(ui.view?.warnings.length ? ui.view.warnings.join("; ") : done);
       return true;
     } catch (e) {
-      ui.message = errorText(e);
+      notify(errorText(e), true);
       return false;
     } finally {
       busy = false;
@@ -285,7 +297,7 @@
       const view = await call();
       if (view) setView(view);
     } catch (e) {
-      ui.message = errorText(e);
+      notify(errorText(e), true);
     } finally {
       busy = false;
     }
@@ -316,11 +328,11 @@
       );
       if (existing < 0) {
         if (keys.length >= 4) {
-          ui.message = "A combo supports at most four distinct trigger keycodes";
+          notify("A combo supports at most four distinct trigger keycodes");
           return;
         }
         if (cell.code === 0) {
-          ui.message = "No key cannot be a combo trigger";
+          notify("No key cannot be a combo trigger");
           return;
         }
         keys.push(cell.wire);
@@ -351,15 +363,15 @@
   }
   function assign(key: KeycodeView): void {
     if (drafts) {
-      ui.message = "Apply or revert the macro draft before assigning keys";
+      notify("Apply or revert the macro draft before assigning keys");
       return;
     }
     if (ui.comboEditing !== null && activeFeaturePath[0] !== `combo[${ui.comboEditing}][4]`) {
-      ui.message = "Select this combo's output field before assigning from the picker";
+      notify("Select this combo's output field before assigning from the picker");
       return;
     }
     if (!selectedPaths.length) {
-      ui.message = "Select a key or keycode field first";
+      notify("Select a key or keycode field first");
       return;
     }
     if (ui.baseTarget) {
@@ -372,7 +384,7 @@
   }
   function patch(patch: KeyPartsPatch): void {
     if (drafts) {
-      ui.message = "Apply or revert the macro draft first";
+      notify("Apply or revert the macro draft first");
       return;
     }
     void apply({ type: "patchFields", paths: selectedPaths, patch });
@@ -384,18 +396,18 @@
       if (view) {
         resetDocument();
         setView(view);
-        ui.message = `Opened ${view.path}`;
+        notify(`Opened ${view.path}`);
         void refreshGeometry();
       }
     } catch (e) {
-      ui.message = errorText(e);
+      notify(errorText(e), true);
     } finally {
       busy = false;
     }
   }
   function beginSave(saveAs = false): void {
     if (drafts) {
-      ui.message = "Apply or revert the macro draft before saving";
+      notify("Apply or revert the macro draft before saving");
       return;
     }
     if (!ui.view) return;
@@ -413,7 +425,7 @@
       return;
     }
     if (review.revision !== ui.view.revision) {
-      ui.message = "The document changed. Review its current diff before saving";
+      notify("The document changed. Review its current diff before saving");
       review = {
         ...review,
         revision: ui.view.revision,
@@ -429,12 +441,12 @@
         setView(view);
         review = null;
         completed = true;
-        ui.message = `Saved ${view.path}`;
+        notify(`Saved ${view.path}`);
       }
     } catch (e) {
       const saveError = errorText(e);
       await refresh();
-      ui.message = saveError;
+      notify(saveError, true);
       if (review) review = { ...review, revision: -1, error: saveError };
     } finally {
       busy = false;
@@ -466,15 +478,15 @@
     if (id === "exportPng" && ui.view) {
       const view = ui.view;
       busy = true;
-      ui.message = "Rendering layer PNG…";
+      notify("Rendering layer PNG…");
       try {
         const { png, layerCount } = await renderLayerSheet(view);
         const path = await api.exportLayers(png, view.revision);
-        ui.message = path
-          ? `Exported ${layerCount} ${layerCount === 1 ? "layer" : "layers"} to ${path}`
-          : "PNG export canceled";
+        notify(
+          path ? `Exported ${layerCount} ${layerCount === 1 ? "layer" : "layers"} to ${path}` : "PNG export canceled",
+        );
       } catch (e) {
-        ui.message = errorText(e);
+        notify(errorText(e), true);
       } finally {
         busy = false;
       }
@@ -482,7 +494,7 @@
     }
     if (id === "undo" || id === "redo") {
       if (drafts) {
-        ui.message = "Apply or revert the macro draft first";
+        notify("Apply or revert the macro draft first");
         return;
       }
       await change(() => (id === "undo" ? api.undo() : api.redo()));
@@ -495,11 +507,11 @@
     }
     if (id === "swapKeys") {
       if (ui.selection.length !== 1) {
-        ui.message = "Select one key, then choose its swap target";
+        notify("Select one key, then choose its swap target");
         return;
       }
       ui.swapMark = ui.selection.map((key) => ({ layer: ui.layer, key }));
-      ui.message = "Click the key to swap with. Escape cancels.";
+      notify("Click the key to swap with. Escape cancels.");
       return;
     }
     const keyOps = {
@@ -967,11 +979,9 @@
         /><button onclick={() => (ui.mode = "normal")}>Cancel <kbd>Esc</kbd></button>
       </div>
     </div>{/if}
-  <footer>
-    <span class="footer-help">Load saved layouts onto your keyboard with Vial</span><span
-      role="status">{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span
-    >
-  </footer>
+  <div class="toast" class:shown={toastVisible || busy} role="status" aria-live="polite">
+    <span>{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span>{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
+  </div>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
       {ui.view.warnings.join(" · ")}
     </div>{/if}
@@ -1151,7 +1161,7 @@
               localStorage.setItem("vile.vimRemaps", JSON.stringify(value));
               settings = false;
             } catch (e) {
-              ui.message = errorText(e);
+              notify(errorText(e), true);
             }
           }}>Apply</button
         ><button onclick={() => (settings = false)}>Cancel</button>
@@ -1262,20 +1272,6 @@
   .empty h1 {
     font-size: 24px;
     font-weight: 500;
-  }
-  footer {
-    display: flex;
-    gap: 16px;
-    justify-content: space-between;
-    padding: 7px 16px;
-    border-top: 1px solid var(--key-border);
-    font-size: 11px;
-    color: var(--muted);
-  }
-  footer > span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .warnings {
     padding: 6px 16px;
