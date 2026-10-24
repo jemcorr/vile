@@ -1968,7 +1968,9 @@ kbd {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin-top: 0;
+  /* --space-4 above the divider, measured from the lowest keycap caption. The divider's own
+     padding (--space-3) sits between the rule and the caption row. */
+  margin-top: var(--space-4);
 }
 .canvas-app .canvas-feature-editor .mini-board-keys {
   position: relative;
@@ -1982,6 +1984,8 @@ kbd {
 }
 /* The board sits inside a --space-4 inset on every side of the area below the divider. */
 .canvas-app .canvas-feature-editor .mini-board-keys svg.keyboard {
+  max-width: none;
+  max-height: none;
   display: block;
   position: absolute;
   top: var(--space-4);
