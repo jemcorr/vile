@@ -18,6 +18,7 @@ function cell(id: string, wire: string): KeyCellDto {
     path: id,
     code: 0,
     description: wire,
+    tooltip: wire,
     previous: wire,
   };
 }

@@ -53,6 +53,7 @@ export interface KeyCellDto {
   path: string;
   code: number;
   description: string;
+  tooltip: string;
   previous: string;
 }
 
@@ -140,6 +141,7 @@ export interface KeycodeView {
   wire: string;
   label: string;
   description: string;
+  tooltip: string;
   category: string;
   parts: KeyParts;
 }

@@ -57,7 +57,8 @@ async function picker() {
     code: 0x7000,
     wire: swap.name,
     label: swap.label,
-    description: swap.description,
+    description: "Compact inspector heading",
+    tooltip: swap.description,
     category: "Quantum",
     parts: { kind: "raw", code: 0x7000 },
   };
@@ -106,6 +107,18 @@ describe("picker presentation", () => {
     await settle();
     expect(api.keycodeView).toHaveBeenCalledExactlyOnceWith(swap.name);
     expect(choose).toHaveBeenCalledExactlyOnceWith(key);
+  });
+
+  it("uses full behavior for builder previews while keeping their captions short", async () => {
+    const { key } = await picker();
+    [...document.querySelectorAll<HTMLButtonElement>("nav button")]
+      .find((button) => button.textContent === "Layers")!
+      .click();
+    await settle();
+    const preview = document.querySelector<HTMLButtonElement>(".preview")!;
+    expect(preview.title).toBe(`${key.tooltip}\n${key.wire}`);
+    expect(preview.textContent).not.toContain(key.tooltip);
+    expect(preview.textContent).not.toContain(key.description);
   });
 
   it("keeps ranked search results in order without category group headings", async () => {

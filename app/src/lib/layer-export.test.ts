@@ -27,11 +27,14 @@ const cell = (id: string, code: number, label = "A"): KeyCellDto => ({
   kind: code === 0 ? "no" : code === 1 ? "trns" : "basic",
   wire: "KC_A",
   description: "A",
+  tooltip: "Send A to the host.",
   path: "",
   previous: "KC_NO",
   changed: true,
 });
-function view(layers = [[cell("a", 4), cell("b", 5)]]): Pick<ViewModel, "board" | "layers" | "names"> {
+function view(
+  layers = [[cell("a", 4), cell("b", 5)]],
+): Pick<ViewModel, "board" | "layers" | "names"> {
   return {
     board: { id: "test", name: "Test board", keys },
     layers,
@@ -200,6 +203,29 @@ describe("layer PNG rendering", () => {
     expect(mock.context.rotate).toHaveBeenCalledWith((35 * Math.PI) / 180);
     expect(mock.context.roundRect).toHaveBeenCalledTimes(8); // Two tiles and three key rectangles per tile.
     expect(JSON.stringify(model)).toBe(snapshot);
+  });
+
+  it("paints compact two-line mouse labels without copying hover paragraphs into the image", async () => {
+    const mock = canvasMock();
+    const speed = {
+      ...cell("a", 0xdd, "Speed\n0"),
+      kind: "mouse" as const,
+      tooltip: "Detailed speed behavior that belongs only in hover text.",
+    };
+    const click = { ...cell("b", 0xd1, "Left\nclick"), kind: "mouse" as const };
+    await renderLayerSheet(view([[speed, click]]), theme);
+    expect(mock.text.map((entry) => entry.text)).toEqual([
+      "Layer 0 · Base",
+      "Speed",
+      "0",
+      "Left",
+      "click",
+    ]);
+    expect(
+      mock.text.every(
+        (entry) => entry.color === theme.keyForeground || entry.text.startsWith("Layer"),
+      ),
+    ).toBe(true);
   });
 
   it("reports encoding and canvas failures", async () => {

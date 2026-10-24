@@ -8,7 +8,7 @@
   class="field"
   class:active={ui.inspectorPaths.length === 1 && ui.inspectorPaths[0] === path}
   aria-pressed={ui.inspectorPaths.length === 1 && ui.inspectorPaths[0] === path}
-  title={key ? `${key.description}\n${key.wire}` : path}
+  title={key ? `${key.tooltip}\n${key.wire}` : path}
   onclick={() => {
     ui.inspectorPaths = [path];
     ui.baseTarget = false;

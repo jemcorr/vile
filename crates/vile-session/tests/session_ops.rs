@@ -186,6 +186,77 @@ fn picker_tooltips_keep_full_behavior_without_expanding_inspector_names() {
 }
 
 #[test]
+fn detailed_behavior_reaches_board_fields_and_search_without_losing_user_names() {
+    let (_dir, mut session) = open("corne.vil");
+    session
+        .apply_op(OpDto::Rename {
+            kind: "layer".into(),
+            index: 2,
+            name: "Nav".into(),
+        })
+        .unwrap();
+    session
+        .apply_op(OpDto::Rename {
+            kind: "macro".into(),
+            index: 0,
+            name: "Launch".into(),
+        })
+        .unwrap();
+    for wire in [
+        "KC_ACL0",
+        "KC_BTN1",
+        "QK_CLEAR_EEPROM",
+        "MO(2)",
+        "PDF(2)",
+        "M0",
+        "TD(0)",
+    ] {
+        let view = session
+            .apply_op(OpDto::SetKeys {
+                layer: 0,
+                keys: keys(&["r3c4"]),
+                keycode: wire.into(),
+            })
+            .unwrap();
+        let cell = &view.layers[0][common::key_index(&view, "r3c4")];
+        let field = session.keycode_view(wire).unwrap();
+        let hit = session
+            .search_keycodes(wire, 4096)
+            .into_iter()
+            .find(|hit| hit.name == wire)
+            .unwrap();
+        assert_eq!(cell.tooltip, field.tooltip, "board vs field: {wire}");
+        assert_eq!(hit.description, field.tooltip, "picker vs field: {wire}");
+        assert_eq!(cell.label, field.label);
+        assert_eq!(cell.wire, wire);
+        assert_ne!(
+            field.description, field.tooltip,
+            "heading must remain compact: {wire}"
+        );
+        if wire == "MO(2)" {
+            assert!(field.tooltip.contains("layer 2 (Nav)"));
+        }
+        if wire == "M0" {
+            assert!(field.tooltip.contains("slot 0 (Launch)"));
+        }
+        if wire == "KC_ACL0" {
+            assert_eq!(cell.label, "Speed\n0");
+        }
+    }
+    let templates = session
+        .search_keycodes("", 4096)
+        .into_iter()
+        .filter(|hit| !hit.complete)
+        .collect::<Vec<_>>();
+    assert!(!templates.is_empty());
+    assert!(
+        templates
+            .iter()
+            .all(|hit| hit.description.contains("Choose a basic"))
+    );
+}
+
+#[test]
 fn diff_base_switches_between_disk_and_git() {
     let (dir, path) = common::temp_copy("corne_v32.vil");
     common::git(dir.path(), &["init", "-q"]);

@@ -206,7 +206,7 @@
       }}
     >
       <title
-        >{cell?.description ?? ""} · {cell?.wire ?? ""}{cell?.changed
+        >{cell?.tooltip ?? ""} · {cell?.wire ?? ""}{cell?.changed
           ? `\n${cell.previous} → ${cell.wire}`
           : ""}</title
       >

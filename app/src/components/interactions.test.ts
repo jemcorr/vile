@@ -69,6 +69,9 @@ describe("explicit keycode completion", () => {
       .querySelector(".hits button")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await settle();
+    expect(document.querySelector<HTMLButtonElement>(".hits button")!.title).toBe(
+      `${hit.description}\n${hit.name}`,
+    );
     expect(document.activeElement).toBe(document.querySelector("input"));
     document
       .querySelector("input")!
@@ -90,6 +93,7 @@ const cells: KeyCellDto[] = keys.map((key) => ({
   changed: false,
   path: `layout[0][0][${key.col}]`,
   description: "A",
+  tooltip: "Detailed behavior while this key is held.",
   previous: "KC_A",
 }));
 function pointer(svg: EventTarget, type: string, x: number, y: number, alt = false, id = 1) {
@@ -149,6 +153,13 @@ async function board(boardKeys = keys) {
   return { svg, drag, marquee, click, blank, assign, edit };
 }
 describe("board pointer controller", () => {
+  it("uses detailed behavior in the board hover while keeping the drawn label compact", async () => {
+    await board();
+    const key = document.querySelector('[data-key-id="a"]')!;
+    expect(key.querySelector("title")?.textContent).toBe(`${cells[0]!.tooltip} · KC_A`);
+    expect(key.querySelector("text")?.textContent).toBe("A");
+    expect(key.querySelector("text")?.textContent).not.toContain(cells[0]!.tooltip);
+  });
   it("selects a captured pointer click once even when the browser retargets click to the SVG", async () => {
     const { svg, click } = await board();
     pointer(svg, "pointerdown", 30, 30);

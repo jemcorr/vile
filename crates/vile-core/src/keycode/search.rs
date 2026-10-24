@@ -149,7 +149,7 @@ impl Catalog {
             let mut keys = vec![name.clone(), entry.name.to_string()];
             keys.extend(entry.aliases.iter().map(|alias| alias.to_string()));
             keys.push(self.description(Keycode(entry.code)));
-            keys.push(self.picker_description(Keycode(entry.code)));
+            keys.push(self.tooltip(Keycode(entry.code)));
             let picker = self.picker(Keycode(entry.code));
             keys.push(picker.label);
             keys.push(picker.summary);

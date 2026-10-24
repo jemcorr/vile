@@ -42,6 +42,7 @@ pub struct KeyCellDto {
     pub path: String,
     pub code: u16,
     pub description: String,
+    pub tooltip: String,
     pub previous: String,
 }
 
@@ -281,6 +282,7 @@ pub struct KeycodeView {
     pub wire: String,
     pub label: String,
     pub description: String,
+    pub tooltip: String,
     pub category: String,
     pub parts: KeyParts,
 }

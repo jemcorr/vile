@@ -44,14 +44,11 @@ fn picker_copy(wire: &str) -> Option<&'static PickerCopy> {
     .get(wire)
 }
 
-impl Catalog {
-    /// Full picker tooltip text. Keep inspector headings and diff names compact.
-    pub fn picker_description(&self, code: Keycode) -> String {
-        picker_copy(&self.wire_name(code))
-            .map(|copy| copy.description.to_string())
-            .unwrap_or_else(|| self.description(code))
-    }
+pub(super) fn action_description(wire: &str) -> Option<&'static str> {
+    picker_copy(wire).map(|copy| copy.description)
+}
 
+impl Catalog {
     pub fn picker(&self, code: Keycode) -> PickerPresentation {
         let wire = self.wire_name(code);
         let group = self.picker_group(code);

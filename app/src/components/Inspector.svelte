@@ -60,14 +60,16 @@
 </script>
 
 <section class="inspector" aria-label="Key inspector">
-  <h2>{keys.length === 1 ? keys[0]!.description : `${keys.length} keys selected`}</h2>
+  <h2 title={keys.length === 1 ? `${keys[0]!.tooltip}\n${keys[0]!.wire}` : undefined}>
+    {keys.length === 1 ? keys[0]!.description : `${keys.length} keys selected`}
+  </h2>
   {#if keys.length === 1}<small class="raw">{keys[0]!.wire}</small>{/if}
   {#if taps}
     <div class="control">
       <span>Base</span><button
         class:active={choosing}
         onclick={onbase}
-        title="Choose a base from the picker, or drop a tile here"
+        title={`${baseView ? `${baseView.tooltip}\n${baseView.wire}\n` : ""}Choose a base from the picker, or drop a tile here`}
         use:pointerDrop={(event) => {
           if (event.payload.kind !== "keycode" || event.payload.code === null) return false;
           onpatch({ base: event.payload.code });

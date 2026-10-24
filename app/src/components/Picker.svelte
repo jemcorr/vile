@@ -228,7 +228,7 @@
         >{/if}
       {#if preview}<button
           class="tile preview"
-          title={`${preview.description}\n${preview.wire}`}
+          title={`${preview.tooltip}\n${preview.wire}`}
           onpointerdown={(e) =>
             startPointerDrag(
               e,

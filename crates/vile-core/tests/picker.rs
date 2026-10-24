@@ -13,19 +13,13 @@ fn picker_copy_keeps_wire_identity_and_distinguishes_firmware_resets() {
     let reboot = cat.parse("QK_REBOOT").unwrap();
     let reset = cat.parse("QK_CLEAR_EEPROM").unwrap();
     assert_eq!(cat.picker(boot).label, "Bootloader");
-    assert!(cat.picker_description(boot).contains("flash firmware"));
+    assert!(cat.tooltip(boot).contains("flash firmware"));
     assert!(
-        cat.picker_description(reboot)
+        cat.tooltip(reboot)
             .contains("without entering the bootloader")
     );
-    assert!(
-        cat.picker_description(reset)
-            .contains("persistent settings")
-    );
-    assert!(
-        cat.picker_description(reset)
-            .contains("depending on the firmware")
-    );
+    assert!(cat.tooltip(reset).contains("persistent settings"));
+    assert!(cat.tooltip(reset).contains("depending on the firmware"));
     assert_eq!(cat.description(boot), "Enter bootloader");
     assert_eq!(cat.description(reset), "clear eeprom");
     assert_eq!(cat.wire_name(reset), "QK_CLEAR_EEPROM");

@@ -39,6 +39,7 @@ const key: KeycodeView = {
   wire: "KC_A",
   label: "A",
   description: "A",
+  tooltip: "Send A to the host.",
   category: "Basic",
   parts: { kind: "tap", base: 4, wrapMods: 0, hold: { kind: "none" } },
 };
@@ -72,6 +73,7 @@ function view(): ViewModel {
           path: "layout[0][0][0]",
           code: 4,
           description: "A",
+          tooltip: "Send A to the host.",
           previous: "KC_A",
         },
         {
@@ -83,6 +85,7 @@ function view(): ViewModel {
           path: "layout[0][0][1]",
           code: 4,
           description: "A",
+          tooltip: "Send A to the host.",
           previous: "KC_A",
         },
       ],

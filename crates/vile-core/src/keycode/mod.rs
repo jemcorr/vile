@@ -7,6 +7,7 @@ mod picker;
 mod presentation;
 mod search;
 mod table;
+mod tooltip;
 
 pub use catalog::{Catalog, CatalogContext};
 pub use parts::{HoldBehavior, KeyParts, KeyPartsPatch, compose, decompose};

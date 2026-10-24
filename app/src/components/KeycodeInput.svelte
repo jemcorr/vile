@@ -96,7 +96,12 @@
   {#if hits.length > 0}
     <div class="hits">
       {#each hits as hit, i (i)}
-        <button type="button" class:active={i === active} onclick={() => complete(hit)}>
+        <button
+          type="button"
+          title={`${hit.description}\n${hit.name}`}
+          class:active={i === active}
+          onclick={() => complete(hit)}
+        >
           <span class="name">{hit.name}</span>
           <span class="label">{hit.label.replace(/\n/g, " ")}</span>
         </button>

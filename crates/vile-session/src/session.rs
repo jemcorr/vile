@@ -173,16 +173,12 @@ impl Session {
                     picker_group: picker.map(|p| p.group.into()).unwrap_or_default(),
                     code: code.map(|kc| kc.code()),
                     description: code
-                        .map(|kc| {
-                            let description =
-                                describe(self.editor.as_ref().map(|e| e.names()), &catalog, kc);
-                            if description == catalog.description(kc) {
-                                catalog.picker_description(kc)
-                            } else {
-                                description
-                            }
-                        })
-                        .unwrap_or_else(|| format!("{} builder", hit.name)),
+                        .map(|kc| tooltip(self.editor.as_ref().map(|e| e.names()), &catalog, kc))
+                        .unwrap_or_else(|| {
+                            catalog.template_tooltip(&hit.insert).unwrap_or_else(|| {
+                                "Choose parameters to finish this keycode builder.".into()
+                            })
+                        }),
                     category: code
                         .map(|kc| catalog.category(kc).as_str().into())
                         .unwrap_or_else(|| {
@@ -427,6 +423,10 @@ fn key_cell(
             Some(Slot::Key(kc)) => catalog.description(kc),
             _ => "Absent position".into(),
         },
+        tooltip: match slot {
+            Some(Slot::Key(kc)) => catalog.tooltip(kc),
+            _ => "Absent position".into(),
+        },
         previous: match base.get(layer, key.row, key.col) {
             Some(Slot::Key(kc)) => catalog.wire_name(kc),
             _ => "Absent".into(),
@@ -455,6 +455,7 @@ fn build_view(
                         let mut cell = key_cell(doc, base, &catalog, layer, key);
                         if let Some(Slot::Key(kc)) = doc.get(layer, key.row, key.col) {
                             cell.description = describe(Some(editor.names()), &catalog, kc);
+                            cell.tooltip = tooltip(Some(editor.names()), &catalog, kc);
                         }
                         cell
                     })
@@ -585,6 +586,25 @@ fn describe(names: Option<&vile_core::metadata::Names>, catalog: &Catalog, kc: K
     }
     text
 }
+fn tooltip(names: Option<&vile_core::metadata::Names>, catalog: &Catalog, kc: Keycode) -> String {
+    let mut text = catalog.tooltip(kc);
+    if let Some(names) = names {
+        if let Some(layer) = kc.layer_ref()
+            && let Some(name) = names.layers.get(&(layer as usize))
+        {
+            text = text.replace(
+                &format!("layer {layer}"),
+                &format!("layer {layer} ({name})"),
+            );
+        }
+        if let KeycodeKind::Macro { index } = kc.kind()
+            && let Some(name) = names.macros.get(&(index as usize))
+        {
+            text = text.replace(&format!("slot {index}"), &format!("slot {index} ({name})"));
+        }
+    }
+    text
+}
 fn keycode_view(
     names: Option<&vile_core::metadata::Names>,
     catalog: &Catalog,
@@ -595,6 +615,7 @@ fn keycode_view(
         wire: catalog.wire_name(kc),
         label: catalog.label(kc),
         description: describe(names, catalog, kc),
+        tooltip: tooltip(names, catalog, kc),
         category: catalog.category(kc).as_str().into(),
         parts: vile_core::keycode::decompose(kc),
     }
