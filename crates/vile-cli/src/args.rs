@@ -9,6 +9,9 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[derive(Parser)]
 #[command(name = "vile", version)]
 pub struct Cli {
+    /// Use a local Vial definition for geometry, names and explicit mirror pairs.
+    #[arg(long, global = true)]
+    pub definition: Option<PathBuf>,
     #[command(subcommand)]
     pub command: Command,
 }

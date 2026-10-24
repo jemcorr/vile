@@ -11,12 +11,17 @@ use vile_core::diff::{diff, format_diff};
 use vile_core::ops::{copy_layer, fill_layer, mirror_layer, move_layer, set_keys, swap_layers};
 use vile_core::validate::macro_buffer_bytes;
 use vile_core::{
-    Board, BoardKey, Catalog, CatalogContext, Document, Keycode, LoadReport, MirrorMode, OpError,
-    Pos, Slot,
+    Board, Catalog, CatalogContext, Document, Keycode, LoadReport, MirrorMode, OpError, Pos, Slot,
 };
 
-/// Board rows in the order `show` prints them.
-const BOARD_ROWS: [&str; 4] = ["top", "home", "bottom", "thumb"];
+static DEFINITION: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+fn configured_board(doc: &Document) -> Result<Board> {
+    match DEFINITION.get() {
+        Some(value) => vile_core::geometry::from_vial_definition(value, doc)
+            .map_err(|e| anyhow!("invalid definition: {e}")),
+        None => Ok(Board::matrix(doc)),
+    }
+}
 
 fn main() -> ExitCode {
     match run(args::Cli::parse()) {
@@ -29,6 +34,16 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: args::Cli) -> Result<()> {
+    if let Some(path) = cli.definition {
+        let bytes = std::fs::read(&path)
+            .with_context(|| format!("cannot read definition {}", path.display()))?;
+        if bytes.len() > 4 * 1024 * 1024 {
+            bail!("definition exceeds size limit");
+        }
+        DEFINITION
+            .set(serde_json::from_slice(&bytes)?)
+            .map_err(|_| anyhow!("definition already configured"))?;
+    }
     match cli.command {
         args::Command::Check { file } => check(&file),
         args::Command::Diff { old, new, git } => {
@@ -89,7 +104,9 @@ fn run_layer(op: args::LayerCommand) -> Result<()> {
             let before = load(&file)?;
             let mut after = before.clone();
             let warnings = swap_layers(&mut after, a, b)?;
-            finish(&file, &before, &after, &warnings, &out)
+            let mut permutation: Vec<_> = (0..before.layer_count()).collect();
+            permutation.swap(a, b);
+            finish_with_names(&file, &before, &after, &warnings, &out, Some(&permutation))
         }
         args::LayerCommand::Move {
             file,
@@ -100,7 +117,14 @@ fn run_layer(op: args::LayerCommand) -> Result<()> {
             let before = load(&file)?;
             let mut after = before.clone();
             let warnings = move_layer(&mut after, from, to)?;
-            finish(&file, &before, &after, &warnings, &out)
+            let mut order: Vec<_> = (0..before.layer_count()).collect();
+            let layer = order.remove(from);
+            order.insert(to, layer);
+            let mut permutation = vec![0; order.len()];
+            for (new, old) in order.into_iter().enumerate() {
+                permutation[old] = new;
+            }
+            finish_with_names(&file, &before, &after, &warnings, &out, Some(&permutation))
         }
         args::LayerCommand::Mirror {
             file,
@@ -109,8 +133,7 @@ fn run_layer(op: args::LayerCommand) -> Result<()> {
             out,
         } => {
             let before = load(&file)?;
-            let board = Board::for_document(&before)
-                .ok_or_else(|| anyhow!("unknown board; mirroring needs the key geometry"))?;
+            let board = configured_board(&before)?;
             let mode = match mode {
                 args::MirrorArg::Swap => MirrorMode::Swap,
                 args::MirrorArg::LeftToRight => MirrorMode::LeftToRight,
@@ -208,10 +231,7 @@ fn check(file: &Path) -> Result<()> {
         }),
     );
     println!("macro buffer: {} bytes", macro_buffer_bytes(&doc));
-    match Board::for_document(&doc) {
-        Some(board) => println!("board: {}", board.name),
-        None => println!("board: unknown (positions are shown as rRcC)"),
-    }
+    println!("board: {}", configured_board(&doc)?.name);
     if report.canonical {
         println!("round trip: byte-identical");
     } else {
@@ -232,8 +252,8 @@ fn section_line(label: &str, section: Option<(usize, usize)>) {
 }
 
 fn print_diff(old: &Document, new: &Document) -> Result<()> {
-    let board = Board::for_document(new);
-    let entries = diff(old, new, board.as_ref());
+    let board = configured_board(new)?;
+    let entries = diff(old, new, Some(&board));
     if entries.is_empty() {
         println!("no changes");
     } else {
@@ -285,8 +305,7 @@ fn set_key(
     let pos = match matrix_position(key) {
         Some(pos) => pos,
         None => {
-            let board = Board::for_document(&before)
-                .ok_or_else(|| anyhow!("unknown board; use rRcC positions"))?;
+            let board = configured_board(&before)?;
             let found = board
                 .key_by_id(key)
                 .ok_or_else(|| anyhow!("unknown key id \"{key}\""))?;
@@ -314,7 +333,7 @@ fn cell_text(doc: &Document, catalog: &Catalog, layer: usize, row: usize, col: u
 
 fn show(file: &Path, only: Option<usize>) -> Result<()> {
     let doc = load(file)?;
-    let board = Board::for_document(&doc);
+    let _board = configured_board(&doc)?;
     let catalog = doc.catalog();
     let layers: Vec<usize> = match only {
         Some(layer) if layer < doc.layer_count() => vec![layer],
@@ -329,37 +348,11 @@ fn show(file: &Path, only: Option<usize>) -> Result<()> {
     };
     for layer in layers {
         println!("L{layer}");
-        match &board {
-            Some(board) => {
-                for row in BOARD_ROWS {
-                    let cells_of = |side: &str| -> Vec<String> {
-                        let prefix = format!("{row}-{side}-");
-                        let mut keys: Vec<&BoardKey> = board
-                            .keys
-                            .iter()
-                            .filter(|key| key.id.starts_with(&prefix))
-                            .collect();
-                        keys.sort_by(|a, b| a.x.total_cmp(&b.x));
-                        keys.iter()
-                            .map(|key| cell_text(&doc, &catalog, layer, key.row, key.col))
-                            .collect()
-                    };
-                    let line = format!(
-                        "{}   {}",
-                        cells_of("left").join(" "),
-                        cells_of("right").join(" ")
-                    );
-                    println!("{}", line.trim_end());
-                }
-            }
-            None => {
-                for row in 0..doc.rows() {
-                    let cells: Vec<String> = (0..doc.cols())
-                        .map(|col| cell_text(&doc, &catalog, layer, row, col))
-                        .collect();
-                    println!("{}", cells.join(" ").trim_end());
-                }
-            }
+        for row in 0..doc.rows() {
+            let cells: Vec<String> = (0..doc.cols())
+                .map(|col| cell_text(&doc, &catalog, layer, row, col))
+                .collect();
+            println!("{}", cells.join(" ").trim_end());
         }
         println!();
     }
@@ -391,17 +384,61 @@ fn finish(
     warnings: &[String],
     out: &args::OutputArgs,
 ) -> Result<()> {
+    finish_with_names(file, before, after, warnings, out, None)
+}
+
+fn finish_with_names(
+    file: &Path,
+    before: &Document,
+    after: &Document,
+    warnings: &[String],
+    out: &args::OutputArgs,
+    layer_permutation: Option<&[usize]>,
+) -> Result<()> {
+    let (mut editor, _) = vile_core::Editor::open(file)?;
+    if editor.doc() != before {
+        bail!(
+            "{} changed while the operation was being prepared",
+            file.display()
+        );
+    }
+    let old_names = editor.names().clone();
+    editor.apply_named(|doc, names| {
+        *doc = after.clone();
+        if let Some(permutation) = layer_permutation {
+            names.remap_layers(permutation);
+        }
+        Ok(Vec::new())
+    })?;
     for warning in warnings {
         eprintln!("warning: {warning}");
     }
-    let board = Board::for_document(after);
-    let entries = diff(before, after, board.as_ref());
-    if entries.is_empty() {
+    for warning in editor.metadata_warnings() {
+        eprintln!("warning: {warning}");
+    }
+    let board = configured_board(after)?;
+    let entries = diff(before, after, Some(&board));
+    if entries.is_empty() && editor.names() == &old_names {
         println!("no changes");
         eprintln!("nothing written");
         return Ok(());
     }
     print!("{}", format_diff(&entries));
+    let indices: std::collections::BTreeSet<_> = old_names
+        .layers
+        .keys()
+        .chain(editor.names().layers.keys())
+        .copied()
+        .collect();
+    for index in indices {
+        if old_names.layers.get(&index) != editor.names().layers.get(&index) {
+            println!(
+                "L{index} name: {} -> {}",
+                old_names.layers.get(&index).map_or("", String::as_str),
+                editor.names().layers.get(&index).map_or("", String::as_str)
+            );
+        }
+    }
 
     let target: Option<PathBuf> = if out.write {
         Some(file.to_path_buf())
@@ -410,15 +447,11 @@ fn finish(
     };
     match target {
         Some(target) => {
-            let bytes = after.to_vil_bytes();
-            let loads_back = Document::from_vil_bytes(&bytes)
-                .map(|(reloaded, _)| reloaded == *after)
-                .unwrap_or(false);
-            if !loads_back {
-                bail!("refusing to write: the output does not load back identically (bug in vile)");
+            if target == file {
+                editor.save()?;
+            } else {
+                editor.save_as(&target)?;
             }
-            vile_core::io::write_atomic(&target, &bytes)
-                .with_context(|| format!("cannot write {}", target.display()))?;
             eprintln!("wrote {}", target.display());
         }
         None => eprintln!("dry run: nothing written (use --write or --output PATH)"),

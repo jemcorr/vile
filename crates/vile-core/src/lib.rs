@@ -5,6 +5,7 @@ pub mod board;
 pub mod diff;
 pub mod document;
 pub mod editor;
+pub mod geometry;
 pub mod git;
 pub mod io;
 pub mod keycode;

@@ -129,7 +129,9 @@ pub fn diff(old: &Document, new: &Document, board: Option<&Board>) -> Vec<DiffEn
                 if a == b {
                     continue;
                 }
-                let name = key_id.clone().unwrap_or_else(|| format!("r{r}c{c}"));
+                let name = board
+                    .map(|b| b.position_name(r, c))
+                    .unwrap_or_else(|| format!("r{r}c{c}"));
                 let (from, to) = (slot_text(&oc, a), slot_text(&nc, b));
                 let mut e = entry(DiffSection::Layout, from.clone(), to.clone());
                 e.line = format!("L{l} {name}: {from} -> {to}");

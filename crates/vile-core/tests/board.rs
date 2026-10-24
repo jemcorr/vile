@@ -4,7 +4,7 @@ use vile_core::Board;
 
 #[test]
 fn corne_board_has_46_unique_keys() {
-    let b = Board::corne_v4_1();
+    let b = common::board();
     assert_eq!(b.rows, 8);
     assert_eq!(b.cols, 7);
     assert_eq!(b.keys.len(), 46);
@@ -16,7 +16,7 @@ fn corne_board_has_46_unique_keys() {
 
 #[test]
 fn key_lookup_and_names() {
-    let b = Board::corne_v4_1();
+    let b = common::board();
     let k = b.key_by_id("thumb-left-mid").unwrap();
     assert_eq!((k.row, k.col), (3, 4));
     assert_eq!(b.key_at(7, 4).unwrap().id, "thumb-right-mid");
@@ -28,7 +28,7 @@ fn key_lookup_and_names() {
 
 #[test]
 fn every_key_has_a_mirror_on_the_other_half() {
-    let b = Board::corne_v4_1();
+    let b = common::board();
     for k in &b.keys {
         let m = b
             .mirror_of(k)
@@ -43,10 +43,10 @@ fn every_key_has_a_mirror_on_the_other_half() {
 fn board_matches_both_fixtures() {
     for name in ["corne.vil", "corne_v32.vil"] {
         let doc = common::load(name);
-        assert!(Board::corne_v4_1().matches(&doc), "{name}");
+        assert!(common::board().matches(&doc), "{name}");
         assert_eq!(
             Board::for_document(&doc).map(|b| b.id),
-            Some("crkbd_rev4_1_split_3x6_3_ex2".to_string())
+            Some("matrix".to_string())
         );
     }
 }

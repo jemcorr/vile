@@ -3,7 +3,7 @@ mod common;
 use std::path::Path;
 use std::process::Command;
 
-use vile_core::{Board, Document, Editor, Pos, SaveError, ops};
+use vile_core::{Document, Editor, Pos, SaveError, ops};
 
 fn git(dir: &Path, args: &[&str]) {
     let status = Command::new("git")
@@ -67,10 +67,7 @@ fn editor_diff_against_git_head() {
     ed.save().unwrap();
     ed.set_diff_base_git().unwrap();
     let lines: Vec<String> = ed.diff().into_iter().map(|e| e.line).collect();
-    assert_eq!(
-        lines,
-        vec!["L0 thumb-left-mid: MO(7) -> LT8(KC_ESCAPE)".to_string()]
-    );
+    assert_eq!(lines, vec!["L0 r3c4: MO(7) -> LT8(KC_ESCAPE)".to_string()]);
     ed.set_diff_base_disk();
     assert!(ed.diff().is_empty());
 }
@@ -82,10 +79,7 @@ fn save_writes_canonical_bytes_and_clears_dirty() {
     std::fs::write(&path, common::fixture_bytes("corne.vil")).unwrap();
     let (mut ed, report) = Editor::open(&path).unwrap();
     assert!(report.canonical);
-    assert_eq!(
-        ed.board().map(|b| b.id.as_str()),
-        Some("crkbd_rev4_1_split_3x6_3_ex2")
-    );
+    assert_eq!(ed.board().map(|b| b.id.as_str()), Some("matrix"));
     let a = common::kc(ed.doc(), "KC_A");
     ed.apply(|d| ops::set_keys(d, 2, &[Pos { row: 0, col: 0 }], a))
         .unwrap();
@@ -119,7 +113,7 @@ fn save_refuses_when_the_file_changed_on_disk() {
 #[test]
 fn save_as_writes_a_new_file_and_switches_path() {
     let dir = tempfile::tempdir().unwrap();
-    let mut ed = Editor::new(common::load("corne.vil"), None, Some(Board::corne_v4_1()));
+    let mut ed = Editor::new(common::load("corne.vil"), None, Some(common::board()));
     assert!(matches!(ed.save(), Err(SaveError::NoPath)));
     let path = dir.path().join("new.vil");
     ed.save_as(&path).unwrap();

@@ -377,10 +377,14 @@ pub fn mirror_layer(doc: &mut Document, board: &Board, layer: usize, mode: Mirro
     if !board.matches(doc) {
         return Err(OpError::BoardMismatch);
     }
-    for key in board.keys.iter().filter(|key| key.id.contains("-left-")) {
-        let Some(mirror) = board.mirror_of(key) else {
-            continue;
-        };
+    if !board.can_mirror() {
+        return Err(OpError::Invalid(
+            "The definition does not supply validated left/right mirror pairs".into(),
+        ));
+    }
+    for pair in &board.mirror_pairs {
+        let key = board.key_by_id(&pair[0]).ok_or(OpError::BoardMismatch)?;
+        let mirror = board.key_by_id(&pair[1]).ok_or(OpError::BoardMismatch)?;
         let left_pos = Pos {
             row: key.row,
             col: key.col,

@@ -38,3 +38,7 @@ pub fn kc(doc: &Document, s: &str) -> vile_core::Keycode {
         .parse(s)
         .unwrap_or_else(|e| panic!("cannot parse {s}: {e}"))
 }
+
+pub fn board() -> vile_core::Board {
+    serde_json::from_slice(&fixture_bytes("corne-geometry.json")).unwrap()
+}

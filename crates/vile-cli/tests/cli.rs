@@ -34,7 +34,7 @@ fn check_accepts_the_fixture() {
         .success()
         .stdout(contains("ok: 10 layers, 8x7 matrix, 46 keys per layer"))
         .stdout(contains("uid: 5010774632021243529"))
-        .stdout(contains("board: Corne v4.1 (LAYOUT_split_3x6_3_ex2)"))
+        .stdout(contains("board: Matrix grid"))
         .stdout(contains("round trip: byte-identical"));
 }
 
@@ -61,8 +61,8 @@ fn layer_swap_dry_run_prints_the_diff_and_writes_nothing() {
         .args(["7", "8"])
         .assert()
         .success()
-        .stdout(contains("L0 thumb-left-mid: MO(7) -> MO(8)\n"))
-        .stdout(contains("L0 thumb-right-mid: MO(8) -> MO(7)\n"))
+        .stdout(contains("L0 r3c4: MO(7) -> MO(8)\n"))
+        .stdout(contains("L0 r7c4: MO(8) -> MO(7)\n"))
         .stderr(contains("dry run: nothing written"));
     assert_eq!(read(&path), read(&fixture("corne_v32.vil")));
 }
@@ -99,21 +99,21 @@ fn layer_clear_to_output_file() {
         .arg(&out)
         .assert()
         .success()
-        .stdout(contains("L2 top-left-pinky: KC_Q -> KC_TRNS\n"));
+        .stdout(contains("L2 r0c1: KC_Q -> KC_TRNS\n"));
     vile()
         .arg("diff")
         .arg(fixture("corne_v32.vil"))
         .arg(&out)
         .assert()
         .success()
-        .stdout(contains("L2 top-left-pinky: KC_Q -> KC_TRNS\n"));
+        .stdout(contains("L2 r0c1: KC_Q -> KC_TRNS\n"));
     vile()
         .args(["layer", "clear"])
         .arg(&out)
         .args(["2", "-w"])
         .assert()
         .success()
-        .stdout(contains("L2 top-left-pinky: KC_TRNS -> KC_NO\n"));
+        .stdout(contains("L2 r0c1: KC_TRNS -> KC_NO\n"));
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn layer_copy_overwrites_the_destination() {
         .arg(&out)
         .assert()
         .success()
-        .stdout(contains("L5 thumb-left-mid: KC_TRNS -> MO(7)\n"));
+        .stdout(contains("L5 r3c4: KC_TRNS -> MO(7)\n"));
     vile().arg("check").arg(&out).assert().success();
 }
 

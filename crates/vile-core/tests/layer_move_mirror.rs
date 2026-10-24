@@ -1,7 +1,7 @@
 mod common;
 
 use common::wire_at;
-use vile_core::{Board, MirrorMode, ops};
+use vile_core::{MirrorMode, ops};
 
 #[test]
 fn move_layer_renumbers_references() {
@@ -40,7 +40,7 @@ fn move_to_same_index_changes_nothing() {
 
 #[test]
 fn mirror_left_to_right_copies_mirrored_positions() {
-    let board = Board::corne_v4_1();
+    let board = common::board();
     let mut doc = common::load("corne.vil");
     let before_left: Vec<_> = board
         .keys
@@ -73,7 +73,7 @@ fn mirror_left_to_right_copies_mirrored_positions() {
 
 #[test]
 fn mirror_swap_twice_is_identity_and_other_layers_are_untouched() {
-    let board = Board::corne_v4_1();
+    let board = common::board();
     let original = common::load("corne_v32.vil");
     let mut doc = original.clone();
     ops::mirror_layer(&mut doc, &board, 7, MirrorMode::Swap).unwrap();
@@ -86,7 +86,7 @@ fn mirror_swap_twice_is_identity_and_other_layers_are_untouched() {
 
 #[test]
 fn mirror_right_to_left() {
-    let board = Board::corne_v4_1();
+    let board = common::board();
     let mut doc = common::load("corne_v32.vil");
     ops::mirror_layer(&mut doc, &board, 8, MirrorMode::RightToLeft).unwrap();
     assert_eq!(wire_at(&doc, 8, 0, 2), wire_at(&doc, 8, 4, 2));

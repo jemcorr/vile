@@ -3,6 +3,14 @@
 
 use crate::document::{Document, Slot};
 
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct KeyRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
 /// One physical key: its id, its matrix position and its position in key
 /// units (x to the right, y down), as in QMK info.json.
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -14,6 +22,16 @@ pub struct BoardKey {
     pub y: f64,
     pub w: f64,
     pub h: f64,
+    #[serde(default)]
+    pub r: f64,
+    #[serde(default)]
+    pub rx: f64,
+    #[serde(default)]
+    pub ry: f64,
+    #[serde(default)]
+    pub secondary: Option<KeyRect>,
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -24,24 +42,52 @@ pub struct Board {
     pub rows: usize,
     pub cols: usize,
     pub keys: Vec<BoardKey>,
+    #[serde(default)]
+    pub mirror_pairs: Vec<[String; 2]>,
 }
 
-const CORNE_V4_1: &str = include_str!("../boards/corne_v4_1.json");
-
 impl Board {
-    /// The bundled Corne v4.1 board. Panics only if the bundled JSON is malformed (tested).
-    pub fn corne_v4_1() -> Board {
-        serde_json::from_str(CORNE_V4_1).expect("the bundled board file is valid JSON (tested)")
+    /// Without a definition, a usable matrix board is always available.
+    pub fn for_document(doc: &Document) -> Option<Board> {
+        Some(Board::matrix(doc))
     }
 
-    /// Some(corne_v4_1()) when it matches the document, else None.
-    pub fn for_document(doc: &Document) -> Option<Board> {
-        let board = Board::corne_v4_1();
-        board.matches(doc).then_some(board)
+    /// Every present matrix position is editable even without physical geometry.
+    pub fn matrix(doc: &Document) -> Board {
+        Board {
+            id: "matrix".into(),
+            name: "Matrix grid".into(),
+            source: "matrix".into(),
+            mirror_pairs: Vec::new(),
+            rows: doc.rows(),
+            cols: doc.cols(),
+            keys: (0..doc.rows())
+                .flat_map(|row| {
+                    (0..doc.cols())
+                        .filter(move |&col| matches!(doc.get(0, row, col), Some(Slot::Key(_))))
+                        .map(move |col| BoardKey {
+                            id: format!("r{row}c{col}"),
+                            row,
+                            col,
+                            x: col as f64,
+                            y: row as f64,
+                            w: 1.0,
+                            h: 1.0,
+                            r: 0.0,
+                            rx: 0.0,
+                            ry: 0.0,
+                            secondary: None,
+                            name: None,
+                        })
+                })
+                .collect(),
+        }
     }
 
     pub fn key_by_id(&self, id: &str) -> Option<&BoardKey> {
-        self.keys.iter().find(|key| key.id == id)
+        self.keys
+            .iter()
+            .find(|key| key.id == id || key.name.as_deref() == Some(id))
     }
 
     pub fn key_at(&self, row: usize, col: usize) -> Option<&BoardKey> {
@@ -59,22 +105,26 @@ impl Board {
 
     /// The key whose id has "-left-" and "-right-" exchanged.
     pub fn mirror_of(&self, key: &BoardKey) -> Option<&BoardKey> {
-        let target = if key.id.contains("-left-") {
-            key.id.replacen("-left-", "-right-", 1)
-        } else if key.id.contains("-right-") {
-            key.id.replacen("-right-", "-left-", 1)
-        } else {
-            return None;
-        };
-        self.key_by_id(&target)
+        if let Some(pair) = self.mirror_pairs.iter().find(|pair| pair.contains(&key.id)) {
+            return self.key_by_id(if pair[0] == key.id {
+                &pair[1]
+            } else {
+                &pair[0]
+            });
+        }
+        None
     }
 
     /// The key id at (row, col), or "r{row}c{col}" when no key is there.
     pub fn position_name(&self, row: usize, col: usize) -> String {
         match self.key_at(row, col) {
-            Some(key) => key.id.clone(),
+            Some(key) => key.name.clone().unwrap_or_else(|| key.id.clone()),
             None => format!("r{row}c{col}"),
         }
+    }
+
+    pub fn can_mirror(&self) -> bool {
+        !self.mirror_pairs.is_empty()
     }
 
     /// True when doc.rows() == rows, doc.cols() == cols, and for every

@@ -1,9 +1,9 @@
 mod common;
 
-use vile_core::{Board, Editor, Keycode, Pos, ops};
+use vile_core::{Editor, Keycode, Pos, ops};
 
 fn pos(id: &str) -> Pos {
-    let b = Board::corne_v4_1();
+    let b = common::board();
     let k = b.key_by_id(id).unwrap();
     Pos {
         row: k.row,
@@ -14,7 +14,7 @@ fn pos(id: &str) -> Pos {
 #[test]
 fn layer_clear_followed_by_undo_restores_the_original() {
     let original = common::load("corne.vil");
-    let mut ed = Editor::new(original.clone(), None, Some(Board::corne_v4_1()));
+    let mut ed = Editor::new(original.clone(), None, Some(common::board()));
     assert!(!ed.can_undo());
     ed.apply(|d| ops::fill_layer(d, 0, Keycode::NO)).unwrap();
     assert_ne!(ed.doc(), &original);
@@ -74,7 +74,7 @@ fn undo_history_is_capped() {
 
 #[test]
 fn copy_and_paste_keys_through_the_clipboard() {
-    let mut ed = Editor::new(common::load("corne.vil"), None, Some(Board::corne_v4_1()));
+    let mut ed = Editor::new(common::load("corne.vil"), None, Some(common::board()));
     let sel = [pos("home-left-pinky"), pos("home-left-ring")];
     assert!(ed.paste_keys(4, &[]).is_err(), "empty clipboard");
     ed.copy_keys(0, &sel).unwrap();
@@ -112,11 +112,7 @@ fn copy_and_paste_a_layer() {
 
 #[test]
 fn diff_is_against_the_base() {
-    let mut ed = Editor::new(
-        common::load("corne_v32.vil"),
-        None,
-        Some(Board::corne_v4_1()),
-    );
+    let mut ed = Editor::new(common::load("corne_v32.vil"), None, Some(common::board()));
     let lt = common::kc(ed.doc(), "LT8(KC_ESCAPE)");
     ed.apply(|d| ops::set_keys(d, 0, &[pos("thumb-left-mid")], lt))
         .unwrap();

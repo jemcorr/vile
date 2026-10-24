@@ -2,12 +2,12 @@ mod common;
 
 use common::kc;
 use vile_core::diff::{diff, format_diff};
-use vile_core::{Board, DiffSection, Keycode, Macro};
+use vile_core::{DiffSection, Keycode, Macro};
 
 #[test]
 fn identical_documents_have_an_empty_diff() {
     let doc = common::load("corne.vil");
-    assert!(diff(&doc, &doc.clone(), Some(&Board::corne_v4_1())).is_empty());
+    assert!(diff(&doc, &doc.clone(), Some(&common::board())).is_empty());
     assert_eq!(format_diff(&[]), "");
 }
 
@@ -17,7 +17,7 @@ fn key_change_is_one_semantic_line() {
     let mut new = old.clone();
     let lt = kc(&new, "LT8(KC_ESCAPE)");
     new.set(0, 3, 4, lt).unwrap();
-    let entries = diff(&old, &new, Some(&Board::corne_v4_1()));
+    let entries = diff(&old, &new, Some(&common::board()));
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].section, DiffSection::Layout);
     assert_eq!(entries[0].layer, Some(0));
@@ -48,7 +48,7 @@ fn layout_lines_are_ordered_by_layer_then_board_order() {
     new.set(1, 0, 0, Keycode::NO).unwrap(); // L1 top-left-outer
     new.set(0, 7, 3, Keycode::TRNS).unwrap(); // L0 thumb-right-outer
     new.set(0, 0, 1, Keycode::TRNS).unwrap(); // L0 top-left-pinky
-    let text = format_diff(&diff(&old, &new, Some(&Board::corne_v4_1())));
+    let text = format_diff(&diff(&old, &new, Some(&common::board())));
     let lines: Vec<&str> = text.lines().collect();
     assert_eq!(lines.len(), 3, "{text}");
     assert!(lines[0].starts_with("L0 top-left-pinky: "), "{text}");
@@ -72,7 +72,7 @@ fn other_sections_have_their_own_lines() {
     new.settings.as_mut().unwrap()[0].value = 5;
     new.encoder_layout.as_mut().unwrap()[1][2][1] = vile_core::Slot::Key(Keycode::NO);
     new.layout_options = 1;
-    let text = format_diff(&diff(&old, &new, Some(&Board::corne_v4_1())));
+    let text = format_diff(&diff(&old, &new, Some(&common::board())));
     let expected = [
         "layout_options: 0 -> 1",
         "L1 encoder 2 ccw: KC_TRNS -> KC_NO",

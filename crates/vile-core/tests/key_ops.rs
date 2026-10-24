@@ -1,9 +1,9 @@
 mod common;
 
-use vile_core::{Board, KeyRef, Keycode, Pos, ops};
+use vile_core::{KeyRef, Keycode, Pos, ops};
 
 fn pos(id: &str) -> Pos {
-    let b = Board::corne_v4_1();
+    let b = common::board();
     let k = b.key_by_id(id).unwrap_or_else(|| panic!("no key {id}"));
     Pos {
         row: k.row,

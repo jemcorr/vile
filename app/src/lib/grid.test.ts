@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import board from "../../../crates/vile-core/boards/corne_v4_1.json";
+import board from "../../../tests/fixtures/corne-geometry.json";
 import { neighbor } from "./grid";
 import type { Dir } from "./grid";
 import type { BoardKeyDto } from "./types";
