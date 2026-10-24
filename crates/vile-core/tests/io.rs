@@ -15,6 +15,7 @@ fn atomic_write_creates_and_replaces() {
     assert_eq!(names.len(), 1, "temporary files left behind: {names:?}");
 }
 
+#[cfg(unix)]
 #[test]
 fn atomic_write_keeps_permissions() {
     use std::os::unix::fs::PermissionsExt;
