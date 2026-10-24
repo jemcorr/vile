@@ -1,6 +1,7 @@
 //! Editing session and view models shared by the Tauri commands.
 pub mod dto;
 mod session;
+pub use dto::{KeycodeView, MacroUsage};
 
 pub use dto::{
     AltRepeatDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, KeyCellDto, KeyOverrideDto,

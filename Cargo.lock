@@ -4025,6 +4025,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "vile-core",
+ "vile-device",
 ]
 
 [[package]]

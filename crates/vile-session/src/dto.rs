@@ -1,5 +1,8 @@
 //! Data transfer objects exchanged with the web view as JSON (camelCase).
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use vile_core::metadata::Names;
+use vile_core::{KeyParts, KeyPartsPatch};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,6 +14,11 @@ pub struct BoardKeyDto {
     pub y: f64,
     pub w: f64,
     pub h: f64,
+    pub r: f64,
+    pub rx: f64,
+    pub ry: f64,
+    pub secondary: Option<vile_core::board::KeyRect>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -19,6 +27,7 @@ pub struct BoardDto {
     pub id: String,
     pub name: String,
     pub keys: Vec<BoardKeyDto>,
+    pub can_mirror: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -29,6 +38,10 @@ pub struct KeyCellDto {
     pub label: String,
     pub kind: String,
     pub changed: bool,
+    pub path: String,
+    pub code: u16,
+    pub description: String,
+    pub previous: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -38,6 +51,12 @@ pub struct DiffLineDto {
     pub line: String,
     pub layer: Option<usize>,
     pub key_id: Option<String>,
+    pub index: Option<usize>,
+    pub field: Option<String>,
+    pub old: String,
+    pub new: String,
+    pub old_description: String,
+    pub new_description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +121,13 @@ pub struct AltRepeatDto {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewModel {
+    pub revision: u64,
+    pub names: Names,
+    pub keycodes: BTreeMap<String, KeycodeView>,
+    pub pending_diff: Vec<DiffLineDto>,
+    pub macro_bytes: usize,
+    pub macro_capacity: Option<usize>,
+    pub geometry_source: String,
     pub path: Option<String>,
     pub uid: String,
     pub dirty: bool,
@@ -123,6 +149,9 @@ pub struct ViewModel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHitDto {
+    pub code: Option<u16>,
+    pub description: String,
+    pub category: String,
     pub name: String,
     pub insert: String,
     pub complete: bool,
@@ -145,6 +174,19 @@ pub struct KeyRefDto {
     rename_all_fields = "camelCase"
 )]
 pub enum OpDto {
+    PatchFields {
+        paths: Vec<String>,
+        patch: KeyPartsPatch,
+    },
+    ReplaceFields {
+        paths: Vec<String>,
+        keycode: String,
+    },
+    Rename {
+        kind: String,
+        index: usize,
+        name: String,
+    },
     SetKeys {
         layer: usize,
         keys: Vec<String>,
@@ -226,4 +268,21 @@ pub enum OpDto {
         allowed_mods: u8,
         options: u8,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeycodeView {
+    pub code: u16,
+    pub wire: String,
+    pub label: String,
+    pub description: String,
+    pub category: String,
+    pub parts: KeyParts,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MacroUsage {
+    pub bytes: usize,
+    pub action_bytes: Vec<usize>,
 }

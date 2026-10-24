@@ -19,18 +19,18 @@ fn set_keys_marks_dirty_and_shows_the_diff() {
     let v = s
         .apply_op(OpDto::SetKeys {
             layer: 0,
-            keys: keys(&["thumb-left-mid"]),
+            keys: keys(&["r3c4"]),
             keycode: "lt8(esc)".to_string(),
         })
         .unwrap();
     assert!(v.dirty);
     assert!(v.can_undo);
     assert_eq!(v.diff.len(), 1);
-    assert_eq!(v.diff[0].line, "L0 thumb-left-mid: MO(7) -> LT8(KC_ESCAPE)");
+    assert_eq!(v.diff[0].line, "L0 r3c4: MO(7) -> LT8(KC_ESCAPE)");
     assert_eq!(v.diff[0].section, "layout");
     assert_eq!(v.diff[0].layer, Some(0));
-    assert_eq!(v.diff[0].key_id.as_deref(), Some("thumb-left-mid"));
-    let cell = &v.layers[0][common::key_index(&v, "thumb-left-mid")];
+    assert_eq!(v.diff[0].key_id.as_deref(), Some("r3c4"));
+    let cell = &v.layers[0][common::key_index(&v, "r3c4")];
     assert_eq!(cell.wire, "LT8(KC_ESCAPE)");
     assert_eq!(cell.label, "Esc\nL8");
     assert!(cell.changed);
@@ -48,7 +48,7 @@ fn unknown_keycodes_are_rejected_and_nothing_changes() {
     let err = s
         .apply_op(OpDto::SetKeys {
             layer: 0,
-            keys: keys(&["top-left-outer"]),
+            keys: keys(&["r0c0"]),
             keycode: "KC_FOO".to_string(),
         })
         .unwrap_err();
@@ -67,21 +67,21 @@ fn unknown_keycodes_are_rejected_and_nothing_changes() {
 #[test]
 fn clear_transparent_copy_paste_and_swap_keys() {
     let (_dir, mut s) = open("corne_v32.vil");
-    let sel = keys(&["home-left-pinky", "home-left-ring"]);
+    let sel = keys(&["r1c1", "r1c2"]);
     let v = s
         .apply_op(OpDto::ClearKeys {
             layer: 0,
             keys: sel.clone(),
         })
         .unwrap();
-    assert_eq!(common::wire(&v, 0, "home-left-pinky"), "KC_NO");
+    assert_eq!(common::wire(&v, 0, "r1c1"), "KC_NO");
     let v = s
         .apply_op(OpDto::TransparentKeys {
             layer: 0,
             keys: sel.clone(),
         })
         .unwrap();
-    assert_eq!(common::wire(&v, 0, "home-left-ring"), "KC_TRNS");
+    assert_eq!(common::wire(&v, 0, "r1c2"), "KC_TRNS");
     s.undo().unwrap();
     s.undo().unwrap();
     s.apply_op(OpDto::CopyKeys {
@@ -95,35 +95,32 @@ fn clear_transparent_copy_paste_and_swap_keys() {
             keys: vec![],
         })
         .unwrap();
-    assert_eq!(
-        common::wire(&v, 4, "home-left-pinky"),
-        common::wire(&v, 0, "home-left-pinky")
-    );
+    assert_eq!(common::wire(&v, 4, "r1c1"), common::wire(&v, 0, "r1c1"));
     let v = s
         .apply_op(OpDto::SwapKeys {
             a: vec![KeyRefDto {
                 layer: 0,
-                key: "thumb-left-mid".to_string(),
+                key: "r3c4".to_string(),
             }],
             b: vec![KeyRefDto {
                 layer: 9,
-                key: "top-left-pinky".to_string(),
+                key: "r0c1".to_string(),
             }],
         })
         .unwrap();
-    assert_eq!(common::wire(&v, 0, "thumb-left-mid"), "KC_F1");
-    assert_eq!(common::wire(&v, 9, "top-left-pinky"), "MO(7)");
+    assert_eq!(common::wire(&v, 0, "r3c4"), "KC_F1");
+    assert_eq!(common::wire(&v, 9, "r0c1"), "MO(7)");
 }
 
 #[test]
 fn layer_operations() {
     let (_dir, mut s) = open("corne_v32.vil");
     let v = s.apply_op(OpDto::SwapLayers { a: 7, b: 8 }).unwrap();
-    assert_eq!(common::wire(&v, 0, "thumb-left-mid"), "MO(8)");
+    assert_eq!(common::wire(&v, 0, "r3c4"), "MO(8)");
     let v = s.apply_op(OpDto::SwapLayers { a: 7, b: 8 }).unwrap();
     assert!(!v.dirty);
     let v = s.apply_op(OpDto::MoveLayer { from: 9, to: 1 }).unwrap();
-    assert_eq!(common::wire(&v, 0, "thumb-right-mid"), "MO(9)");
+    assert_eq!(common::wire(&v, 0, "r7c4"), "MO(9)");
     let v = s
         .apply_op(OpDto::ClearLayer {
             layer: 2,
@@ -144,16 +141,13 @@ fn layer_operations() {
         v.layers[5].iter().map(|c| &c.wire).collect::<Vec<_>>(),
         v.layers[0].iter().map(|c| &c.wire).collect::<Vec<_>>()
     );
-    let v = s
+    let error = s
         .apply_op(OpDto::MirrorLayer {
             layer: 5,
-            mode: "rightToLeft".to_string(),
+            mode: "rightToLeft".into(),
         })
-        .unwrap();
-    assert_eq!(
-        common::wire(&v, 5, "top-left-ring"),
-        common::wire(&v, 5, "top-right-ring")
-    );
+        .unwrap_err();
+    assert!(error.contains("mirror pairs"));
     assert!(
         s.apply_op(OpDto::MirrorLayer {
             layer: 5,
@@ -196,7 +190,7 @@ fn diff_base_switches_between_disk_and_git() {
     s.open_path(&path).unwrap();
     s.apply_op(OpDto::SetKeys {
         layer: 0,
-        keys: keys(&["thumb-left-mid"]),
+        keys: keys(&["r3c4"]),
         keycode: "KC_A".to_string(),
     })
     .unwrap();

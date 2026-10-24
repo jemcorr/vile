@@ -2,15 +2,14 @@ use vile_session::{KeyRefDto, MacroActionDto, OpDto};
 
 #[test]
 fn op_dto_reads_camel_case_json() {
-    let op: OpDto = serde_json::from_str(
-        r#"{"type":"setKeys","layer":0,"keys":["thumb-left-mid"],"keycode":"KC_A"}"#,
-    )
-    .unwrap();
+    let op: OpDto =
+        serde_json::from_str(r#"{"type":"setKeys","layer":0,"keys":["r3c4"],"keycode":"KC_A"}"#)
+            .unwrap();
     assert_eq!(
         op,
         OpDto::SetKeys {
             layer: 0,
-            keys: vec!["thumb-left-mid".to_string()],
+            keys: vec!["r3c4".to_string()],
             keycode: "KC_A".to_string()
         }
     );
@@ -29,19 +28,20 @@ fn op_dto_reads_camel_case_json() {
             tapping_term: 180
         }
     );
-    let op: OpDto =
-        serde_json::from_str(r#"{"type":"swapKeys","a":[{"layer":0,"key":"top-left-ring"}],"b":[{"layer":9,"key":"top-left-pinky"}]}"#)
-            .unwrap();
+    let op: OpDto = serde_json::from_str(
+        r#"{"type":"swapKeys","a":[{"layer":0,"key":"r0c2"}],"b":[{"layer":9,"key":"r0c1"}]}"#,
+    )
+    .unwrap();
     assert_eq!(
         op,
         OpDto::SwapKeys {
             a: vec![KeyRefDto {
                 layer: 0,
-                key: "top-left-ring".to_string()
+                key: "r0c2".to_string()
             }],
             b: vec![KeyRefDto {
                 layer: 9,
-                key: "top-left-pinky".to_string()
+                key: "r0c1".to_string()
             }]
         }
     );

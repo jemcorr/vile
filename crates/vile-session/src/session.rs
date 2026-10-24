@@ -21,6 +21,10 @@ pub struct Session {
     editor: Option<Editor>,
     /// Warnings from the last load or operation, shown in the UI.
     warnings: Vec<String>,
+    revision: u64,
+    macro_capacity: Option<usize>,
+    geometry_source: &'static str,
+    cache_dir: Option<std::path::PathBuf>,
 }
 
 impl Session {
@@ -30,19 +34,26 @@ impl Session {
 
     /// The view of the open file, or None when no file is open.
     pub fn view(&self) -> Option<ViewModel> {
-        self.editor
-            .as_ref()
-            .map(|editor| build_view(editor, &self.warnings))
+        self.editor.as_ref().map(|editor| {
+            build_view(
+                editor,
+                &self.warnings,
+                self.revision,
+                self.macro_capacity,
+                self.geometry_source,
+            )
+        })
     }
 
     pub fn open_path(&mut self, path: &Path) -> Result<ViewModel, String> {
         let (editor, report) = Editor::open(path).map_err(|e| e.to_string())?;
+        let mut editor = editor;
         if editor.board().is_none() {
-            return Err(
-                "unsupported board: vile 0.1 supports only the Corne v4.1 (8x7 matrix, 46 keys)"
-                    .to_string(),
-            );
+            editor.set_board(Board::matrix(editor.doc()))?;
         }
+        self.revision += 1;
+        self.macro_capacity = None;
+        self.geometry_source = "matrix";
         let mut warnings: Vec<String> = report
             .warnings
             .iter()
@@ -54,19 +65,21 @@ impl Session {
                     .to_string(),
             );
         }
-        let view = build_view(&editor, &warnings);
         self.editor = Some(editor);
         self.warnings = warnings;
-        Ok(view)
+        self.load_cached_geometry();
+        self.view_result()
     }
 
     pub fn save(&mut self) -> Result<ViewModel, String> {
+        self.revision += 1;
         self.editor_mut()?.save().map_err(|e| e.to_string())?;
         self.warnings.clear();
         self.view_result()
     }
 
     pub fn save_as(&mut self, path: &Path) -> Result<ViewModel, String> {
+        self.revision += 1;
         self.editor_mut()?
             .save_as(path)
             .map_err(|e| e.to_string())?;
@@ -83,11 +96,13 @@ impl Session {
             .ok_or_else(|| "unsupported board".to_string())?;
         let warnings = apply_to(self.editor_mut()?, op, &board, &catalog)?;
         self.warnings = warnings;
+        self.revision += 1;
         self.view_result()
     }
 
     pub fn undo(&mut self) -> Result<ViewModel, String> {
         let done = self.editor_mut()?.undo();
+        self.revision += 1;
         self.warnings = if done {
             Vec::new()
         } else {
@@ -98,6 +113,7 @@ impl Session {
 
     pub fn redo(&mut self) -> Result<ViewModel, String> {
         let done = self.editor_mut()?.redo();
+        self.revision += 1;
         self.warnings = if done {
             Vec::new()
         } else {
@@ -107,10 +123,65 @@ impl Session {
     }
 
     pub fn search_keycodes(&self, query: &str, limit: usize) -> Vec<SearchHitDto> {
-        self.catalog()
-            .search(query, limit)
-            .into_iter()
+        let catalog = self.catalog();
+        let mut hits = catalog.search(query, limit);
+        if !query.trim().is_empty() {
+            let needle: String = query
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect();
+            let mut named = Vec::new();
+            for hit in catalog.search("", 4096) {
+                if let Ok(kc) = catalog.parse(&hit.name) {
+                    let description =
+                        describe(self.editor.as_ref().map(|e| e.names()), &catalog, kc);
+                    if description == catalog.description(kc) {
+                        continue;
+                    }
+                    let text: String = description
+                        .chars()
+                        .filter(|c| c.is_alphanumeric())
+                        .flat_map(char::to_lowercase)
+                        .collect();
+                    let mut wanted = needle.chars().peekable();
+                    for c in text.chars() {
+                        if wanted.peek() == Some(&c) {
+                            wanted.next();
+                        }
+                    }
+                    if wanted.peek().is_none() {
+                        named.push(hit);
+                    }
+                }
+            }
+            named.retain(|hit| !hits.iter().any(|existing| existing.name == hit.name));
+            named.extend(hits);
+            hits = named;
+            hits.truncate(limit);
+        }
+        hits.into_iter()
             .map(|hit| SearchHitDto {
+                code: self.catalog().parse(&hit.name).ok().map(|kc| kc.code()),
+                description: self
+                    .catalog()
+                    .parse(&hit.name)
+                    .map(|kc| {
+                        describe(self.editor.as_ref().map(|e| e.names()), &self.catalog(), kc)
+                    })
+                    .unwrap_or_else(|_| format!("{} builder", hit.name)),
+                category: self
+                    .catalog()
+                    .parse(&hit.name)
+                    .map(|kc| self.catalog().category(kc).as_str().into())
+                    .unwrap_or_else(|_| {
+                        if hit.group == "layer_tap" {
+                            "Layers"
+                        } else {
+                            "Modifiers"
+                        }
+                        .into()
+                    }),
                 name: hit.name,
                 insert: hit.insert,
                 complete: hit.complete,
@@ -137,6 +208,95 @@ impl Session {
         self.view_result()
     }
 
+    pub fn check_revision(&self, revision: u64) -> Result<(), String> {
+        if revision != self.revision {
+            Err("The document changed; review the current values and try again".into())
+        } else {
+            Ok(())
+        }
+    }
+    pub fn apply_op_at(&mut self, revision: u64, op: OpDto) -> Result<ViewModel, String> {
+        self.check_revision(revision)?;
+        self.apply_op(op)
+    }
+    pub fn keycode_view(&self, text: &str) -> Result<crate::KeycodeView, String> {
+        let catalog = self.catalog();
+        let kc = catalog.parse_input(text).map_err(err)?;
+        Ok(keycode_view(
+            self.editor.as_ref().map(|e| e.names()),
+            &catalog,
+            kc,
+        ))
+    }
+    pub fn compose_keycode(
+        &self,
+        parts: vile_core::KeyParts,
+    ) -> Result<crate::KeycodeView, String> {
+        let kc = vile_core::keycode::compose(parts)?;
+        Ok(keycode_view(
+            self.editor.as_ref().map(|e| e.names()),
+            &self.catalog(),
+            kc,
+        ))
+    }
+    pub fn macro_usage(&self, actions: &[MacroActionDto]) -> Result<crate::MacroUsage, String> {
+        let m = macro_from_dto(&self.catalog(), actions)?;
+        Ok(crate::MacroUsage {
+            bytes: vile_core::validate::macro_slot_bytes(&m),
+            action_bytes: m
+                .actions
+                .iter()
+                .map(vile_core::validate::macro_action_bytes)
+                .collect(),
+        })
+    }
+    pub fn set_cache_dir(&mut self, directory: std::path::PathBuf) {
+        self.cache_dir = Some(directory);
+        self.load_cached_geometry();
+    }
+    fn load_cached_geometry(&mut self) {
+        let Some(directory) = &self.cache_dir else {
+            return;
+        };
+        let Some(editor) = &mut self.editor else {
+            return;
+        };
+        match vile_device::DefinitionCache::load(directory, editor.doc()) {
+            Ok(Some(cache)) => match cache
+                .board(editor.doc())
+                .and_then(|board| editor.set_board(board))
+            {
+                Ok(()) => {
+                    self.macro_capacity = cache.macro_capacity;
+                    self.geometry_source = "cache";
+                }
+                Err(e) => self.warnings.push(format!("Using matrix fallback: {e}")),
+            },
+            Ok(None) => {}
+            Err(e) => self.warnings.push(format!(
+                "Using matrix fallback; cached definition is invalid: {e}"
+            )),
+        }
+    }
+    pub fn cache_dir(&self) -> Option<&Path> {
+        self.cache_dir.as_deref()
+    }
+
+    pub fn attach_board(
+        &mut self,
+        board: Board,
+        capacity: Option<usize>,
+    ) -> Result<ViewModel, String> {
+        self.editor_mut()?.set_board(board)?;
+        self.macro_capacity = capacity;
+        self.geometry_source = "device";
+        self.revision += 1;
+        self.view_result()
+    }
+    pub fn document(&self) -> Result<&Document, String> {
+        Ok(self.editor()?.doc())
+    }
+
     /// The open document's catalog, or Catalog::new(CatalogContext::default()).
     fn catalog(&self) -> Catalog {
         match &self.editor {
@@ -158,7 +318,13 @@ impl Session {
     }
 
     fn view_result(&self) -> Result<ViewModel, String> {
-        Ok(build_view(self.editor()?, &self.warnings))
+        Ok(build_view(
+            self.editor()?,
+            &self.warnings,
+            self.revision,
+            self.macro_capacity,
+            self.geometry_source,
+        ))
     }
 }
 
@@ -169,6 +335,7 @@ fn err(e: impl std::fmt::Display) -> String {
 fn board_dto(board: &Board) -> BoardDto {
     BoardDto {
         id: board.id.clone(),
+        can_mirror: board.can_mirror(),
         name: board.name.clone(),
         keys: board
             .keys
@@ -181,6 +348,11 @@ fn board_dto(board: &Board) -> BoardDto {
                 y: key.y,
                 w: key.w,
                 h: key.h,
+                r: key.r,
+                rx: key.rx,
+                ry: key.ry,
+                secondary: key.secondary.clone(),
+                name: key.name.clone(),
             })
             .collect(),
     }
@@ -191,6 +363,7 @@ fn kind_name(kind: KeycodeKind, code: u16) -> &'static str {
         KeycodeKind::Basic { .. } => match code {
             0 => "no",
             1 => "trns",
+            0xe0..=0xe7 => "modifier",
             _ => "basic",
         },
         KeycodeKind::Mods { .. } => "mods",
@@ -218,7 +391,11 @@ fn key_cell(
         Some(Slot::Key(kc)) => (
             catalog.wire_name(kc),
             catalog.label(kc),
-            kind_name(kc.kind(), kc.code()).to_string(),
+            match catalog.category(kc) {
+                vile_core::keycode::PickerCategory::Mouse => "mouse".into(),
+                vile_core::keycode::PickerCategory::Media => "media".into(),
+                _ => kind_name(kc.kind(), kc.code()).to_string(),
+            },
         ),
         _ => ("-1".to_string(), String::new(), "other".to_string()),
     };
@@ -228,12 +405,31 @@ fn key_cell(
         label,
         kind,
         changed: base.get(layer, key.row, key.col) != slot,
+        path: format!("layout[{layer}][{}][{}]", key.row, key.col),
+        code: match slot {
+            Some(Slot::Key(kc)) => kc.code(),
+            _ => 0,
+        },
+        description: match slot {
+            Some(Slot::Key(kc)) => catalog.description(kc),
+            _ => "Absent position".into(),
+        },
+        previous: match base.get(layer, key.row, key.col) {
+            Some(Slot::Key(kc)) => catalog.wire_name(kc),
+            _ => "Absent".into(),
+        },
     }
 }
 
-fn build_view(editor: &Editor, warnings: &[String]) -> ViewModel {
+fn build_view(
+    editor: &Editor,
+    warnings: &[String],
+    revision: u64,
+    macro_capacity: Option<usize>,
+    geometry_source: &str,
+) -> ViewModel {
     let doc = editor.doc();
-    let base = editor.base_doc();
+    let base = editor.disk_doc();
     let catalog = doc.catalog();
     let board = editor.board();
     let layers = match board {
@@ -242,13 +438,30 @@ fn build_view(editor: &Editor, warnings: &[String]) -> ViewModel {
                 board
                     .keys
                     .iter()
-                    .map(|key| key_cell(doc, base, &catalog, layer, key))
+                    .map(|key| {
+                        let mut cell = key_cell(doc, base, &catalog, layer, key);
+                        if let Some(Slot::Key(kc)) = doc.get(layer, key.row, key.col) {
+                            cell.description = describe(Some(editor.names()), &catalog, kc);
+                        }
+                        cell
+                    })
                     .collect()
             })
             .collect(),
         None => Vec::new(),
     };
     ViewModel {
+        revision,
+        names: editor.names().clone(),
+        keycodes: doc
+            .keycodes()
+            .into_iter()
+            .map(|(path, kc)| (path, keycode_view(Some(editor.names()), &catalog, kc)))
+            .collect(),
+        pending_diff: diff_lines(editor, true),
+        macro_bytes: vile_core::validate::macro_buffer_bytes(doc),
+        macro_capacity,
+        geometry_source: geometry_source.to_string(),
         path: editor.path().map(|p| p.display().to_string()),
         uid: doc.uid.to_string(),
         dirty: editor.is_dirty(),
@@ -257,21 +470,16 @@ fn build_view(editor: &Editor, warnings: &[String]) -> ViewModel {
         layer_count: doc.layer_count(),
         board: board.map(board_dto),
         layers,
-        diff: editor
-            .diff()
-            .into_iter()
-            .map(|d| DiffLineDto {
-                section: d.section.as_str().to_string(),
-                line: d.line,
-                layer: d.layer,
-                key_id: d.key_id,
-            })
-            .collect(),
+        diff: diff_lines(editor, false),
         diff_base: match editor.diff_base() {
             DiffBase::Disk => "disk".to_string(),
             DiffBase::GitHead => "git".to_string(),
         },
-        warnings: warnings.to_vec(),
+        warnings: warnings
+            .iter()
+            .chain(editor.metadata_warnings())
+            .cloned()
+            .collect(),
         combos: doc
             .combo
             .as_ref()
@@ -346,6 +554,184 @@ fn build_view(editor: &Editor, warnings: &[String]) -> ViewModel {
             })
             .unwrap_or_default(),
     }
+}
+
+fn describe(names: Option<&vile_core::metadata::Names>, catalog: &Catalog, kc: Keycode) -> String {
+    let mut text = catalog.description(kc);
+    if let Some(names) = names {
+        if let Some(layer) = kc.layer_ref()
+            && let Some(name) = names.layers.get(&(layer as usize))
+        {
+            text = text.replace(&format!("layer {layer}"), name);
+        }
+        if let KeycodeKind::Macro { index } = kc.kind()
+            && let Some(name) = names.macros.get(&(index as usize))
+        {
+            text = format!("Macro {name}");
+        }
+    }
+    text
+}
+fn keycode_view(
+    names: Option<&vile_core::metadata::Names>,
+    catalog: &Catalog,
+    kc: Keycode,
+) -> crate::KeycodeView {
+    crate::KeycodeView {
+        code: kc.code(),
+        wire: catalog.wire_name(kc),
+        label: catalog.label(kc),
+        description: describe(names, catalog, kc),
+        category: catalog.category(kc).as_str().into(),
+        parts: vile_core::keycode::decompose(kc),
+    }
+}
+fn describe_diff_value(
+    doc: &Document,
+    names: Option<&vile_core::metadata::Names>,
+    entry: &vile_core::DiffEntry,
+    value: &str,
+) -> String {
+    let catalog = doc.catalog();
+    if let Some(index) = entry.index {
+        match entry.section {
+            vile_core::DiffSection::Macro => {
+                if let Some(slot) = doc.macros.get(index) {
+                    if slot.actions.is_empty() {
+                        return "Empty macro".into();
+                    }
+                    return slot
+                        .actions
+                        .iter()
+                        .map(|action| match action {
+                            MacroAction::Text(text) => format!("Text {text:?}"),
+                            MacroAction::Delay(ms) => format!("Delay {ms} ms"),
+                            MacroAction::Tap(keys)
+                            | MacroAction::Down(keys)
+                            | MacroAction::Up(keys) => {
+                                let kind = match action {
+                                    MacroAction::Tap(_) => "Tap",
+                                    MacroAction::Down(_) => "Press",
+                                    _ => "Release",
+                                };
+                                format!(
+                                    "{kind} {}",
+                                    keys.iter()
+                                        .map(|key| describe(names, &catalog, *key))
+                                        .collect::<Vec<_>>()
+                                        .join(" + ")
+                                )
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                }
+            }
+            vile_core::DiffSection::Combo => {
+                if let Some(combo) = doc.combo.as_ref().and_then(|combos| combos.get(index)) {
+                    let keys = combo
+                        .keys
+                        .iter()
+                        .filter(|key| **key != Keycode::NO)
+                        .map(|key| describe(names, &catalog, *key))
+                        .collect::<Vec<_>>();
+                    return format!(
+                        "{} → {}",
+                        if keys.is_empty() {
+                            "No triggers".into()
+                        } else {
+                            keys.join(" + ")
+                        },
+                        describe(names, &catalog, combo.output)
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    catalog
+        .parse(value)
+        .map(|key| describe(names, &catalog, key))
+        .unwrap_or_else(|_| value.into())
+}
+
+fn diff_lines(editor: &Editor, pending: bool) -> Vec<DiffLineDto> {
+    let entries = if pending {
+        vile_core::diff::diff(editor.disk_doc(), editor.doc(), editor.board())
+    } else {
+        editor.diff()
+    };
+    let mut lines: Vec<_> = entries
+        .into_iter()
+        .map(|d| {
+            let old_doc = if pending {
+                editor.disk_doc()
+            } else {
+                editor.base_doc()
+            };
+            let old_names = if !pending && editor.diff_base() == DiffBase::GitHead {
+                None
+            } else {
+                Some(editor.disk_names())
+            };
+            let old_description = describe_diff_value(old_doc, old_names, &d, &d.old);
+            let new_description =
+                describe_diff_value(editor.doc(), Some(editor.names()), &d, &d.new);
+            DiffLineDto {
+                section: d.section.as_str().into(),
+                line: d.line,
+                layer: d.layer,
+                key_id: d.key_id,
+                index: d.index,
+                field: d.field,
+                old: d.old,
+                new: d.new,
+                old_description,
+                new_description,
+            }
+        })
+        .collect();
+    for (kind, old, new) in [
+        ("layer", &editor.disk_names().layers, &editor.names().layers),
+        ("macro", &editor.disk_names().macros, &editor.names().macros),
+        ("combo", &editor.disk_names().combos, &editor.names().combos),
+    ] {
+        let indices: std::collections::BTreeSet<_> =
+            old.keys().chain(new.keys()).copied().collect();
+        for index in indices {
+            if old.get(&index) != new.get(&index) {
+                let a = old.get(&index).cloned().unwrap_or_default();
+                let b = new.get(&index).cloned().unwrap_or_default();
+                lines.push(DiffLineDto {
+                    section: "names".into(),
+                    line: format!("{kind} {index} name: {a} → {b}"),
+                    layer: (kind == "layer").then_some(index),
+                    key_id: None,
+                    index: Some(index),
+                    field: Some(kind.into()),
+                    old: a.clone(),
+                    new: b.clone(),
+                    old_description: a,
+                    new_description: b,
+                });
+            }
+        }
+    }
+    if pending && editor.names_pending() && lines.iter().all(|line| line.section != "names") {
+        lines.push(DiffLineDto {
+            section: "names".into(),
+            line: "Names sidecar still needs saving".into(),
+            layer: None,
+            key_id: None,
+            index: None,
+            field: None,
+            old: "unsaved".into(),
+            new: "retry save".into(),
+            old_description: "Names sidecar not saved".into(),
+            new_description: "Retry saving names".into(),
+        });
+    }
+    lines
 }
 
 fn macro_to_dto(catalog: &Catalog, index: usize, m: &Macro) -> MacroDto {
@@ -456,6 +842,57 @@ fn apply_to(
     catalog: &Catalog,
 ) -> Result<Vec<String>, String> {
     match op {
+        OpDto::PatchFields { paths, patch } => {
+            let existing: std::collections::BTreeMap<_, _> =
+                editor.doc().keycodes().into_iter().collect();
+            let mut replacements = std::collections::BTreeMap::new();
+            for path in paths {
+                let current = existing
+                    .get(&path)
+                    .ok_or_else(|| format!("Keycode field no longer exists: {path}"))?;
+                replacements.insert(
+                    path.clone(),
+                    patch.apply(*current).map_err(|e| format!("{path}: {e}"))?,
+                );
+            }
+            editor
+                .apply(|doc| doc.replace_keycodes(&replacements))
+                .map_err(err)
+        }
+        OpDto::ReplaceFields { paths, keycode } => {
+            let kc = key_code(catalog, &keycode)?;
+            let replacements = paths.into_iter().map(|p| (p, kc)).collect();
+            editor
+                .apply(|doc| doc.replace_keycodes(&replacements))
+                .map_err(err)
+        }
+        OpDto::Rename { kind, index, name } => {
+            let name = name.trim().to_string();
+            if name.chars().count() > 100 || name.chars().any(char::is_control) {
+                return Err(
+                    "Names must be at most 100 characters without control characters".into(),
+                );
+            }
+            editor
+                .apply_named(|doc, names| {
+                    let (map, count) = match kind.as_str() {
+                        "layer" => (&mut names.layers, doc.layer_count()),
+                        "macro" => (&mut names.macros, doc.macros.len()),
+                        "combo" => (&mut names.combos, doc.combo.as_ref().map_or(0, Vec::len)),
+                        _ => return Err(ops::OpError::Invalid("Unknown name kind".into())),
+                    };
+                    if index >= count {
+                        return Err(ops::OpError::Invalid("Named item does not exist".into()));
+                    }
+                    if name.is_empty() {
+                        map.remove(&index);
+                    } else {
+                        map.insert(index, name);
+                    }
+                    Ok(Vec::new())
+                })
+                .map_err(err)
+        }
         OpDto::SetKeys {
             layer,
             keys,
@@ -508,9 +945,28 @@ fn apply_to(
             Ok(Vec::new())
         }
         OpDto::PasteLayer { layer } => editor.paste_layer(layer).map_err(err),
-        OpDto::SwapLayers { a, b } => editor.apply(|doc| ops::swap_layers(doc, a, b)).map_err(err),
+        OpDto::SwapLayers { a, b } => editor
+            .apply_named(|doc, names| {
+                let result = ops::swap_layers(doc, a, b)?;
+                let mut perm: Vec<_> = (0..doc.layer_count()).collect();
+                perm.swap(a, b);
+                names.remap_layers(&perm);
+                Ok(result)
+            })
+            .map_err(err),
         OpDto::MoveLayer { from, to } => editor
-            .apply(|doc| ops::move_layer(doc, from, to))
+            .apply_named(|doc, names| {
+                let result = ops::move_layer(doc, from, to)?;
+                let mut order: Vec<_> = (0..doc.layer_count()).collect();
+                let old = order.remove(from);
+                order.insert(to, old);
+                let mut perm = vec![0; order.len()];
+                for (new, old) in order.into_iter().enumerate() {
+                    perm[old] = new;
+                }
+                names.remap_layers(&perm);
+                Ok(result)
+            })
             .map_err(err),
         OpDto::MirrorLayer { layer, mode } => {
             let mode = match mode.as_str() {

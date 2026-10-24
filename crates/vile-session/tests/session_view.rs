@@ -24,7 +24,7 @@ fn open_builds_a_complete_view() {
     assert_eq!(v.diff_base, "disk");
     let board = v.board.as_ref().unwrap();
     assert_eq!(board.keys.len(), 46);
-    assert_eq!(board.keys[0].id, "top-left-outer");
+    assert_eq!(board.keys[0].id, "r0c0");
     assert_eq!(v.layers.len(), 10);
     assert!(v.layers.iter().all(|l| l.len() == 46));
     assert!(v.layers.iter().flatten().all(|c| !c.changed));
@@ -41,19 +41,13 @@ fn open_builds_a_complete_view() {
 fn cells_carry_wire_label_and_kind() {
     let mut s = Session::new();
     let v = s.open_path(&common::fixture("corne_v32.vil")).unwrap();
-    let cell = &v.layers[0][common::key_index(&v, "thumb-left-mid")];
-    assert_eq!(cell.id, "thumb-left-mid");
+    let cell = &v.layers[0][common::key_index(&v, "r3c4")];
+    assert_eq!(cell.id, "r3c4");
     assert_eq!(cell.wire, "MO(7)");
     assert_eq!(cell.label, "MO7");
     assert_eq!(cell.kind, "layer");
-    assert_eq!(
-        v.layers[1][common::key_index(&v, "top-left-outer")].kind,
-        "trns"
-    );
-    assert_eq!(
-        v.layers[0][common::key_index(&v, "home-left-pinky")].kind,
-        "modTap"
-    );
+    assert_eq!(v.layers[1][common::key_index(&v, "r0c0")].kind, "trns");
+    assert_eq!(v.layers[0][common::key_index(&v, "r1c1")].kind, "modTap");
 }
 
 #[test]
@@ -74,7 +68,7 @@ fn view_json_is_camel_case_with_a_string_uid() {
 }
 
 #[test]
-fn files_for_other_boards_are_refused() {
+fn files_for_other_boards_use_a_matrix_fallback() {
     let raw = std::fs::read_to_string(common::fixture("corne.vil")).unwrap();
     // Turn the absent positions r3c0 and r7c0 into keys on every layer:
     // the file still loads, but the matrix no longer matches the Corne board.
@@ -83,8 +77,10 @@ fn files_for_other_boards_are_refused() {
     let path = dir.path().join("other.vil");
     std::fs::write(&path, changed).unwrap();
     let mut s = Session::new();
-    let err = s.open_path(&path).unwrap_err();
-    assert!(err.contains("Corne"), "{err}");
+    let view = s.open_path(&path).unwrap();
+    assert_eq!(view.board.unwrap().id, "matrix");
+    assert_eq!(view.geometry_source, "matrix");
+    assert_eq!(view.layers[0].len(), 48);
 }
 
 #[test]
