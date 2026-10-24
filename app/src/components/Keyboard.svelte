@@ -37,6 +37,13 @@
     GAP = 4;
   const box = $derived(bounds(keys));
   let svg: SVGSVGElement;
+  $effect(() => {
+    const current = cursor;
+    if (!svg || !(document.activeElement instanceof SVGElement) || !svg.contains(document.activeElement)) return;
+    if (!current) { document.activeElement.blur(); return; }
+    const next = svg.querySelector<SVGElement>('[data-key-id="' + current + '"]');
+    if (next && next !== document.activeElement) next.focus({preventScroll:true});
+  });
   let gesture: {
     start: Point;
     now: Point;
@@ -177,7 +184,7 @@
       class:drop={drop === k.id}
       transform={`rotate(${k.r ?? 0} ${(k.rx ?? 0) * U} ${(k.ry ?? 0) * U})`}
       role="button"
-      tabindex="0"
+      tabindex={k.id === (cursor || keys[0]?.id) ? 0 : -1}
       aria-pressed={selection.includes(k.id)}
       aria-label={`${k.name ?? k.id}: ${cell?.description ?? cell?.wire ?? ""}`}
       onclick={(e) => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick, onMount } from "svelte";
   import { api, errorText } from "../lib/api";
   import type { KeycodeView, SearchHitDto, KeyParts, ViewModel } from "../lib/types";
   import { pointerDrag, startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
@@ -54,6 +55,64 @@
     "Quantum",
     "Special",
   ];
+
+  let floatingOpen = $state(false);
+  let floatingSearching = $state(false);
+  let floatingAnchor = $state('');
+  let floatingWidth = $state(480);
+  let floatingLeft = $state(0);
+  let floatingBottom = $state(0);
+  let floatingHeight = $state(520);
+  let floatingRoot: HTMLElement;
+  let searchInput = $state<HTMLInputElement>();
+  let floatingTrigger: HTMLButtonElement | null = null;
+  const shortCategories: Record<string,string> = { 'Numbers and F-keys':'Numbers', 'Modifiers':'Mods' };
+  function hidePicker(restore = false): void {
+    floatingOpen = false;
+    if (restore) floatingTrigger?.focus();
+  }
+  function positionPicker(): void {
+    if (!floatingOpen || !floatingTrigger) return;
+    const board = (document.querySelector('.board:not(.hidden)') || document.querySelector('.workspace'))?.getBoundingClientRect();
+    if (!board) return;
+    const trigger = floatingTrigger.getBoundingClientRect();
+    const start = Math.max(12, board.left + 12);
+    const end = Math.min(window.innerWidth - 12, board.right - 12);
+    floatingWidth = Math.max(1, Math.min(480, end - start));
+    floatingLeft = Math.max(start, Math.min(trigger.left + trigger.width / 2 - floatingWidth / 2, end - floatingWidth));
+    floatingBottom = window.innerHeight - trigger.top + 12;
+    floatingHeight = Math.max(0, trigger.top - 24 - Math.max(12, board.top));
+  }
+  async function showPicker(next: string, trigger: HTMLButtonElement): Promise<void> {
+    if (floatingOpen && (next === 'Search' ? floatingSearching : !floatingSearching && category === next) && trigger === floatingTrigger) { hidePicker(); return; }
+    floatingTrigger = trigger;
+    floatingAnchor = trigger.dataset.category || 'Search';
+    floatingSearching = next === 'Search';
+    query = '';
+    if (next !== 'Search') { selectCategory(next); query = ''; }
+    floatingOpen = true;
+    await tick();
+    positionPicker();
+    searchInput?.focus();
+  }
+  onMount(() => {
+    const open = () => void showPicker('Basic', floatingRoot.querySelector('button[data-category="Basic"]')!);
+    const observer = new ResizeObserver(positionPicker);
+    const board = document.querySelector('.board');
+    if (board) observer.observe(board);
+    const workspace = document.querySelector('.workspace');
+    if (workspace) observer.observe(workspace);
+    observer.observe(floatingRoot);
+    window.addEventListener('canvas-find-key', open);
+    window.addEventListener('resize', positionPicker);
+    window.addEventListener('scroll', positionPicker, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('canvas-find-key', open);
+      window.removeEventListener('resize', positionPicker);
+      window.removeEventListener('scroll', positionPicker, true);
+    };
+  });
   let category = $state("Basic");
   let query = $state("");
   let hits: SearchHitDto[] = $state([]);
@@ -92,21 +151,21 @@
     };
   });
   const visible = $derived(
-    hits.filter((hit) => hit.complete && (query.trim() || hit.category === category)),
+    hits.filter((hit) => hit.complete && (floatingSearching || query.trim() || hit.category === category)),
   );
   // Search preserves the core's relevance order. Group only category browsing.
   const sections = $derived.by(() => {
     if (query.trim()) return [{ name: "", hits: visible }];
     const groups = new Map<string, SearchHitDto[]>();
     for (const hit of visible) {
-      const name = hit.pickerGroup;
+      const name = floatingSearching ? hit.category + ' · ' + hit.pickerGroup : hit.pickerGroup;
       const group = groups.get(name);
       if (group) group.push(hit);
       else groups.set(name, [hit]);
     }
     return [...groups].map(([name, hits]) => ({ name, hits }));
   });
-  const building = $derived(category === "Layers" || category === "Modifiers");
+  const building = $derived(!floatingSearching && !query.trim() && (category === "Layers" || category === "Modifiers"));
   $effect(() => {
     const kind = buildKind;
     const n = layer;
@@ -155,6 +214,8 @@
       if (builderBase) {
         tap = next.code;
         builderBase = false;
+        floatingSearching = false;
+        query = '';
         category = ["MT", "WRAP", "OSM"].includes(buildKind) ? "Modifiers" : "Layers";
       } else onchoose(next);
     } catch (e) {
@@ -174,28 +235,22 @@
   }
 </script>
 
-<section class="picker" aria-label="Keycode picker">
-  <div class="picker-head">
-    <input
-      type="search"
-      aria-label="Search keycodes"
-      placeholder="Search keys, names or aliases"
-      bind:value={query}
-    /><span role="status"
-      >{builderBase
-        ? "Choose a builder tap key"
-        : choosingBase
-          ? "Choose the inspector base key"
-          : `Picker target: ${target}`}</span
-    >
-  </div>
-  <nav aria-label="Keycode categories">
-    {#each categories as name}<button
-        class:active={category === name}
-        aria-pressed={category === name}
-        onclick={() => selectCategory(name)}>{name}</button
-      >{/each}
+<svelte:window
+  onpointerdown={(e) => { if (floatingOpen && e.target instanceof Node && !floatingRoot?.contains(e.target)) hidePicker(); }}
+  onkeydown={(e) => { if (e.key === 'Escape' && floatingOpen) { e.preventDefault(); e.stopImmediatePropagation(); hidePicker(true); } }}
+/>
+<section class="floating-picker" bind:this={floatingRoot} data-picker-open={floatingOpen} aria-label="Key finder">
+  <nav class="floating-category-bar" aria-label="Keycode categories">
+    <button class="finder-search" class:active={floatingOpen && floatingAnchor === 'Search'} aria-label="Search all keycodes" aria-expanded={floatingOpen && floatingAnchor === 'Search'} aria-controls="floating-keycodes" title="Search all keys, names and aliases" onclick={(e) => void showPicker('Search',e.currentTarget)}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></button>
+    <span class="category-divider"></span>
+    {#each categories as name}<button data-category={name} class:active={floatingOpen && floatingAnchor === name} aria-expanded={floatingOpen && floatingAnchor === name} aria-controls="floating-keycodes" title={name === 'Numbers and F-keys' ? 'Numbers and function keys' : name === 'Modifiers' ? 'Modifiers, mod-tap and modifier builders' : name === 'Layers' ? 'Layer keys and layer-tap builders' : name} onclick={(e) => void showPicker(name,e.currentTarget)}>{shortCategories[name] || name}</button>{/each}
   </nav>
+  {#if floatingOpen}
+  <section id="floating-keycodes" class="picker floating-popup" style:width={floatingWidth + 'px'} style:left={floatingLeft + 'px'} style:bottom={floatingBottom + 'px'} style:--popup-max-height={floatingHeight + 'px'} aria-label="Keycode picker">
+    <div class="picker-head"><h2>{floatingSearching || query ? 'All keycodes' : category}</h2><button class="popup-close" aria-label="Close key picker" title="Close key picker · Esc" onclick={() => hidePicker(true)}>×</button></div>
+    <input bind:this={searchInput} type="search" aria-label="Search keycodes" placeholder="Search all keycodes" oninput={() => floatingSearching = true} bind:value={query}/>
+    <p class="floating-target">{builderBase ? 'Choose a builder tap key' : choosingBase ? 'Choose the tap action. The hold behavior stays.' : target.startsWith('No picker') ? 'Drag a tile onto a key, or select a key first.' : 'Click to assign. Drag to assign another key.'}</p>
+    <div class="floating-body">
   {#if building}
     <div class="builder">
       <label
@@ -256,7 +311,7 @@
   <p class="search-count" role="status">
     {searching
       ? "Searching…"
-      : `${visible.length} results${query.trim() ? ` for “${query.trim()}”` : ` in ${category}`}`}
+      : `${visible.length} results${query.trim() ? ` for “${query.trim()}”` : ` in ${floatingSearching ? "all keycodes" : category}`}`}
   </p>
   {#if !searching && !error && visible.length === 0}<p>
       No matching keycodes. Try a name, alias, or wire code.
@@ -292,6 +347,9 @@
     >
       {pointerDrag.current.label.replaceAll("\n", " ")}
     </div>{/if}
+    </div>
+  </section>
+  {/if}
 </section>
 
 <style>
@@ -316,23 +374,10 @@
     overflow: auto;
     scrollbar-gutter: stable;
   }
-  .picker-head {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
-  }
   input {
     width: min(280px, 100%);
     min-width: 0;
     flex: 1 1 180px;
-  }
-  .picker-head > span {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .picker-head {
-    flex-wrap: wrap;
   }
   .search-count,
   .build-target {
@@ -340,16 +385,13 @@
     font-size: 12px;
     margin: 6px 0;
   }
-  nav,
+  .floating-category-bar,
   .builder,
   .layer-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
     align-items: center;
-  }
-  nav {
-    margin-bottom: 10px;
   }
   .active {
     background: var(--selected);

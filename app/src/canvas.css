@@ -1,0 +1,1992 @@
+/* Canvas tokens. Graphite chrome; key colors carry behavior and state. */
+:root {
+  color-scheme: dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  --bg: #141416;
+  --fg: #efeff2;
+  --muted: #a2a2ab;
+  --chrome: #1c1c1f;
+  --panel: #1a1a1d;
+  --well: #111113;
+  --control: #29292e;
+  --hover: #34343b;
+  --edge: #35353c;
+  --subtle-edge: #2b2b31;
+  --key-bg: #2c2d33;
+  --key-fg: #efeff2;
+  --key-border: #45464f;
+  --key-layer: #27394e;
+  --key-mod: #423a2b;
+  --key-macro: #3c304d;
+  --key-media: #1f4440;
+  --selected: #2e5585;
+  --selected-hover: #3a679d;
+  --changed: #efad60;
+  --cursor: #94bffa;
+  --on-primary: #19191c;
+  --r-control: 7px;
+  --r-panel: 12px;
+  /* One spacing scale for every gap, inner padding and margin in the preview. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f5f7;
+  --fg: #242429;
+  --muted: #676771;
+  --chrome: #fbfbfc;
+  --panel: #fafafb;
+  --well: #efeff2;
+  --control: #ebebef;
+  --hover: #e1e1e7;
+  --edge: #d6d6de;
+  --subtle-edge: #e3e3e9;
+  --key-bg: #ffffff;
+  --key-fg: #282830;
+  --key-border: #ccccd6;
+  --key-layer: #e1e9f5;
+  --key-mod: #f1e9db;
+  --key-macro: #eae1f2;
+  --key-media: #d5eeea;
+  --selected: #d2e2fa;
+  --selected-hover: #bdd5f7;
+  --changed: #a26115;
+  --cursor: #4276b5;
+  --on-primary: #ffffff;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+button {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-control);
+  background: var(--control);
+  color: var(--fg);
+  padding: var(--space-1) var(--space-2);
+  font-size: 12px;
+  transition: background 100ms;
+}
+button:hover:not(:disabled) {
+  background: var(--hover);
+  filter: none;
+}
+button:disabled {
+  opacity: 0.36;
+}
+input,
+select,
+textarea {
+  background: var(--well);
+  border-color: var(--edge);
+  border-radius: var(--r-control);
+  padding: var(--space-2) var(--space-2);
+  font-size: 12px;
+}
+:focus-visible {
+  outline: 2px solid var(--cursor);
+  outline-offset: 3px;
+}
+kbd {
+  margin-left: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-family: inherit;
+}
+.canvas-app {
+  max-width: 1920px;
+  margin: auto;
+}
+.canvas-app .hidden {
+  display: none !important;
+}
+.canvas-app .toolbar {
+  padding: 0 var(--space-5);
+  flex: none;
+  gap: var(--space-2);
+  background: var(--chrome);
+  border-bottom: 1px solid var(--subtle-edge);
+  flex-wrap: nowrap;
+}
+.canvas-app .brand {
+  margin-right: 20px;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -1.7px;
+  line-height: 1;
+}
+.brand-dot {
+  color: var(--muted);
+}
+.document-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.document-title svg {
+  color: var(--muted);
+}
+.document-type {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 7px;
+}
+.history-actions {
+  display: flex;
+  margin-left: 18px;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--edge);
+  gap: var(--space-1);
+}
+.canvas-app .icon-button {
+  min-width: 30px;
+  width: 30px;
+  height: 30px;
+  padding: var(--space-1);
+  border-color: transparent;
+  background: transparent;
+}
+.canvas-app .command-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.command-button kbd {
+  padding: var(--space-1) var(--space-1);
+  background: var(--control);
+  border-radius: 4px;
+}
+.canvas-app .pending-button {
+  background: transparent;
+  border-color: transparent;
+  margin-left: 5px;
+}
+.status-dot {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.status-dot.has-changes {
+  background: var(--changed);
+}
+.canvas-app .save-button {
+  background: var(--fg);
+  color: var(--on-primary);
+  border-color: transparent;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 550;
+}
+.canvas-app .save-button:hover:not(:disabled) {
+  opacity: 0.86;
+  background: var(--fg);
+}
+.save-button kbd {
+  color: inherit;
+  opacity: 0.65;
+}
+.canvas-context {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: var(--space-4) var(--space-5);
+  gap: 32px;
+  border-bottom: 1px solid var(--subtle-edge);
+}
+.board-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 185px;
+}
+.board-symbol {
+  display: grid;
+  place-items: center;
+  width: 39px;
+  height: 39px;
+  background: var(--control);
+  color: var(--muted);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+}
+.board-identity h1 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.4px;
+  font-weight: 600;
+}
+.board-identity p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.canvas-layer-switcher .layers {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 9px;
+  background: var(--well);
+  overflow-x: auto;
+  min-width: 0;
+}
+.canvas-layer-switcher .layers button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 31px;
+  padding: var(--space-1) var(--space-2);
+  font-size: 11px;
+  flex-shrink: 0;
+  gap: 0;
+}
+.canvas-layer-switcher .layers button.current {
+  background: var(--control);
+  color: var(--fg);
+  border-color: var(--edge);
+  box-shadow: 0 1px 3px #0002;
+}
+.canvas-layer-switcher .layers small {
+  font-size: 9px;
+  opacity: 0.65;
+  margin-left: 6px;
+}
+.context-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.quiet-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.popover-anchor {
+  position: relative;
+}
+.canvas-popover {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 9;
+  width: 214px;
+  padding: var(--space-2);
+  background: var(--chrome);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px #0004;
+}
+.canvas-popover p {
+  color: var(--muted);
+  padding: var(--space-2) var(--space-2);
+  margin: 0 0 3px;
+  font-size: 11px;
+}
+.canvas-popover button {
+  width: 100%;
+  justify-content: flex-start;
+  background: transparent;
+  border-color: transparent;
+}
+.canvas-app .workspace {
+  min-height: 220px;
+}
+.canvas-app .workspace.feature-workspace {
+  grid-template-rows: minmax(0, 1fr);
+}
+.canvas-app .board {
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  overflow: hidden;
+}
+.canvas-app .board-heading {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-4);
+}
+.canvas-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 550;
+}
+.board-heading h2 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--fg);
+  letter-spacing: -0.6px;
+  font-weight: 550;
+}
+.canvas-board-hint {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.hint-separator {
+  padding: 0 var(--space-2);
+  opacity: 0.65;
+}
+.canvas-app .keyboard-viewport {
+  padding: var(--space-4) 0 var(--space-2);
+  align-items: center;
+  justify-content: center;
+}
+.canvas-app .keyboard {
+  overflow: visible;
+}
+.canvas-app .key rect {
+  stroke-width: 0.9px;
+}
+.canvas-app .key text {
+  font-weight: 450;
+  font-size: 15px;
+}
+.canvas-app .key .hold-line {
+  fill: var(--muted);
+  font-weight: 500;
+}
+.canvas-app .key.selected rect {
+  stroke: var(--cursor);
+  stroke-width: 2px;
+}
+.canvas-app .key.selected text {
+  fill: var(--fg);
+}
+.canvas-app .key.selected .hold-line {
+  fill: var(--fg);
+  opacity: 0.8;
+}
+.canvas-app .key.cursor:not(.selected) rect {
+  stroke-width: 1.3px;
+}
+.board-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 9px;
+  padding: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  gap: var(--space-4);
+}
+.board-caption > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.legend-dot {
+  width: 4px;
+  height: 4px;
+  background: var(--changed);
+  display: inline-block;
+  border-radius: 50%;
+}
+.canvas-app aside {
+  background: var(--panel);
+  border-left: 1px solid var(--subtle-edge);
+  padding: var(--space-5) var(--space-5);
+}
+.inspector-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 22px;
+}
+.inspector-heading .icon-button {
+  min-height: 23px;
+  width: 23px;
+  height: 23px;
+  opacity: 0.7;
+}
+.canvas-app .inspector {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.canvas-app .inspector h2 {
+  font-size: 17px;
+  font-weight: 550;
+  line-height: 1.4;
+  letter-spacing: -0.35px;
+  max-width: 235px;
+}
+.canvas-app .inspector > .control > span {
+  font-size: 11px;
+}
+.canvas-app .inspector .control > button {
+  min-width: 56px;
+  font-size: 19px;
+  min-height: 49px;
+  background: var(--key-layer);
+  border-color: var(--key-border);
+  padding: var(--space-2) var(--space-3);
+}
+.canvas-app .inspector small {
+  font-size: 11px;
+}
+.canvas-app .inspector > label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  color: var(--muted);
+}
+.canvas-app .inspector select {
+  width: 140px;
+  font-size: 11px;
+  background: var(--control);
+  color: var(--fg);
+}
+.canvas-app .inspector .layer-buttons {
+  gap: var(--space-1);
+}
+.canvas-app .inspector .layer-buttons button {
+  min-height: 27px;
+  font-size: 10px;
+  padding: var(--space-1) var(--space-2);
+}
+.canvas-app .inspector .active {
+  background: var(--selected);
+  border-color: var(--cursor);
+}
+.canvas-app .keycode-details {
+  order: 10;
+  border-top: 1px solid var(--subtle-edge);
+  color: var(--muted);
+  font-size: 11px;
+}
+.keycode-details summary {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+.keycode-details code {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.keycode-details p {
+  font-size: 11px;
+  line-height: 1.65;
+  margin-bottom: 0;
+}
+.canvas-app .hint {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.canvas-panel-tabs {
+  display: none !important;
+}
+.canvas-app .picker {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-5) var(--space-4);
+  border-top: 1px solid var(--subtle-edge);
+  background: var(--panel);
+  overflow: hidden;
+}
+.canvas-app .picker-head {
+  margin-bottom: 13px;
+  gap: var(--space-4);
+  flex-wrap: nowrap;
+}
+.picker-head h2 {
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.2px;
+  margin: 0;
+  flex: none;
+}
+.canvas-app .search-count {
+  margin: 9px 0 11px;
+  font-size: 10px;
+  color: var(--muted);
+  flex: none;
+}
+.canvas-app .picker .results {
+  overflow: auto;
+  min-height: 0;
+  scrollbar-gutter: stable;
+  padding: 0 var(--space-1) var(--space-1) 0;
+  gap: var(--space-4);
+}
+.canvas-app .key-group h3 {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+  font-weight: 450;
+}
+.canvas-app .key-group h3::after {
+  border-color: var(--subtle-edge);
+}
+.canvas-app .tiles {
+  grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+  gap: var(--space-2);
+}
+.canvas-app .tile {
+  display: grid;
+  grid-template-rows: auto auto;
+  min-height: 64px;
+  padding: var(--space-2) var(--space-2);
+  gap: var(--space-1);
+  background: var(--control);
+  border: 1px solid var(--edge);
+  border-bottom: 2px solid var(--edge);
+  border-radius: 7px;
+}
+.canvas-app .tile:hover {
+  border-color: var(--cursor);
+  background: var(--hover);
+}
+.canvas-app .tile > span {
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 1.15;
+}
+.canvas-app .tile.word-label > span {
+  font-size: 11px;
+}
+.canvas-app .tile small {
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--muted);
+}
+.canvas-app .builder {
+  padding: var(--space-3) 0 var(--space-2);
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+.canvas-app .builder select {
+  max-width: 270px;
+  padding: var(--space-1);
+}
+.canvas-app .builder .tile {
+  min-height: 46px;
+}
+.canvas-app .builder label,
+.canvas-app .builder .build-target {
+  font-size: 10px;
+}
+.canvas-app footer {
+  min-height: 29px;
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-5);
+  background: var(--chrome);
+  border-top: 1px solid var(--subtle-edge);
+  color: var(--muted);
+  font-size: 10px;
+  gap: var(--space-3);
+}
+.footer-help {
+  margin-left: auto;
+}
+.canvas-app footer [role="status"]:empty {
+  display: none;
+}
+.canvas-app .dialog {
+  background: var(--chrome);
+  border-color: var(--edge);
+  border-radius: 14px;
+  padding: var(--space-5);
+}
+.canvas-app .dialog h2 {
+  font-size: 19px;
+  font-weight: 550;
+  letter-spacing: -0.4px;
+}
+.canvas-app .overlay {
+  backdrop-filter: blur(5px);
+  background: #0006;
+}
+.canvas-app .review {
+  width: 760px;
+}
+/* Keep the production resize handles functional, with a quiet visual seam. */
+.canvas-app .resize-handle {
+  background: transparent;
+  border: 0;
+}
+@media (min-width: 1500px) {
+  .canvas-app .board {
+    padding-left: 45px;
+    padding-right: 45px;
+  }
+}
+@media (max-width: 1200px) {
+  .canvas-context {
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+  }
+  .board-identity {
+    min-width: 160px;
+  }
+  .canvas-layer-switcher .layers button {
+    padding: var(--space-1) var(--space-2);
+  }
+  .canvas-layer-switcher .layers small {
+    display: none;
+  }
+  .document-type {
+    display: none;
+  }
+  .canvas-app .toolbar {
+    padding: 0 var(--space-5);
+  }
+  .canvas-app .brand {
+    margin-right: 12px;
+  }
+  .canvas-app .history-actions {
+    margin-left: 8px;
+  }
+  .canvas-app .board {
+    padding: var(--space-4) var(--space-4) var(--space-2);
+  }
+  .canvas-board-hint {
+    display: none;
+  }
+  .board-caption > span:last-child {
+    font-size: 9px;
+  }
+  .canvas-app aside {
+    padding: var(--space-4) var(--space-5);
+  }
+}
+@media (max-width: 1000px) {
+  .canvas-context {
+    gap: var(--space-3);
+    min-height: 82px;
+  }
+  .board-symbol {
+    display: none;
+  }
+  .board-identity {
+    min-width: 95px;
+  }
+  .board-identity h1 {
+    font-size: 14px;
+  }
+  .canvas-layer-switcher .layers {
+    flex: 1;
+  }
+  .canvas-layer-switcher .layers button {
+    padding: var(--space-1) var(--space-2);
+  }
+  .canvas-layer-switcher .layers button:nth-child(n + 6) {
+    min-width: 28px;
+  }
+  .canvas-app .command-button {
+    font-size: 0;
+    gap: 0;
+    padding: var(--space-1);
+  }
+  .command-button svg {
+    width: 16px;
+  }
+  .command-button kbd {
+    display: none;
+  }
+  .canvas-app .toolbar {
+    gap: var(--space-2);
+  }
+  .canvas-app .save-button kbd {
+    display: none;
+  }
+  .canvas-app .picker-head > span {
+    max-width: 280px;
+  }
+  .canvas-app .board-caption > span:last-child {
+    display: none;
+  }
+}
+@media (max-width: 899px) {
+  .canvas-app .context-actions {
+    margin-left: 0;
+  }
+  .canvas-app .board {
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+  .canvas-app .board-heading {
+    margin-bottom: 0;
+  }
+  .canvas-app .keyboard {
+    max-height: 360px;
+  }
+  .canvas-app .document-title {
+    font-size: 12px;
+  }
+  .canvas-app .theme-button {
+    display: none;
+  }
+  .canvas-context .board-identity p {
+    display: none;
+  }
+  .canvas-context {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .canvas-layer-switcher .layers {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .canvas-context .context-actions {
+    margin-left: auto;
+  }
+  .canvas-app .picker-head > span {
+    display: none;
+  }
+  .canvas-app .picker > nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .canvas-app .picker > nav button {
+    white-space: nowrap;
+  }
+  .footer-help {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+.canvas-app .inspector .wrap-options {
+  order: 5;
+  border-top: 1px solid var(--subtle-edge);
+  color: var(--muted);
+  font-size: 11px;
+}
+.wrap-options summary {
+  cursor: pointer;
+}
+.wrap-options .mods {
+  margin-top: 12px;
+}
+.canvas-app .inspector .mods small {
+  font-size: 10px;
+  line-height: 1.5;
+  width: 100%;
+}
+.canvas-app .inspector .mods button {
+  font-size: 10px;
+  padding: var(--space-1) var(--space-2);
+  min-height: 27px;
+}
+.canvas-app .inspector .mods label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.canvas-app .inspector .mods label select {
+  width: 98px;
+}
+.canvas-app .toolbar {
+  height: 60px;
+}
+.canvas-context {
+  min-height: 80px;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+.canvas-app .board {
+  padding-top: var(--space-4);
+}
+.canvas-app .board-heading {
+  margin-bottom: 0;
+}
+.canvas-app .keyboard-viewport {
+  padding-top: 0;
+}
+.canvas-app .board-caption {
+  padding-top: 0;
+  margin-top: 0;
+}
+.canvas-app .inspector {
+  gap: var(--space-4);
+}
+.inspector-heading {
+  margin-bottom: 14px;
+}
+.canvas-app .inspector .wrap-options {
+  padding-top: var(--space-2);
+}
+.canvas-app .keycode-details {
+  padding-top: var(--space-2);
+  margin-top: 0;
+}
+.canvas-app .resize-handle::after {
+  background: var(--subtle-edge);
+}
+.canvas-app .resize-handle:hover::after,
+.canvas-app .resize-handle:focus-visible::after {
+  background: var(--cursor);
+}
+/* One floating category bar. The picker opens over the canvas without reflow. */
+.canvas-app .board {
+  position: relative;
+  padding-bottom: 32px;
+}
+.canvas-app .keyboard-viewport {
+  padding-bottom: 45px;
+}
+.canvas-app .keyboard {
+  max-width: 1040px;
+  max-height: 455px;
+}
+.floating-picker-host {
+  position: absolute;
+  bottom: 38px;
+  left: 22px;
+  right: 22px;
+  z-index: 6;
+  pointer-events: none;
+}
+.floating-picker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.canvas-app .floating-category-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--chrome);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow:
+    0 3px 12px #0002,
+    0 14px 36px #0002;
+  max-width: 100%;
+  overflow: auto;
+  scrollbar-width: thin;
+  pointer-events: auto;
+}
+.canvas-app .floating-category-bar button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: var(--space-2) var(--space-2);
+  flex: none;
+  min-height: 32px;
+}
+.canvas-app .floating-category-bar button:hover {
+  color: var(--fg);
+  background: var(--control);
+}
+.canvas-app .floating-category-bar button.active {
+  color: var(--fg);
+  background: var(--control);
+  border-color: var(--edge);
+}
+.canvas-app .floating-category-bar .finder-search {
+  color: var(--fg);
+  width: 35px;
+  padding: var(--space-2);
+}
+.category-divider {
+  height: 19px;
+  width: 1px;
+  background: var(--edge);
+  margin: 0 4px;
+  flex: none;
+}
+.canvas-app .floating-popup {
+  position: fixed;
+  z-index: 1;
+  height: min(520px, var(--popup-max-height));
+  padding: var(--space-4);
+  border: 1px solid var(--edge);
+  background: var(--chrome);
+  border-radius: 14px;
+  box-shadow:
+    0 10px 30px #0003,
+    0 24px 60px #0003;
+  pointer-events: auto;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.canvas-app .floating-popup .picker-head {
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex: none;
+}
+.canvas-app .floating-popup .picker-head h2 {
+  font-size: 14px;
+}
+.canvas-app .floating-popup .popup-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 19px;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
+}
+.canvas-app .floating-popup > input {
+  width: 100%;
+  flex: none;
+}
+.floating-target {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  flex: none;
+}
+.canvas-app .floating-popup .search-count {
+  margin: 8px 0 11px;
+}
+.canvas-app .floating-popup .results {
+  max-height: none;
+  overflow: visible;
+  flex: none;
+  align-content: start;
+}
+.floating-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.canvas-app .floating-popup .tiles {
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+}
+.canvas-app .floating-popup .tile {
+  min-height: 62px;
+}
+.canvas-app .floating-popup .builder .build-target {
+  display: none;
+}
+.canvas-app .floating-popup .preview {
+  width: 130px;
+}
+.canvas-app .board-caption {
+  position: absolute;
+  bottom: 10px;
+  left: 28px;
+  right: 28px;
+}
+@media (max-width: 1200px) {
+  .floating-picker-host {
+    left: 18px;
+    right: 18px;
+  }
+  .canvas-app .floating-category-bar button {
+    font-size: 10px;
+    padding: var(--space-2) var(--space-2);
+  }
+}
+@media (max-width: 899px) {
+  .canvas-app .floating-category-bar button {
+    font-size: 11px;
+    padding: var(--space-2) var(--space-2);
+  }
+}
+.canvas-app .floating-popup .picker-head {
+  display: flex;
+  align-items: center;
+}
+.canvas-app .floating-popup .picker-head .popup-close {
+  margin-left: auto;
+  flex: none;
+}
+.canvas-app .floating-popup input:focus-visible {
+  outline-width: 1px;
+  outline-offset: 2px;
+}
+:root[data-theme="light"] .floating-category-bar {
+  box-shadow:
+    0 2px 9px #2020300d,
+    0 9px 24px #20203012;
+}
+:root[data-theme="light"] .floating-popup {
+  box-shadow:
+    0 4px 12px #20203012,
+    0 18px 40px #2020301c;
+}
+.canvas-app .floating-popup .builder {
+  max-height: none;
+  overflow: visible;
+  padding-bottom: var(--space-2);
+  gap: var(--space-2);
+}
+.canvas-app .floating-popup .builder .layer-buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+  gap: var(--space-1);
+}
+.canvas-app .floating-popup .builder .layer-buttons button {
+  min-width: 0;
+  font-size: 10px;
+  padding: var(--space-1) var(--space-1);
+  min-height: 30px;
+  line-height: 1.25;
+}
+.canvas-app .floating-popup .builder .tile {
+  min-height: 47px;
+}
+.canvas-app .floating-popup .builder .tile > span {
+  font-size: 13px;
+}
+.canvas-app .floating-popup .builder .tile small {
+  font-size: 9px;
+}
+.canvas-app .line {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.canvas-app .review .line:focus-visible {
+  outline-width: 1px;
+  outline-offset: 3px;
+}
+.canvas-app .review .row > button:first-child {
+  background: var(--fg);
+  color: var(--on-primary);
+  border-color: transparent;
+}
+.canvas-app .review .row > button:first-child kbd {
+  color: inherit;
+  opacity: 0.65;
+}
+.canvas-app .draft-indicator {
+  color: var(--changed);
+  background: transparent;
+  border-color: var(--edge);
+}
+
+/* Selected controls keep their blue state while hover adds emphasis. */
+.canvas-app .mods button[aria-pressed="true"],
+.canvas-app .field[aria-pressed="true"] {
+  background: var(--selected);
+  border-color: var(--cursor);
+}
+.canvas-app .mods button[aria-pressed="true"]:hover:not(:disabled),
+.canvas-app .field[aria-pressed="true"]:hover:not(:disabled),
+.canvas-app .inspector button.active:hover:not(:disabled),
+.canvas-app .builder button.active:hover:not(:disabled) {
+  background: var(--selected-hover);
+  color: var(--fg);
+  border-color: var(--cursor);
+}
+
+/* Context menus use continuous rows, not a stack of rounded button cards. */
+.menu[role="menu"] {
+  width: min(246px, calc(100vw - 16px));
+  padding: var(--space-1);
+  gap: 1px;
+  background: var(--chrome);
+  border-color: var(--edge);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px #0005;
+}
+.menu[role="menu"] > button[role="menuitem"] {
+  position: relative;
+  width: 100%;
+  min-height: 29px;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.menu[role="menu"] > button[role="menuitem"]:hover:not(:disabled),
+.menu[role="menu"] > button[role="menuitem"]:focus-visible {
+  background: var(--selected);
+  color: var(--fg);
+  outline: none;
+}
+.menu[role="menu"] button kbd {
+  margin-left: auto;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.menu[role="menu"] button:hover kbd {
+  color: inherit;
+  opacity: 0.8;
+}
+.menu[role="menu"] > button[data-menu-divider="true"],
+.menu[role="menu"] > button:last-child {
+  margin-top: 6px;
+}
+.menu[role="menu"] > button[data-menu-divider="true"]::before,
+.menu[role="menu"] > button:last-child::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 5px;
+  right: 5px;
+  border-top: 1px solid var(--edge);
+}
+
+/* Native checkbox semantics with compact, aligned chip presentation. */
+.canvas-app aside fieldset:has(input[type="checkbox"]) {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: var(--space-2) 0 0;
+  gap: var(--space-2);
+  border: 0;
+  border-top: 1px solid var(--subtle-edge);
+}
+.canvas-app aside fieldset legend {
+  padding: 0 var(--space-2) 0 0;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--muted);
+}
+.canvas-app aside fieldset.layer-toggles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.canvas-app aside fieldset.modifier-toggles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.canvas-app aside label:has(input[type="checkbox"]) {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 29px;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.canvas-app aside label:has(input[type="checkbox"]:checked) {
+  background: var(--selected);
+  border-color: var(--cursor);
+  color: var(--fg);
+}
+.canvas-app aside label:has(input[type="checkbox"]):hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.canvas-app aside label:has(input[type="checkbox"]:checked):hover {
+  background: var(--selected-hover);
+}
+.canvas-app aside label:has(input[type="checkbox"]:focus-visible) {
+  outline: 2px solid var(--cursor);
+  outline-offset: 2px;
+}
+.canvas-app aside input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  clip-path: inset(50%);
+}
+.canvas-app aside fieldset.override-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.canvas-app aside .override-options label:has(input[type="checkbox"]) {
+  justify-content: space-between;
+  flex-direction: row-reverse;
+  width: 100%;
+  padding: var(--space-2) 0;
+  gap: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+}
+.canvas-app aside .override-options input[type="checkbox"] {
+  position: relative;
+  flex: none;
+  width: 27px;
+  height: 16px;
+  opacity: 1;
+  appearance: none;
+  clip-path: none;
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--control);
+}
+.canvas-app aside .override-options input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 100ms;
+}
+.canvas-app aside .override-options input[type="checkbox"]:checked {
+  background: var(--selected);
+  border-color: var(--cursor);
+}
+.canvas-app aside .override-options input[type="checkbox"]:checked::after {
+  transform: translateX(11px);
+  background: var(--fg);
+}
+.canvas-app aside .override-options input[type="checkbox"]:focus-visible {
+  outline: none;
+}
+.canvas-app aside .field {
+  padding: var(--space-2) var(--space-2);
+  margin-top: 5px;
+  gap: var(--space-2);
+  min-height: 37px;
+}
+.canvas-app aside .field > strong {
+  margin-left: auto;
+  font-size: 13px;
+}
+.canvas-app aside .field > small,
+.canvas-app aside .field > code {
+  display: none;
+}
+
+/* The keycap stroke is the focus cue; an SVG group's rectangular outline is not. */
+.canvas-app .key:focus-visible {
+  outline: none;
+}
+.canvas-app .key:focus-visible rect {
+  stroke: var(--cursor);
+  stroke-width: 2px;
+}
+
+.canvas-context .context-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 0;
+  margin-left: 0;
+}
+.workspace-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-left: 0;
+  padding: var(--space-1);
+  overflow-x: auto;
+  background: var(--well);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 9px;
+  scrollbar-width: thin;
+}
+.workspace-switcher button {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.workspace-switcher button.active {
+  border-color: var(--edge);
+  background: var(--control);
+  color: var(--fg);
+}
+.workspace-switcher button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+}
+.canvas-app .board-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+}
+.canvas-layer-switcher {
+  grid-column: 2;
+  min-width: 0;
+  margin-left: 0;
+}
+.canvas-app aside.feature-editor {
+  position: static;
+  inset: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: max-content minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: var(--space-5);
+  height: 100%;
+  min-height: 0;
+  width: auto;
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-5) 125px;
+  overflow: hidden;
+  border: 0;
+  box-shadow: none;
+  background: var(--bg);
+}
+.canvas-app aside.feature-editor.has-feature-inspection {
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+.canvas-app aside.feature-editor:not(.has-feature-inspection) {
+  padding-bottom: 32px;
+}
+.feature-editor .inspector-heading {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-items: flex-start;
+  margin: 0;
+}
+.feature-editor .inspector-heading h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 550;
+  letter-spacing: -0.7px;
+}
+.feature-editor .inspector-heading p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.feature-editor .inspector-heading {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+.feature-editor .inspector-heading .feature-lede {
+  flex: 0 0 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.canvas-feature-editor {
+  grid-column: 1;
+  grid-row: 2;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.canvas-feature-editor > div:not(.hidden) {
+  height: 100%;
+  min-height: 0;
+}
+.feature-editor .canvas-selection-inspector {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  padding: var(--space-4);
+  background: var(--panel);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 12px;
+}
+.canvas-feature-editor > div > section > h2 {
+  display: none;
+}
+.canvas-feature-editor section:has(> details) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+.canvas-feature-editor section > p {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+}
+.canvas-feature-editor section > details {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.canvas-feature-editor section > details > summary {
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.canvas-feature-editor section > details[open] {
+  grid-column: 1 / -1;
+  max-width: 920px;
+  width: 100%;
+}
+.canvas-feature-editor section > details[open] > summary {
+  margin-bottom: 14px;
+}
+.canvas-feature-editor .override-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--space-5);
+}
+.canvas-feature-editor .override-card > summary {
+  grid-column: 1 / -1;
+}
+.canvas-feature-editor .override-card .layer-toggles {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  max-width: none;
+}
+.canvas-app .canvas-feature-editor .override-card .override-options {
+  grid-column: 2;
+  grid-row: 2 / span 4;
+  align-self: start;
+}
+/* Left column: layers, then trigger, negative and suppress mods. Right column: options. */
+.canvas-app .canvas-feature-editor .override-card .override-body > fieldset.modifier-toggles {
+  grid-column: 1;
+}
+
+/* Feature slots are a two-column grid of numbered cells beside a stable form.
+   Set cells carry a tint and a one-line description. Empty cells have neither. */
+.canvas-feature-editor .slot-editor {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+}
+.canvas-feature-editor .slot-list,
+.canvas-feature-editor .slot-form {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+}
+.canvas-feature-editor .slot-list {
+  scrollbar-gutter: stable;
+}
+.canvas-feature-editor .slot-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(var(--per-column), auto);
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 10px;
+  background: var(--well);
+}
+.canvas-feature-editor .slot-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-size: 11px;
+}
+.canvas-feature-editor .slot-cell .slot-id {
+  min-width: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.canvas-feature-editor .slot-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-feature-editor .slot-cell[data-state="set"] {
+  background: color-mix(in srgb, var(--selected) 55%, transparent);
+}
+.canvas-feature-editor .slot-desc .macro-chip {
+  display: inline-block;
+  max-width: 100%;
+  margin-right: 4px;
+  padding: 0 var(--space-2);
+  border-radius: 4px;
+  background: var(--key-macro);
+  color: var(--fg);
+  font-size: 10.5px;
+  line-height: 17px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+:root[data-theme="light"] .canvas-feature-editor .slot-desc .macro-chip {
+  background: color-mix(in srgb, var(--key-macro), var(--fg) 16%);
+}
+.canvas-feature-editor .slot-cell[data-state="set"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--selected) 75%, transparent);
+}
+.canvas-feature-editor .slot-cell[data-state="empty"] {
+  color: var(--muted);
+}
+.canvas-feature-editor .slot-cell[data-state="empty"] .slot-id {
+  opacity: 0.5;
+}
+.canvas-feature-editor .slot-cell[data-state="empty"]:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--subtle-edge);
+}
+.canvas-feature-editor .slot-cell.active,
+.canvas-feature-editor .slot-cell:focus-visible {
+  outline: 2px solid var(--cursor);
+  outline-offset: 1px;
+}
+.canvas-feature-editor .slot-cell.dirty .slot-id {
+  color: var(--changed);
+}
+.canvas-feature-editor .slot-cell .draft-mark {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--changed);
+}
+.canvas-feature-editor .slot-edit-panel {
+  /* Compact pane: the 720px content cap, the padding on both sides and the border. The
+     pane stops here instead of stretching to the window margin. */
+  max-width: calc(720px + 2 * var(--space-4) + 2px);
+  min-height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.canvas-feature-editor .slot-edit-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.canvas-feature-editor .slot-kicker {
+  display: block;
+  color: var(--fg);
+  font-size: 16px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.canvas-feature-editor .slot-edit-title h3 {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.canvas-feature-editor .slot-title-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+.canvas-feature-editor .slot-edit-summary {
+  margin: calc(var(--space-2) * -1) 0 var(--space-4);
+  color: var(--muted);
+  font-size: 12px;
+}
+.canvas-feature-editor .slot-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+/* Feature keycaps sit in one left-aligned row. An arrow sits between the two sides and is
+   centred on the keycap (18px offset = half of a 60px keycap minus half the arrow line). */
+.canvas-feature-editor .keycap-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.canvas-feature-editor .keycap-arrow {
+  align-self: flex-start;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 24px;
+}
+/* Editor content reads at a fixed width inside the full-width pane. Keycode fields keep
+   their label and value together instead of stretching across the pane. */
+.canvas-feature-editor .slot-edit-panel > * {
+  max-width: 720px;
+}
+.canvas-feature-editor .slot-number {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: 12px;
+}
+.canvas-feature-editor .slot-number input {
+  width: 78px;
+}
+.canvas-feature-editor .slot-edit-panel > fieldset,
+.canvas-feature-editor .slot-edit-panel .override-body > fieldset {
+  min-width: 0;
+  margin: var(--space-4) 0 0;
+}
+.canvas-feature-editor .slot-edit-panel .override-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-5);
+}
+.canvas-feature-editor .slot-edit-panel .override-body > .field {
+  margin-top: 0;
+}
+.canvas-feature-editor .slot-edit-panel .override-body .layer-toggles {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  max-width: none;
+}
+.canvas-app .canvas-feature-editor .slot-edit-panel .override-options {
+  grid-column: 2;
+  grid-row: 2 / span 4;
+  align-self: start;
+}
+
+/* Macro editing keeps its own real actions, but uses the same stable slot/frame pattern. */
+.canvas-feature-editor .macro-slot-editor .slot-edit-panel {
+  min-height: 100%;
+}
+.macro-slot-editor .slot-cell.dirty .slot-id,
+.macro-slot-editor .slot-draft,
+.macro-slot-editor .macro-alert {
+  color: var(--changed);
+}
+.macro-slot-editor .slot-draft {
+  font-size: 11px;
+  font-weight: 600;
+}
+.macro-slot-editor .macro-usage,
+.macro-slot-editor .macro-slot-usage {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.macro-slot-editor .macro-slot-usage {
+  margin-bottom: var(--space-4);
+}
+.macro-slot-editor .macro-alert {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+/* Panel-level button rows follow the action cards on the same 8px step. */
+.macro-slot-editor .slot-edit-panel > .row {
+  margin-top: var(--space-2);
+}
+.macro-slot-editor .macro-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.macro-slot-editor .action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--well);
+}
+.macro-slot-editor .row {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+.macro-slot-editor .macro-action-head {
+  margin-top: 0;
+  align-items: center;
+}
+/* Name and byte count share one baseline inside a single centered item. */
+.macro-slot-editor .action-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.macro-slot-editor .action-index {
+  min-width: 17px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.macro-slot-editor .action-spacer {
+  flex: 1;
+}
+.macro-slot-editor .action small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.macro-slot-editor .action > label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 12px;
+}
+.macro-slot-editor .action > label input {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .workspace-switcher button {
+    padding: var(--space-1) var(--space-2);
+  }
+  .canvas-app .board-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .canvas-layer-switcher {
+    width: 100%;
+    margin: 0;
+  }
+  .canvas-layer-switcher .layers {
+    width: 100%;
+  }
+  .canvas-app aside.feature-editor.has-feature-inspection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feature-editor .canvas-selection-inspector {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+  }
+  .feature-editor.has-feature-inspection .canvas-feature-editor {
+    grid-row: 3;
+  }
+  .canvas-app aside.feature-editor.has-feature-inspection {
+    grid-template-rows: max-content max-content minmax(0, 1fr);
+  }
+}
+@media (max-width: 899px) {
+  .canvas-context .context-actions {
+    width: 100%;
+    flex-basis: 100%;
+    gap: var(--space-2);
+  }
+  .workspace-switcher {
+    flex: 1;
+    margin: 0;
+  }
+}
+@media (max-width: 650px) {
+  .canvas-feature-editor .override-body {
+    display: block;
+  }
+  .canvas-feature-editor .slot-editor {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 180px) minmax(0, 1fr);
+  }
+  .canvas-feature-editor .slot-list {
+    height: auto;
+    max-height: 240px;
+  }
+}
+
+/* Feature keycaps: the keycap is the control, so chip padding, row height and the
+   selected-chip fill from the inspector rules do not apply. */
+.canvas-app .canvas-feature-editor .keycap-field,
+.canvas-app aside .keycap-field {
+  display: inline-flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+  width: 60px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.canvas-app .canvas-feature-editor .keycap-field.sm {
+  width: 46px;
+}
+.canvas-app .canvas-feature-editor .keycap-field[aria-pressed="true"],
+.canvas-app .canvas-feature-editor .keycap-field[aria-pressed="true"]:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+}
+.canvas-app .canvas-feature-editor .slot-edit-panel .override-body > .keycap-row {
+  grid-column: 1 / -1;
+}
+
+/* Macro keys: small keycaps in order, a corner remove control on each, and a keycap-sized add tile. */
+.canvas-feature-editor .macro-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+.canvas-feature-editor .macro-key {
+  position: relative;
+}
+.canvas-app .canvas-feature-editor .macro-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: var(--chrome);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 14px;
+}
+.canvas-app .canvas-feature-editor .keycap-add {
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px dashed var(--key-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Chip and toggle groups use one --space-2 gap in both directions, including wrapped rows.
+   Alt repeat masks are plain fieldsets, so they wrap as flex rows too. */
+.canvas-app aside fieldset:has(input[type="checkbox"]) {
+  gap: var(--space-2);
+}
+.canvas-app aside fieldset:has(input[type="checkbox"]):not(.layer-toggles):not(.modifier-toggles):not(.override-options) {
+  display: flex;
+  flex-wrap: wrap;
+}
+.canvas-app aside fieldset.layer-toggles,
+.canvas-app aside fieldset.modifier-toggles,
+.canvas-app aside fieldset.override-options {
+  gap: var(--space-2);
+}
+.canvas-app .inspector .mods,
+.canvas-app .inspector .layer-buttons {
+  gap: var(--space-2);
+}
+
+/* Keycap fields are as wide as the keycap, so the first keycap sits flush with the content
+   column. The caption is wider and centred on the keycap, overflowing both sides evenly. */
+.canvas-app .canvas-feature-editor .keycap-caption {
+  width: 88px;
+  max-width: none;
+}
+.canvas-app .canvas-feature-editor .keycap-field.sm .keycap-caption {
+  width: 60px;
+}
+
+/* Alt repeat uses the Key overrides layout: allowed modifiers on the left as a 2x4 chip grid,
+   options on the right as switch rows in the same column. */
+.canvas-app .canvas-feature-editor .slot-edit-panel .alt-body > .override-options {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+.canvas-app .canvas-feature-editor .slot-edit-panel .alt-body > .modifier-toggles {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* Combos: the mini board fills the pane below the divider. Every margin is --space-4: the
+   caption row and the sides of the column, and the pane's bottom edge (its padding is 0 here). */
+.canvas-app .canvas-feature-editor .slot-edit-panel:has(> .mini-board) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding-bottom: 0;
+}
+.canvas-app .canvas-feature-editor .mini-board {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+}
+.canvas-app .canvas-feature-editor .mini-board-keys {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 0;
+  min-height: 120px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+/* The board sits inside a --space-4 inset on every side of the area below the divider. */
+.canvas-app .canvas-feature-editor .mini-board-keys svg.keyboard {
+  display: block;
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  width: calc(100% - 2 * var(--space-4));
+  height: calc(100% - 2 * var(--space-4));
+}
+
+/* The caption row sits directly above the keys area, so the top margin is exactly --space-4. */
+.canvas-app .canvas-feature-editor .mini-board-head {
+  margin-bottom: 0;
+}
+
+/* Key overrides: the left column stacks at its natural height. Fieldsets do not stretch to the
+   taller Options column, and grid rows of chips do not spread apart. */
+.canvas-app .canvas-feature-editor .override-body > fieldset {
+  align-self: start;
+}
+.canvas-app .canvas-feature-editor .override-body > fieldset.layer-toggles,
+.canvas-app .canvas-feature-editor .override-body > fieldset.modifier-toggles {
+  align-content: start;
+}

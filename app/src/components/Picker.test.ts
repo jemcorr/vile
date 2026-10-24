@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
   composeKeycode: vi.fn(),
   keycodeView: vi.fn(),
 }));
+// jsdom has no ResizeObserver. The floating picker observes board and workspace size.
+vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 vi.mock("../lib/api", () => ({ api, errorText: String }));
 let component: ReturnType<typeof mount> | undefined;
 afterEach(async () => {

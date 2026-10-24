@@ -63,10 +63,10 @@
   <h2 title={keys.length === 1 ? `${keys[0]!.tooltip}\n${keys[0]!.wire}` : undefined}>
     {keys.length === 1 ? keys[0]!.description : `${keys.length} keys selected`}
   </h2>
-  {#if keys.length === 1}<small class="raw">{keys[0]!.wire}</small>{/if}
+  {#if keys.length === 1}<details class="keycode-details"><summary>Keycode details</summary><code class="raw">{keys[0]!.wire}</code><p>{keys[0]!.tooltip}</p></details>{/if}
   {#if taps}
     <div class="control">
-      <span>Base</span><button
+      <span>Tap action</span><button
         class:active={choosing}
         onclick={onbase}
         title={`${baseView ? `${baseView.tooltip}\n${baseView.wire}\n` : ""}Choose a base from the picker, or drop a tile here`}
@@ -77,8 +77,7 @@
         }}>{baseView?.label || (base === null ? "Mixed bases" : "Choose base")}</button
       ><small>{baseView?.description ?? "Each base is preserved"}</small>
     </div>
-    <div class="control">
-      <span>Wrap modifiers</span><Modifiers
+    <details class="wrap-options"><summary>Wrap modifiers</summary><Modifiers
         value={wrap}
         onchange={(wrapMods) => onpatch({ wrapMods })}
         disabled={!canWrap}
@@ -88,9 +87,9 @@
             ? "Remove the hold behavior before adding wrap modifiers"
             : ""}
       />
-    </div>
+    </details>
     <label
-      >Hold <select value={hold?.kind ?? "mixed"} onchange={(e) => setHold(e.currentTarget.value)}
+      >When held <select value={hold?.kind ?? "mixed"} onchange={(e) => setHold(e.currentTarget.value)}
         ><option disabled value="mixed">Mixed</option><option value="none">None</option><option
           value="mod"
           disabled={!canHold}>Mod{!canHold ? " (needs basic base without wrap mods)" : ""}</option

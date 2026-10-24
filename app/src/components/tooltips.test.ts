@@ -42,7 +42,7 @@ describe("shared behavior hovers", () => {
     await settle();
     const field = document.querySelector<HTMLButtonElement>(".field")!;
     expect(field.title).toBe(`${key.tooltip}\n${key.wire}`);
-    expect(field.textContent).toContain(key.description);
+    expect(field.getAttribute("aria-label")).toBe(`Output: ${key.description}`);
     expect(field.textContent).not.toContain(key.tooltip);
   });
   it("keeps the inspector heading compact and explains both the heading and base on hover", async () => {
@@ -58,6 +58,6 @@ describe("shared behavior hovers", () => {
     expect(document.querySelector<HTMLButtonElement>(".control button")!.title).toContain(
       key.tooltip,
     );
-    expect(document.querySelector(".inspector")!.textContent).not.toContain(key.tooltip);
+    expect(document.querySelector("details.keycode-details p")!.textContent).toBe(key.tooltip);
   });
 });

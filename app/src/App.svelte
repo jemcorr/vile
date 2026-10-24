@@ -33,6 +33,13 @@
   import AltRepeatEditor from "./components/AltRepeatEditor.svelte";
   import Field from "./components/Field.svelte";
   import { focusScope } from "./lib/focus";
+  import Icon from "./components/Icon.svelte";
+  let canvasPanel = $state(false);
+  const canvasPanelNames: Record<string, string> = { diff:'Review', combos:'Combos', macros:'Macros', tapDances:'Tap dances', keyOverrides:'Key overrides', altRepeat:'Alt repeat' };
+  const canvasLedes: Record<string, string> = { combos: 'Press several keys together to send a different key.', macros: 'Send a sequence of keys or text from one key.', tapDances: 'Give one key different actions for tap, hold and double tap.', keyOverrides: "Replace a key when it's pressed with certain modifiers.", altRepeat: 'Choose what the Alt Repeat key sends after each key.' };
+  onMount(() => { const useBoard = () => { canvasPanel = false; ui.sideVisible = true; }; const renameMacro = (event: CustomEvent<number>) => { const index = event.detail; rename = { kind: 'macro', index, name: ui.view?.names.macros[index] ?? '' }; }; window.addEventListener('canvas-board-triggers', useBoard); window.addEventListener('canvas-rename-macro', renameMacro as EventListener); return () => { window.removeEventListener('canvas-board-triggers', useBoard); window.removeEventListener('canvas-rename-macro', renameMacro as EventListener); }; });
+  let canvasBoardMenu = $state(false);
+  const canvasMenuLabels: Record<string, string> = { clearKeys: 'Clear keys', transparentKeys: 'Make transparent', copyKeys: 'Copy', cutKeys: 'Cut', pasteKeys: 'Paste', swapKeys: 'Swap with…', editKey: 'Type keycode…', copyLayer: 'Copy layer', pasteLayer: 'Paste layer', clearLayer: 'Clear layer', transparentLayer: 'Make layer transparent', swapLayer: 'Swap layer with…', moveLayer: 'Move layer to…', mirrorLeftToRight: 'Mirror left to right', mirrorRightToLeft: 'Mirror right to left', mirrorSwap: 'Swap halves' };
   let viewportWidth = $state(1280);
   let viewportHeight = $state(820);
   function savedPanelSizes(): { side: number; picker: number } {
@@ -86,6 +93,7 @@
   let settings = $state(false);
   let blankPress: { pointer: number; x: number; y: number; moved: boolean } | null = null;
   function blankTarget(e: PointerEvent): boolean {
+    if (document.querySelector("[data-picker-open=true]") || (e.target instanceof Element && e.target.closest(".floating-picker"))) return false;
     if (
       review ||
       unsaved ||
@@ -183,6 +191,7 @@
       : `${selected.length} board keys on layer ${ui.layer}`;
   });
   function switchPanel(panel: Panel): void {
+    canvasPanel = true;
     ui.panel = panel;
     ui.inspectorPaths = [];
     ui.baseTarget = false;
@@ -294,6 +303,7 @@
     ui.comboEditing = null;
   }
   function onkeyclick(id: string, shift: boolean): void {
+    if (ui.comboEditing === null) canvasPanel = false;
     const cell = cells.find((cell) => cell.id === id);
     if (!cell) return;
     if (ui.comboEditing !== null && activeCombo) {
@@ -564,6 +574,9 @@
     if (id === "toggleComboOverlay") ui.showCombos = !ui.showCombos;
   }
   function onkeydown(e: KeyboardEvent): void {
+    if (canvasPanel && e.key.startsWith("Arrow")) return;
+    if (e.key === "Escape" && (canvasBoardMenu)) { e.preventDefault();  canvasBoardMenu = false; return; }
+    if (e.key === "Escape" && document.querySelector("[data-picker-open=true]")) return;
     if (e.key === "Escape" && dismissInteraction(false)) {
       e.preventDefault();
       return;
@@ -591,7 +604,7 @@
     e.preventDefault();
     if (action.kind === "move") {
       const previous = ui.cursor;
-      ui.cursor = neighbor(ui.view?.board?.keys ?? [], previous, action.dir);
+      ui.cursor = previous ? neighbor(ui.view?.board?.keys ?? [], previous, action.dir) : ui.view?.board?.keys[0]?.id ?? "";
       ui.selection = action.extend
         ? Array.from(new Set([...ui.selection, previous, ui.cursor])).filter(Boolean)
         : [ui.cursor].filter(Boolean);
@@ -726,6 +739,7 @@
     if (blankPress?.pointer === e.pointerId) blankPress = null;
   }}
   onclick={(e) => {
+    if (e.target instanceof Element && !e.target.closest(".popover-anchor")) {  canvasBoardMenu = false; }
     if (menu && e.target instanceof Element && !e.target.closest(".menu")) menu = null;
   }}
   bind:innerWidth={viewportWidth}
@@ -733,7 +747,7 @@
 />
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="app"
+  class="app canvas-app"
   aria-busy={busy}
   inert={busy}
   onpointerdown={(e) => {
@@ -750,42 +764,39 @@
       dismissInteraction(true);
   }}
 >
-  <header class="toolbar">
-    <strong class="brand">vile</strong
-    >{#each COMMANDS.filter( (c) => ["open", "save", "exportPng", "undo", "redo"].includes(c.id) ) as c}<button
-        disabled={!!reason(c.id)}
-        title={reason(c.id) ||
-          (c.id === "exportPng"
-            ? "Export all layers with non-blank, non-transparent keys as one PNG grid"
-            : c.title)}
-        onclick={() => void command(c.id)}>{c.title} <kbd>{c.shortcut}</kbd></button
-      >{#if ui.view && reason(c.id)}<small class="disabled-reason">{reason(c.id)}</small>{/if}
-    {/each}
-    <button
-      disabled={!ui.view}
-      onclick={() => {
-        switchPanel("diff");
-        ui.sideVisible = true;
-      }}>{ui.view?.pendingDiff.length ?? 0} pending changes</button
-    >{#if drafts}<button
-        class="draft-indicator"
-        onclick={() => {
-          switchPanel("macros");
-          ui.sideVisible = true;
-          ui.revealMacro = ui.draftMacro;
-        }}>Draft in macro M{ui.draftMacro} · open</button
-      >{/if}
-    <span class="spacer"></span><button onclick={() => (ui.mode = "palette")}
-      >Commands <kbd>⌘K</kbd></button
-    ><button
-      onclick={() => {
-        settings = true;
-        remapsText = JSON.stringify(ui.vimRemaps, null, 2);
-      }}>Settings</button
-    >
+  <header class="toolbar canvas-toolbar">
+    <strong class="brand">vile<span class="brand-dot">.</span></strong>
+    <div class="document-title"><Icon name="file"/><span>{ui.view?.path?.split('/').pop() || 'No layout open'}</span><span class="document-type">Vial layout</span></div>
+    <div class="history-actions">
+      <button class="icon-button" aria-label="Undo" title="Undo · ⌘Z" disabled={!!reason('undo')} onclick={() => void command('undo')}><Icon name="undo"/></button>
+      <button class="icon-button" aria-label="Redo" title="Redo · ⇧⌘Z" disabled={!!reason('redo')} onclick={() => void command('redo')}><Icon name="redo"/></button>
+    </div>
+    {#if drafts}<button class="draft-indicator" onclick={() => { switchPanel('macros'); ui.sideVisible = true; ui.revealMacro = ui.draftMacro; }}>Macro draft M{ui.draftMacro}</button>{/if}
+    <span class="spacer"></span>
+    <button class="command-button" onclick={() => (ui.mode = 'palette')}><Icon name="command"/>Commands<kbd>⌘K</kbd></button>
+    <button class="icon-button theme-button" aria-label="Switch theme" title="Switch light and dark theme" onclick={() => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; }}><Icon name="sun"/></button>
+    <button class="pending-button" onclick={() => { switchPanel('diff'); ui.sideVisible = true; }}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
+    <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>⌘S</kbd></button>
   </header>
   {#if ui.view && ui.view.board}
-    <LayerBar
+    <div class="canvas-context">
+      <div class="context-actions">
+        <nav class="workspace-switcher" aria-label="Workspace panels">
+          <button class:active={!canvasPanel} aria-pressed={!canvasPanel} onclick={() => { canvasPanel = false; ui.inspectorPaths = []; ui.baseTarget = false; ui.comboEditing = null; }}>Keymap</button>
+          {#each PANELS.filter(p => p !== 'diff') as panel}<button class:active={canvasPanel && ui.panel === panel} aria-pressed={canvasPanel && ui.panel === panel} onclick={() => { switchPanel(panel as Panel); ui.sideVisible = true; }}>{canvasPanelNames[panel]}</button>{/each}
+        </nav>
+      </div>
+    </div>
+    <div
+      class="workspace" class:feature-workspace={canvasPanel} data-workspace={canvasPanel ? ui.panel : "keymap"}
+      style:grid-template-columns={canvasPanel || compact
+        ? "minmax(0, 1fr)"
+        : ui.sideVisible
+          ? `minmax(0, 1fr) 8px ${sideWidth}px`
+          : "minmax(0, 1fr)"}
+    >
+      <main class="board" class:hidden={canvasPanel}>
+        <div class="board-heading"><div><span class="canvas-eyebrow">Layer {ui.layer}</span><h2>{ui.view.names.layers[ui.layer] || 'Layer ' + ui.layer}</h2></div><div class="canvas-layer-switcher">      <LayerBar
       layerCount={ui.view.layerCount}
       current={ui.layer}
       diff={ui.view.pendingDiff}
@@ -796,42 +807,7 @@
         menu = { kind: "layer", x, y };
       }}
     />
-    <div
-      class="workspace"
-      style:grid-template-columns={compact
-        ? "minmax(0, 1fr)"
-        : ui.sideVisible
-          ? `minmax(0, 1fr) 8px ${sideWidth}px`
-          : "minmax(0, 1fr)"}
-    >
-      <main class="board">
-        <div class="board-heading">
-          <span>{ui.view.board.name}</span><span role="status" class="geometry-status"
-            >{ui.view.geometrySource === "device"
-              ? "Shape: connected keyboard"
-              : ui.view.geometrySource === "cache"
-                ? "Shape: saved definition"
-                : "Shape: matrix fallback. No matching keyboard definition is available."}</span
-          ><button
-            title={definitionStatus || "Read the connected keyboard definition"}
-            onclick={() => void refreshGeometry()}>Refresh shape</button
-          >{#if definitionStatus}<span role="status">{definitionStatus}</span>{/if}<button
-            onclick={() => {
-              ui.sideVisible = !ui.sideVisible;
-              if (!ui.sideVisible) {
-                ui.inspectorPaths = [];
-                ui.baseTarget = false;
-                ui.comboEditing = null;
-              }
-            }}>{ui.sideVisible ? "Hide panel" : "Show panel"}</button
-          ><button
-            onclick={() =>
-              (rename = {
-                kind: "layer",
-                index: ui.layer,
-                name: ui.view?.names.layers[ui.layer] ?? "",
-              })}>Name layer</button>
-        </div>
+</div></div>
         {#if ui.comboEditing !== null}<p class="notice">
             Editing combo {ui.comboEditing} triggers. Click board keys to toggle their keycodes.
             <button onclick={() => (ui.comboEditing = null)}>Done</button>
@@ -868,6 +844,7 @@
             overlays={ui.showCombos ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
           />
         </div>
+        <div class="board-caption"><span><i class="legend-dot"></i>Changed since save</span><span>Shift-click to select more <span class="hint-separator">·</span> Double-click to type a keycode</span></div>
         {#if visibleEncoderPaths.length}<details
             ontoggle={(e) => {
               if (
@@ -880,13 +857,14 @@
             <summary>Knobs</summary
             >{#if !Array.isArray(ui.view.board.encoderIndices)}<p class="hint">
                 The keyboard definition is unavailable, so these encoder bindings are not confirmed as installed knobs.
-              </p>{/if}{#each visibleEncoderPaths as path}<Field
+              </p>{/if}{#each visibleEncoderPaths as path}<Field plain
                 {path}
                 label={encoderLabel(path)}
               />{/each}
           </details>{/if}
       </main>
-      {#if ui.sideVisible && !compact}<ResizeHandle
+      <div class="floating-picker-host" class:hidden={canvasPanel && !activeFeaturePath.length} style:right={!canvasPanel && ui.sideVisible && !compact ? (sideWidth + 30) + "px" : "22px"}><Picker view={ui.view} onchoose={assign} choosingBase={ui.baseTarget} target={targetLabel} /></div>
+      {#if ui.sideVisible && !compact && !canvasPanel}<ResizeHandle
           orientation="vertical"
           label="Resize editor panel"
           value={sideWidth}
@@ -895,20 +873,20 @@
           initial={390}
           onresize={(value) => (panelSizes.side = value)}
         />{/if}
-      <aside class:hidden={!ui.sideVisible} class:drawer={compact}>
-        <div class="target-status" role="status" aria-live="polite">
-          Picker target: {targetLabel}
-        </div>
+      <aside class:hidden={!ui.sideVisible} class:drawer={compact} class:feature-editor={canvasPanel} class:has-feature-inspection={activeFeaturePath.length > 0}>
+        <div class="inspector-heading">{#if canvasPanel}<h1>{canvasPanelNames[ui.panel]}</h1>{#if canvasLedes[ui.panel]}<p class="feature-lede">{canvasLedes[ui.panel]}</p>{/if}{:else}<span class="canvas-eyebrow">Key inspector</span>{/if}{#if !canvasPanel && ui.selection.length}<button class="icon-button" aria-label="Clear selection" title="Clear selection · Esc" onclick={() => dismissInteraction(true)}><Icon name="close" size={14}/></button>{/if}</div>
+        <div class="canvas-selection-inspector" class:hidden={canvasPanel && !activeFeaturePath.length}>
         {#if inspected.length}<Inspector
             keys={inspected}
             layerCount={ui.view.layerCount}
             onpatch={patch}
-            onbase={() => (ui.baseTarget = !ui.baseTarget)}
+            onbase={() => { ui.baseTarget = !ui.baseTarget; if (ui.baseTarget) window.dispatchEvent(new Event("canvas-find-key")); }}
             choosing={ui.baseTarget}
           />{:else}<p class="hint">
-            Select a board key or a keycode field to inspect its parts.
+            Select a key on the board to edit its tap action, modifiers and hold behavior.
           </p>{/if}
-        <nav class="panels" aria-label="Editor panels">
+        </div>
+        <div class="canvas-feature-editor" class:hidden={!canvasPanel}><nav class="panels canvas-panel-tabs" aria-label="Editor panels">
           {#each PANELS as panel}<button
               class:active={ui.panel === panel}
               aria-current={ui.panel === panel ? "true" : undefined}
@@ -947,16 +925,6 @@
         </div>
         <div class:hidden={ui.panel !== "macros"}>
           {#key ui.generation}<MacroEditor macros={ui.view.macros} onsave={saveMacro} />{/key}
-          <details>
-            <summary>Name a macro</summary>{#each ui.view.macros as macro}<button
-                onclick={() =>
-                  (rename = {
-                    kind: "macro",
-                    index: macro.index,
-                    name: ui.view?.names.macros[macro.index] ?? "",
-                  })}>M{macro.index} {ui.view.names.macros[macro.index] ?? ""}</button
-              >{/each}
-          </details>
         </div>
         <div class:hidden={ui.panel !== "tapDances"}>
           <TapDanceEditor tapDances={ui.view.tapDances} onsave={saveTapDance} />
@@ -971,19 +939,8 @@
         <div class:hidden={ui.panel !== "altRepeat"}>
           <AltRepeatEditor altRepeatKeys={ui.view.altRepeatKeys} onsave={saveAltRepeat} />
         </div>
+        </div>
       </aside>
-    </div>
-    <ResizeHandle
-      orientation="horizontal"
-      label="Resize keycode picker"
-      value={pickerHeight}
-      min={120}
-      max={pickerMax}
-      initial={240}
-      onresize={(value) => (panelSizes.picker = value)}
-    />
-    <div class="picker-dock" style:height={`${pickerHeight}px`}>
-      <Picker view={ui.view} onchoose={assign} choosingBase={ui.baseTarget} target={targetLabel} />
     </div>
   {:else}<main class="empty">
       <h1>Edit your keyboard visually.</h1>
@@ -1011,8 +968,8 @@
       </div>
     </div>{/if}
   <footer>
-    <span>{ui.view?.path ?? "No layout open"}{ui.view?.dirty ? " • unsaved" : ""}</span><span
-      role="status">{busy ? "Working…" : ui.message}</span
+    <span class="footer-help">Load saved layouts onto your keyboard with Vial</span><span
+      role="status">{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span
     >
   </footer>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
@@ -1032,7 +989,7 @@
         disabled={!!reason(c.id)}
         title={reason(c.id)}
         onclick={() => void command(c.id)}
-        >{c.title}<kbd>{c.shortcut}</kbd>{#if reason(c.id)}<small>{reason(c.id)}</small
+         data-menu-divider={["copyKeys", "swapKeys", "copyLayer", "mirrorLeftToRight"].includes(c.id)}>{canvasMenuLabels[c.id] || c.title}<kbd>{c.shortcut}</kbd>{#if reason(c.id)}<small>{reason(c.id)}</small
           >{/if}</button
       >{/each}<button role="menuitem" onclick={() => (menu = null)}>Cancel <kbd>Esc</kbd></button>
   </div>{/if}
@@ -1239,11 +1196,6 @@
     flex: 1;
     min-height: 0;
   }
-  .picker-dock {
-    flex: 0 0 auto;
-    min-height: 0;
-    overflow: hidden;
-  }
   .board {
     display: flex;
     flex-direction: column;
@@ -1280,23 +1232,6 @@
     background: var(--bg);
     border-left: 1px solid var(--key-border);
     box-shadow: -8px 0 24px #0003;
-  }
-  .target-status {
-    padding: 8px;
-    margin-bottom: 8px;
-    border: 1px solid var(--key-border);
-    border-radius: 6px;
-    font-size: 12px;
-  }
-  .draft-indicator {
-    background: var(--key-mod);
-  }
-  .geometry-status {
-    color: var(--fg);
-  }
-  .disabled-reason {
-    color: var(--muted);
-    font-size: 11px;
   }
   .panels,
   .row {

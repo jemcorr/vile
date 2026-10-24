@@ -24,6 +24,8 @@ const fake = vi.hoisted(() => ({
   setDiffBase: vi.fn(),
 }));
 const renderSheet = vi.hoisted(() => vi.fn());
+// jsdom has no ResizeObserver. The floating picker observes board and workspace size.
+vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 vi.mock("./lib/layer-export", () => ({ renderLayerSheet: renderSheet }));
 vi.mock("./lib/api", () => ({ api: fake, errorText: (e: unknown) => String(e) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: () => Promise.resolve(() => {}) }));
@@ -133,6 +135,24 @@ function pointer(target: EventTarget, type: string, x = 10, y = 10, id = 1): voi
   Object.defineProperty(event, "pointerId", { value: id });
   target.dispatchEvent(event);
 }
+function fieldButton(label: string): HTMLButtonElement {
+  const found = [...document.querySelectorAll("button")].find((b) =>
+    b.getAttribute("aria-label")?.startsWith(`${label}:`),
+  );
+  if (!found) throw new Error(`Field missing: ${label}`);
+  return found;
+}
+// Export and other file commands live in the Commands palette, not the toolbar.
+async function runCommand(title: string): Promise<void> {
+  button("Commands").click();
+  await settle();
+  button(title).click();
+  await settle();
+}
+// The keycode picker toggles off when the same category opens again, so open it only when closed.
+function openPicker(): void {
+  if (!document.querySelector(".tiles")) window.dispatchEvent(new Event("canvas-find-key"));
+}
 beforeEach(() => {
   vi.clearAllMocks();
   ui.view = null;
@@ -228,8 +248,7 @@ describe("desktop editing workflow", () => {
     await settle();
     ui.selection = ["r0c0"];
     const original = ui.view;
-    button("Export PNG").click();
-    await settle();
+    await runCommand("Export PNG");
     expect(renderSheet).toHaveBeenCalledWith(original);
     expect(fake.exportLayers).toHaveBeenCalledWith(new Uint8Array([137, 80, 78, 71]), 1);
     expect(ui.message).toBe("Exported 3 layers to /test/layout-layers.png");
@@ -243,13 +262,15 @@ describe("desktop editing workflow", () => {
     fake.exportLayers.mockResolvedValueOnce(null).mockRejectedValueOnce("Disk full");
     app = mount(App, { target: document.body });
     await settle();
-    button("Export PNG").click();
-    await settle();
+    await runCommand("Export PNG");
     expect(ui.message).toBe("PNG export canceled");
-    expect(button("Export PNG").disabled).toBe(false);
-    button("Export PNG").click();
+    button("Commands").click();
     await settle();
+    expect(button("Export PNG").disabled).toBe(false);
+    await runCommand("Export PNG");
     expect(ui.message).toBe("Disk full");
+    button("Commands").click();
+    await settle();
     expect(button("Export PNG").disabled).toBe(false);
     expect(ui.view?.dirty).toBe(true);
   });
@@ -258,10 +279,11 @@ describe("desktop editing workflow", () => {
     renderSheet.mockRejectedValueOnce(new Error("No layers to export"));
     app = mount(App, { target: document.body });
     await settle();
-    button("Export PNG").click();
-    await settle();
+    await runCommand("Export PNG");
     expect(ui.message).toContain("No layers to export");
     expect(fake.exportLayers).not.toHaveBeenCalled();
+    button("Commands").click();
+    await settle();
     expect(button("Export PNG").disabled).toBe(false);
   });
 
@@ -311,7 +333,7 @@ describe("desktop editing workflow", () => {
     await settle();
     ui.selection = ["r0c0"];
     const background = document.querySelector("main.board")!;
-    const control = button("Hide panel");
+    const control = button("Keymap");
     pointer(control, "pointerdown");
     pointer(control, "pointerup");
     control.click();
@@ -337,8 +359,6 @@ describe("desktop editing workflow", () => {
       "header .spacer",
       "nav.layers",
       "aside",
-      ".picker-dock",
-      ".picker",
       "footer",
     ]) {
       ui.selection = ["r0c0"];
@@ -353,6 +373,8 @@ describe("desktop editing workflow", () => {
       expect(ui.baseTarget, selector).toBe(false);
       expect(ui.comboEditing, selector).toBeNull();
     }
+    openPicker();
+    await settle();
     const picker = document.querySelector<HTMLElement>(".picker")!;
     Object.defineProperties(picker, {
       offsetWidth: { configurable: true, value: 100 },
@@ -372,13 +394,13 @@ describe("desktop editing workflow", () => {
     pointer(value, "pointerdown");
     pointer(value, "pointerup");
     expect(ui.selection).toEqual(["r0c0"]);
-    const control = button("Hide panel");
+    const control = button("Keymap");
     pointer(control, "pointerdown");
     pointer(control, "pointerup");
     control.click();
     expect(ui.selection).toEqual(["r0c0"]);
     expect(fake.applyOp).not.toHaveBeenCalled();
-    button("Save").click();
+    button("Review & save").click();
     await settle();
     const footer = document.querySelector("footer")!;
     pointer(footer, "pointerdown");
@@ -424,10 +446,10 @@ describe("desktop editing workflow", () => {
       .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     await settle();
     expect(document.querySelector('[role="menu"]')).not.toBeNull();
-    button("Hide panel").click();
+    button("Keymap").click();
     await settle();
     expect(document.querySelector('[role="menu"]')).toBeNull();
-    expect(button("Show panel")).toBeTruthy();
+    expect(button("Keymap").getAttribute("aria-pressed")).toBe("true");
   });
   it("selects one key and Shift-click adds another", async () => {
     app = mount(App, { target: document.body });
@@ -445,7 +467,7 @@ describe("desktop editing workflow", () => {
   it("requires diff review before saving", async () => {
     app = mount(App, { target: document.body });
     await settle();
-    button("Save").click();
+    button("Review & save").click();
     await settle();
     expect(fake.save).not.toHaveBeenCalled();
     expect(document.querySelector('[aria-label="Review changes before save"]')).not.toBeNull();
@@ -461,6 +483,7 @@ describe("desktop editing workflow", () => {
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await settle();
     document.querySelector<HTMLButtonElement>(".inspector .control button")!.click();
+    await settle();
     document.querySelector<HTMLButtonElement>(".tiles .tile")!.click();
     await settle();
     expect(fake.applyOp).toHaveBeenCalledWith({
@@ -484,18 +507,15 @@ describe("desktop editing workflow", () => {
       output: "KC_ESCAPE",
     });
   });
-  it("stops editing combo triggers when their details close", async () => {
+  it("stops editing combo triggers when the keymap is chosen again", async () => {
     app = mount(App, { target: document.body });
     await settle();
     button("Combos").click();
     await settle();
-    const details = document.querySelector<HTMLDetailsElement>("aside details")!;
-    details.open = true;
-    await settle();
     button("Choose triggers on board").click();
+    await settle();
     expect(ui.comboEditing).toBe(0);
-    details.open = false;
-    details.dispatchEvent(new Event("toggle"));
+    button("Keymap").click();
     await settle();
     expect(ui.comboEditing).toBeNull();
     document
@@ -530,7 +550,7 @@ describe("desktop editing workflow", () => {
       .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     await settle();
     const item = document.querySelector<HTMLButtonElement>('[role="menu"] [role="menuitem"]')!;
-    expect(item.textContent).toContain("Clear selected keys");
+    expect(item.textContent).toContain("Clear keys");
     expect(document.activeElement).toBe(item);
     item.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
     item.dispatchEvent(new KeyboardEvent("keydown", { key: "x", metaKey: true, bubbles: true }));
@@ -567,20 +587,23 @@ describe("desktop editing workflow", () => {
     await settle();
     button("Combos").click();
     await settle();
-    const details = document.querySelector<HTMLDetailsElement>("aside details")!;
-    details.open = true;
-    await settle();
-    button("Trigger 1").click();
+    fieldButton("Trigger 1").click();
     await settle();
     button("Macros").click();
+    await settle();
+    openPicker();
+    await settle();
     document.querySelector<HTMLButtonElement>(".tiles .tile")!.click();
     await settle();
     expect(fake.applyOp).not.toHaveBeenCalled();
     button("Combos").click();
-    details.open = true;
     await settle();
-    button("Trigger 1").click();
-    button("Hide panel").click();
+    fieldButton("Trigger 1").click();
+    await settle();
+    button("Keymap").click();
+    await settle();
+    openPicker();
+    await settle();
     document.querySelector<HTMLButtonElement>(".tiles .tile")!.click();
     await settle();
     expect(fake.applyOp).not.toHaveBeenCalled();
@@ -589,6 +612,8 @@ describe("desktop editing workflow", () => {
     app = mount(App, { target: document.body });
     await settle();
     ui.comboEditing = 0;
+    openPicker();
+    await settle();
     document.querySelector<HTMLButtonElement>(".tiles .tile")!.click();
     await settle();
     expect(fake.applyOp).not.toHaveBeenCalled();
@@ -599,7 +624,7 @@ describe("desktop editing workflow", () => {
     await settle();
     fake.save.mockRejectedValueOnce("File changed on disk");
     fake.getView.mockResolvedValue({ ...view(), revision: 3 });
-    button("Save").click();
+    button("Review & save").click();
     await settle();
     button("Save reviewed changes").click();
     await settle();
@@ -633,12 +658,12 @@ describe("desktop editing workflow", () => {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     await settle();
     expect(document.querySelector("aside")?.textContent).toContain(
-      "7 bytes total projected from draft",
+      "7 bytes total projected",
     );
     button("Combos").click();
     await settle();
-    expect(button("Draft in macro M0")).toBeTruthy();
-    button("Draft in macro M0").click();
+    expect(button("Macro draft M0")).toBeTruthy();
+    button("Macro draft M0").click();
     await settle();
     expect(ui.panel).toBe("macros");
     expect(
@@ -652,7 +677,7 @@ describe("desktop editing workflow", () => {
     keyButton.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
     await settle();
     expect(keyButton.getAttribute("aria-pressed")).toBe("true");
-    const save = button("Save");
+    const save = button("Review & save");
     save.focus();
     save.click();
     await settle();
