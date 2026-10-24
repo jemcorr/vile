@@ -215,6 +215,9 @@ export type OpDto =
   | { type: "clearLayer"; layer: number; transparent: boolean }
   | { type: "copyLayer"; layer: number }
   | { type: "pasteLayer"; layer: number }
+  | { type: "copyFeatureSlot"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; index: number }
+  | { type: "pasteFeatureSlot"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; index: number }
+  | { type: "swapFeatureSlots"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; a: number; b: number }
   | { type: "swapLayers"; a: number; b: number }
   | { type: "moveLayer"; from: number; to: number }
   | { type: "mirrorLayer"; layer: number; mode: MirrorModeDto }

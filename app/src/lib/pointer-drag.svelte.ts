@@ -1,10 +1,16 @@
 export type DragPayload =
   | { kind: "keycode"; wire: string; code: number | null }
-  | { kind: "macro"; slot: number; index: number };
+  | { kind: "macro"; slot: number; index: number }
+  | {
+      kind: "featureSlot";
+      feature: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat";
+      index: number;
+    };
 export interface PointerDrop {
   payload: DragPayload;
   clientX: number;
   clientY: number;
+  altKey?: boolean;
 }
 export const pointerDrag = $state<{
   current: (PointerDrop & { label: string }) | null;
@@ -50,7 +56,7 @@ export function startPointerDrag(event: PointerEvent, payload: DragPayload, labe
     "pointerup",
     (e) => {
       if (e.pointerId !== id) return;
-      const drop = moved ? { payload, clientX: e.clientX, clientY: e.clientY } : null;
+      const drop = moved ? { payload, clientX: e.clientX, clientY: e.clientY, altKey: e.altKey } : null;
       finish();
       if (drop)
         document

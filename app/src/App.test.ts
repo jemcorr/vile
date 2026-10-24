@@ -240,7 +240,7 @@ describe("desktop editing workflow", () => {
     app = mount(App, { target: document.body });
     await settle();
     expect(document.body.textContent).toContain("Knob 1 clockwise");
-    expect(document.body.textContent).toContain("not confirmed as installed knobs");
+    expect(document.body.textContent).toContain("these encoder bindings are not confirmed");
   });
 
   it("hides firmware encoder bindings when a known definition selects no knobs", async () => {

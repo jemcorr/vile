@@ -985,25 +985,27 @@
         <div class:hidden={ui.panel !== "combos"}>
           <ComboEditor
             combos={ui.view.combos}
+            onoperation={apply}
             onrename={(index) =>
               (rename = { kind: "combo", index, name: ui.view?.names.combos[index] ?? "" })}
           />
         </div>
         <div class:hidden={ui.panel !== "macros"}>
-          {#key ui.generation}<MacroEditor macros={ui.view.macros} onsave={saveMacro} />{/key}
+          {#key ui.generation}<MacroEditor macros={ui.view.macros} onsave={saveMacro} onoperation={apply} />{/key}
         </div>
         <div class:hidden={ui.panel !== "tapDances"}>
-          <TapDanceEditor tapDances={ui.view.tapDances} onsave={saveTapDance} />
+          <TapDanceEditor tapDances={ui.view.tapDances} onsave={saveTapDance} onoperation={apply} />
         </div>
         <div class:hidden={ui.panel !== "keyOverrides"}>
           <KeyOverrideEditor
             keyOverrides={ui.view.keyOverrides}
             layerCount={ui.view.layerCount}
             onsave={saveOverride}
+            onoperation={apply}
           />
         </div>
         <div class:hidden={ui.panel !== "altRepeat"}>
-          <AltRepeatEditor altRepeatKeys={ui.view.altRepeatKeys} onsave={saveAltRepeat} />
+          <AltRepeatEditor altRepeatKeys={ui.view.altRepeatKeys} onsave={saveAltRepeat} onoperation={apply} />
         </div>
         </div>
       </aside>

@@ -5,8 +5,8 @@ use std::path::Path;
 
 use vile_core::ops;
 use vile_core::{
-    AltRepeatKey, Board, Catalog, CatalogContext, Combo, Editor, KeyOverride, KeyRef, KeycodeKind,
-    Macro, MacroAction, MirrorMode, Pos, Slot, TapDance,
+    AltRepeatKey, Board, Catalog, CatalogContext, Combo, Editor, FeatureSlotKind, KeyOverride,
+    KeyRef, KeycodeKind, Macro, MacroAction, MirrorMode, Pos, Slot, TapDance,
 };
 use vile_core::{DiffBase, Document, Keycode};
 
@@ -979,6 +979,18 @@ fn apply_to(
             Ok(Vec::new())
         }
         OpDto::PasteLayer { layer } => editor.paste_layer(layer).map_err(err),
+        OpDto::CopyFeatureSlot { kind, index } => {
+            editor
+                .copy_feature_slot(feature_kind(&kind)?, index)
+                .map_err(err)?;
+            Ok(Vec::new())
+        }
+        OpDto::PasteFeatureSlot { kind, index } => editor
+            .paste_feature_slot(feature_kind(&kind)?, index)
+            .map_err(err),
+        OpDto::SwapFeatureSlots { kind, a, b } => editor
+            .swap_feature_slots(feature_kind(&kind)?, a, b)
+            .map_err(err),
         OpDto::SwapLayers { a, b } => editor
             .apply_named(|doc, names| {
                 let result = ops::swap_layers(doc, a, b)?;
@@ -1101,5 +1113,16 @@ fn apply_to(
                 .apply(|doc| ops::set_alt_repeat_key(doc, index, ar))
                 .map_err(err)
         }
+    }
+}
+
+fn feature_kind(value: &str) -> Result<FeatureSlotKind, String> {
+    match value {
+        "combo" => Ok(FeatureSlotKind::Combo),
+        "macro" => Ok(FeatureSlotKind::Macro),
+        "tapDance" => Ok(FeatureSlotKind::TapDance),
+        "keyOverride" => Ok(FeatureSlotKind::KeyOverride),
+        "altRepeat" => Ok(FeatureSlotKind::AltRepeat),
+        other => Err(format!("unknown feature slot kind \"{other}\"")),
     }
 }

@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { TapDanceDto } from "../lib/types";
   import Field from "./Field.svelte";
+  import FeatureSlotList from "./FeatureSlotList.svelte";
+  import type { OpDto } from "../lib/types";
   import { ui } from "../lib/state.svelte";
-  let { tapDances, onsave }: { tapDances: TapDanceDto[]; onsave: (value: TapDanceDto) => void } =
+  let { tapDances, onsave, onoperation }: { tapDances: TapDanceDto[]; onsave: (value: TapDanceDto) => void; onoperation: (op: OpDto) => Promise<boolean> } =
     $props();
   let selected = $state(0);
   $effect(() => {
@@ -38,6 +40,6 @@
   }
 </script>
 
-<section class="slot-editor" data-slot-editor="tapDance"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><div class="slot-list" role="group" style="--per-column:16" aria-label="tapDance slots" onkeydown={(e) => slotKeys(e, 16, pickSlot)}>{#each tapDances as td (td.index)}<button class="slot-cell" data-slot-index={td.index} data-state={slotSet(td) ? "set" : "empty"} class:active={selected === td.index} aria-pressed={selected === td.index} aria-label={"Tap dance slot TD" + td.index} title={slotText(td) || "Empty"} onclick={() => pickSlot(td.index)}><span class="slot-id">{td.index}</span><span class="slot-desc">{slotText(td)}</span></button>{/each}</div><div class="slot-form">{#each tapDances as td (td.index)}{#if td.index === selected}<article class="slot-edit-panel" aria-label={`Editing tap dance TD${td.index}`}><div class="slot-edit-title"><span class="slot-kicker">Tap dance {td.index}</span></div><div class="keycap-row">{#each ["Tap", "Hold", "Double tap", "Tap and hold"] as name, i}<Field path={`tap_dance[${td.index}][${i}]`} label={name} />{/each}</div><label class="slot-number">Tapping term <input type="number" min="0" max="65535" value={td.tappingTerm} onchange={(e) => onsave({ ...td, tappingTerm: Number(e.currentTarget.value) })} /> ms</label></article>{/if}{/each}</div></section>
+<section class="slot-editor" data-slot-editor="tapDance"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="tapDance" label="Tap dance" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={tapDances.map((slot) => ({ index: slot.index, set: slotSet(slot), text: slotText(slot) }))} /><div class="slot-form">{#each tapDances as td (td.index)}{#if td.index === selected}<article class="slot-edit-panel" aria-label={`Editing tap dance TD${td.index}`}><div class="slot-edit-title"><span class="slot-kicker">Tap dance {td.index}</span></div><div class="keycap-row">{#each ["Tap", "Hold", "Double tap", "Tap and hold"] as name, i}<Field path={`tap_dance[${td.index}][${i}]`} label={name} />{/each}</div><label class="slot-number">Tapping term <input type="number" min="0" max="65535" value={td.tappingTerm} onchange={(e) => onsave({ ...td, tappingTerm: Number(e.currentTarget.value) })} /> ms</label></article>{/if}{/each}</div></section>
 
 

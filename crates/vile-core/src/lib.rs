@@ -19,7 +19,7 @@ pub use document::{
     AltRepeatKey, Combo, Document, KeyOverride, LoadError, LoadIssue, LoadReport, Macro,
     MacroAction, Setting, Slot, TapDance, TopKey,
 };
-pub use editor::{Clipboard, DiffBase, Editor, SaveError};
+pub use editor::{Clipboard, DiffBase, Editor, FeatureSlotKind, SaveError};
 pub use keycode::{
     Catalog, CatalogContext, HoldBehavior, KeyParts, KeyPartsPatch, Keycode, KeycodeError,
     KeycodeKind, LayerOp, SearchHit,

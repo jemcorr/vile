@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { AltRepeatDto } from "../lib/types";
   import Field from "./Field.svelte";
+  import FeatureSlotList from "./FeatureSlotList.svelte";
+  import type { OpDto } from "../lib/types";
   import { ui } from "../lib/state.svelte";
   import { MOD_BITS, ALT_REPEAT_OPTION_BITS, hasBit, toggleBit } from "../lib/bits";
   const masks = [
@@ -10,7 +12,8 @@
   let {
     altRepeatKeys,
     onsave,
-  }: { altRepeatKeys: AltRepeatDto[]; onsave: (value: AltRepeatDto) => void } = $props();
+    onoperation,
+  }: { altRepeatKeys: AltRepeatDto[]; onsave: (value: AltRepeatDto) => void; onoperation: (op: OpDto) => Promise<boolean> } = $props();
   let selected = $state(0);
   $effect(() => {
     if (!altRepeatKeys.some((slot) => slot.index === selected)) selected = altRepeatKeys[0]?.index ?? 0;
@@ -52,6 +55,6 @@
   }
 </script>
 
-<section class="slot-editor" data-slot-editor="altRepeat"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><div class="slot-list" role="group" style="--per-column:16" aria-label="altRepeat slots" onkeydown={(e) => slotKeys(e, 16, pickSlot)}>{#each altRepeatKeys as ar (ar.index)}<button class="slot-cell" data-slot-index={ar.index} data-state={slotSet(ar) ? "set" : "empty"} class:active={selected === ar.index} aria-pressed={selected === ar.index} aria-label={"Alternate repeat slot AR" + ar.index} title={slotText(ar) || "Empty"} onclick={() => pickSlot(ar.index)}><span class="slot-id">{ar.index}</span><span class="slot-desc">{slotText(ar)}</span></button>{/each}</div><div class="slot-form">{#each altRepeatKeys as ar (ar.index)}{#if ar.index === selected}<article class="slot-edit-panel" aria-label={`Editing alternate repeat AR${ar.index}`}><div class="slot-edit-title"><span class="slot-kicker">Alt repeat {ar.index}</span></div><div class="keycap-row"><Field path={`alt_repeat_key[${ar.index}].keycode`} label="Key" /><span class="keycap-arrow" aria-hidden="true">→</span><Field path={`alt_repeat_key[${ar.index}].alt_keycode`} label="Alternate" /></div><div class="override-body alt-body">{#each masks as mask, index}<fieldset class={index === 0 ? "modifier-toggles" : "override-options"}><legend>{mask.name}</legend>{#each mask.bits as bit}<label title={index === 0 ? undefined : altOptionTitle(bit.name)}><input type="checkbox" checked={hasBit(index === 0 ? ar.allowedMods : ar.options, bit.bit)} onchange={() => onsave({ ...ar, ...(index === 0 ? { allowedMods: toggleBit(ar.allowedMods, bit.bit) } : { options: toggleBit(ar.options, bit.bit) }) })} />{index === 0 ? altModLabel(bit.name) : altOptionLabel(bit.name)}</label>{/each}</fieldset>{/each}</div></article>{/if}{/each}</div></section>
+<section class="slot-editor" data-slot-editor="altRepeat"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="altRepeat" label="Alt repeat" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={altRepeatKeys.map((slot) => ({ index: slot.index, set: slotSet(slot), text: slotText(slot) }))} /><div class="slot-form">{#each altRepeatKeys as ar (ar.index)}{#if ar.index === selected}<article class="slot-edit-panel" aria-label={`Editing alternate repeat AR${ar.index}`}><div class="slot-edit-title"><span class="slot-kicker">Alt repeat {ar.index}</span></div><div class="keycap-row"><Field path={`alt_repeat_key[${ar.index}].keycode`} label="Key" /><span class="keycap-arrow" aria-hidden="true">→</span><Field path={`alt_repeat_key[${ar.index}].alt_keycode`} label="Alternate" /></div><div class="override-body alt-body">{#each masks as mask, index}<fieldset class={index === 0 ? "modifier-toggles" : "override-options"}><legend>{mask.name}</legend>{#each mask.bits as bit}<label title={index === 0 ? undefined : altOptionTitle(bit.name)}><input type="checkbox" checked={hasBit(index === 0 ? ar.allowedMods : ar.options, bit.bit)} onchange={() => onsave({ ...ar, ...(index === 0 ? { allowedMods: toggleBit(ar.allowedMods, bit.bit) } : { options: toggleBit(ar.options, bit.bit) }) })} />{index === 0 ? altModLabel(bit.name) : altOptionLabel(bit.name)}</label>{/each}</fieldset>{/each}</div></article>{/if}{/each}</div></section>
 
 

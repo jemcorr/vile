@@ -142,3 +142,145 @@ fn tap_dance_key_override_and_alt_repeat() {
         "{text}"
     );
 }
+
+#[test]
+fn feature_clipboard_is_typed_and_paste_undoes_content_and_name_together() {
+    let (_dir, mut s) = open("corne_v32.vil");
+    s.apply_op(OpDto::Rename {
+        kind: "combo".into(),
+        index: 0,
+        name: "dead acute".into(),
+    })
+    .unwrap();
+    s.apply_op(OpDto::Rename {
+        kind: "combo".into(),
+        index: 1,
+        name: "navigation".into(),
+    })
+    .unwrap();
+    let before = s.view().unwrap();
+    s.apply_op(OpDto::CopyFeatureSlot {
+        kind: "combo".into(),
+        index: 0,
+    })
+    .unwrap();
+    assert!(
+        s.apply_op(OpDto::PasteFeatureSlot {
+            kind: "macro".into(),
+            index: 1
+        })
+        .is_err()
+    );
+    s.apply_op(OpDto::PasteFeatureSlot {
+        kind: "combo".into(),
+        index: 1,
+    })
+    .unwrap();
+    let pasted = s.view().unwrap();
+    assert_eq!(pasted.combos[1].keys, before.combos[0].keys);
+    assert_eq!(pasted.combos[1].output, before.combos[0].output);
+    assert_eq!(pasted.names.combos[&1], "dead acute");
+    s.undo().unwrap();
+    let undone = s.view().unwrap();
+    assert_eq!(undone.combos[1], before.combos[1]);
+    assert_eq!(undone.names.combos[&1], "navigation");
+
+    s.apply_op(OpDto::Rename {
+        kind: "macro".into(),
+        index: 0,
+        name: "Jupyter cell".into(),
+    })
+    .unwrap();
+    s.apply_op(OpDto::Rename {
+        kind: "macro".into(),
+        index: 1,
+        name: "close cell".into(),
+    })
+    .unwrap();
+    let before = s.view().unwrap();
+    s.apply_op(OpDto::SwapFeatureSlots {
+        kind: "macro".into(),
+        a: 0,
+        b: 1,
+    })
+    .unwrap();
+    let swapped = s.view().unwrap();
+    assert_eq!(swapped.macros[0].actions, before.macros[1].actions);
+    assert_eq!(swapped.macros[1].actions, before.macros[0].actions);
+    let keycodes = |view: &vile_session::ViewModel| {
+        view.layers
+            .iter()
+            .flat_map(|layer| layer.iter().map(|cell| cell.wire.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        keycodes(&swapped),
+        keycodes(&before),
+        "M0 references remain attached to slot 0"
+    );
+    assert_eq!(swapped.names.macros[&0], "close cell");
+    assert_eq!(swapped.names.macros[&1], "Jupyter cell");
+    s.undo().unwrap();
+    let restored = s.view().unwrap();
+    assert_eq!(restored.macros[0].actions, before.macros[0].actions);
+    assert_eq!(restored.macros[1].actions, before.macros[1].actions);
+    assert_eq!(restored.names.macros, before.names.macros);
+    assert!(
+        s.apply_op(OpDto::SwapFeatureSlots {
+            kind: "combo".into(),
+            a: 0,
+            b: 999
+        })
+        .is_err()
+    );
+}
+
+#[test]
+fn feature_slot_operations_support_all_fixed_index_families() {
+    let (_dir, mut s) = open("corne_v32.vil");
+    for kind in ["tapDance", "keyOverride", "altRepeat"] {
+        let before = s.view().unwrap();
+        s.apply_op(OpDto::CopyFeatureSlot {
+            kind: kind.into(),
+            index: 0,
+        })
+        .unwrap();
+        s.apply_op(OpDto::PasteFeatureSlot {
+            kind: kind.into(),
+            index: 1,
+        })
+        .unwrap();
+        let after = s.view().unwrap();
+        match kind {
+            "tapDance" => {
+                assert_eq!(after.tap_dances[1].on_tap, before.tap_dances[0].on_tap);
+                assert_eq!(
+                    after.tap_dances[1].tapping_term,
+                    before.tap_dances[0].tapping_term
+                );
+            }
+            "keyOverride" => {
+                assert_eq!(
+                    after.key_overrides[1].trigger,
+                    before.key_overrides[0].trigger
+                );
+                assert_eq!(
+                    after.key_overrides[1].options,
+                    before.key_overrides[0].options
+                );
+            }
+            "altRepeat" => {
+                assert_eq!(
+                    after.alt_repeat_keys[1].keycode,
+                    before.alt_repeat_keys[0].keycode
+                );
+                assert_eq!(
+                    after.alt_repeat_keys[1].options,
+                    before.alt_repeat_keys[0].options
+                );
+            }
+            _ => unreachable!(),
+        }
+        s.undo().unwrap();
+    }
+}

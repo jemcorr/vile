@@ -227,6 +227,19 @@ pub enum OpDto {
     PasteLayer {
         layer: usize,
     },
+    CopyFeatureSlot {
+        kind: String,
+        index: usize,
+    },
+    PasteFeatureSlot {
+        kind: String,
+        index: usize,
+    },
+    SwapFeatureSlots {
+        kind: String,
+        a: usize,
+        b: usize,
+    },
     SwapLayers {
         a: usize,
         b: usize,
