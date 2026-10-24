@@ -8,6 +8,7 @@ pub mod editor;
 pub mod git;
 pub mod io;
 pub mod keycode;
+pub mod metadata;
 pub mod ops;
 pub mod pyjson;
 pub mod validate;

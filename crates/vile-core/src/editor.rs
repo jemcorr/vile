@@ -7,6 +7,7 @@ use crate::board::Board;
 use crate::diff::DiffEntry;
 use crate::document::{Document, LoadError, LoadReport, Slot};
 use crate::keycode::Keycode;
+use crate::metadata::{Names, Sidecar, fingerprint, sidecar_path};
 use crate::ops::{OpError, OpResult, Pos};
 
 /// What the user copied last.
@@ -57,8 +58,13 @@ pub struct Editor {
     board: Option<Board>,
     base: DiffBase,
     git_doc: Option<Document>,
-    undo: Vec<Document>,
-    redo: Vec<Document>,
+    undo: Vec<(Document, Names)>,
+    redo: Vec<(Document, Names)>,
+    names: Names,
+    disk_names: Names,
+    metadata_warnings: Vec<String>,
+    sidecar_bytes: Option<Vec<u8>>,
+    names_pending: bool,
     clipboard: Option<Clipboard>,
 }
 
@@ -76,6 +82,11 @@ impl Editor {
             undo: Vec::new(),
             redo: Vec::new(),
             clipboard: None,
+            names: Names::default(),
+            disk_names: Names::default(),
+            metadata_warnings: Vec::new(),
+            sidecar_bytes: None,
+            names_pending: false,
         }
     }
 
@@ -86,7 +97,7 @@ impl Editor {
             source,
         })?;
         let (doc, report) = Document::from_vil_bytes(&bytes)?;
-        let editor = Editor {
+        let mut editor = Editor {
             board: Board::for_document(&doc),
             disk: doc.clone(),
             doc,
@@ -97,7 +108,29 @@ impl Editor {
             undo: Vec::new(),
             redo: Vec::new(),
             clipboard: None,
+            names: Names::default(),
+            disk_names: Names::default(),
+            metadata_warnings: Vec::new(),
+            sidecar_bytes: None,
+            names_pending: false,
         };
+        let meta_path = sidecar_path(path);
+        match std::fs::read(&meta_path) {
+            Ok(bytes) => {
+                match serde_json::from_slice::<Sidecar>(&bytes) {
+                    Ok(meta) if meta.version == 1 && meta.uid == editor.doc.uid.to_string() && meta.fingerprint == fingerprint(editor.disk_bytes.as_ref().unwrap()) && meta.names.validate(editor.doc()).is_ok() => {
+                        editor.names = meta.names;
+                        editor.disk_names = editor.names.clone();
+                    }
+                    _ => editor.metadata_warnings.push("Names sidecar is invalid, stale, or belongs to another UID; names were not applied".into()),
+                }
+                editor.sidecar_bytes = Some(bytes);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => editor
+                .metadata_warnings
+                .push(format!("Cannot read names sidecar: {error}")),
+        }
         Ok((editor, report))
     }
 
@@ -115,7 +148,7 @@ impl Editor {
 
     /// doc != disk
     pub fn is_dirty(&self) -> bool {
-        self.doc != self.disk
+        self.doc != self.disk || self.names != self.disk_names || self.names_pending
     }
 
     /// Run f on a clone. On Err: nothing changes. On Ok: if the clone differs
@@ -125,11 +158,21 @@ impl Editor {
     where
         F: FnOnce(&mut Document) -> OpResult,
     {
+        self.apply_named(|doc, _names| f(doc))
+    }
+
+    pub fn apply_named<F>(&mut self, f: F) -> OpResult
+    where
+        F: FnOnce(&mut Document, &mut Names) -> OpResult,
+    {
         let mut next = self.doc.clone();
-        let warnings = f(&mut next)?;
-        if next != self.doc {
-            let previous = std::mem::replace(&mut self.doc, next);
-            self.undo.push(previous);
+        let mut names = self.names.clone();
+        let warnings = f(&mut next, &mut names)?;
+        if next != self.doc || names != self.names {
+            self.undo.push((
+                std::mem::replace(&mut self.doc, next),
+                std::mem::replace(&mut self.names, names),
+            ));
             if self.undo.len() > UNDO_LIMIT {
                 self.undo.remove(0);
             }
@@ -138,11 +181,37 @@ impl Editor {
         Ok(warnings)
     }
 
+    pub fn names(&self) -> &Names {
+        &self.names
+    }
+    pub fn disk_names(&self) -> &Names {
+        &self.disk_names
+    }
+    pub fn disk_doc(&self) -> &Document {
+        &self.disk
+    }
+    pub fn names_pending(&self) -> bool {
+        self.names_pending
+    }
+    pub fn metadata_warnings(&self) -> &[String] {
+        &self.metadata_warnings
+    }
+    pub fn set_board(&mut self, board: Board) -> Result<(), String> {
+        if !board.matches(&self.doc) {
+            return Err("The definition geometry does not match the layout matrix".into());
+        }
+        self.board = Some(board);
+        Ok(())
+    }
+
     /// Makes the last undo entry current. False when there is nothing to undo.
     pub fn undo(&mut self) -> bool {
         match self.undo.pop() {
             Some(previous) => {
-                let current = std::mem::replace(&mut self.doc, previous);
+                let current = (
+                    std::mem::replace(&mut self.doc, previous.0),
+                    std::mem::replace(&mut self.names, previous.1),
+                );
                 self.redo.push(current);
                 true
             }
@@ -154,7 +223,10 @@ impl Editor {
     pub fn redo(&mut self) -> bool {
         match self.redo.pop() {
             Some(next) => {
-                let current = std::mem::replace(&mut self.doc, next);
+                let current = (
+                    std::mem::replace(&mut self.doc, next.0),
+                    std::mem::replace(&mut self.names, next.1),
+                );
                 self.undo.push(current);
                 true
             }
@@ -256,35 +328,158 @@ impl Editor {
 
     pub fn save(&mut self) -> Result<(), SaveError> {
         let path = self.path.clone().ok_or(SaveError::NoPath)?;
-        if let Some(expected) = &self.disk_bytes
-            && path.exists()
-            && let Ok(current) = std::fs::read(&path)
-            && current != *expected
-        {
-            return Err(SaveError::ChangedOnDisk(path.display().to_string()));
+        if let Some(expected) = &self.disk_bytes {
+            let current = std::fs::read(&path).map_err(|source| SaveError::Io {
+                path: path.display().to_string(),
+                source,
+            })?;
+            if current != *expected {
+                return Err(SaveError::ChangedOnDisk(path.display().to_string()));
+            }
         }
+        self.check_sidecar(&path)?;
         self.write_to(&path)
     }
 
     pub fn save_as(&mut self, path: &Path) -> Result<(), SaveError> {
-        self.write_to(path)?;
-        self.path = Some(path.to_path_buf());
+        if self.path.as_deref() == Some(path) {
+            return self.save();
+        }
+        // The caller must confirm replacing a Save As destination in the native dialog.
+        self.write_to(path)
+    }
+
+    fn check_sidecar(&self, path: &Path) -> Result<(), SaveError> {
+        let meta = sidecar_path(path);
+        let current = match std::fs::read(&meta) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(source) => {
+                return Err(SaveError::Io {
+                    path: meta.display().to_string(),
+                    source,
+                });
+            }
+        };
+        if current != self.sidecar_bytes {
+            return Err(SaveError::ChangedOnDisk(meta.display().to_string()));
+        }
         Ok(())
     }
 
     /// Serializes, proves the bytes load back identically, then writes atomically.
     fn write_to(&mut self, path: &Path) -> Result<(), SaveError> {
+        self.write_to_with(path, crate::io::write_atomic)
+    }
+    fn write_to_with(
+        &mut self,
+        path: &Path,
+        mut write: impl FnMut(&Path, &[u8]) -> std::io::Result<()>,
+    ) -> Result<(), SaveError> {
         let bytes = self.doc.to_vil_bytes();
         let reloaded = Document::from_vil_bytes(&bytes).map_err(|_| SaveError::SelfCheck)?;
         if reloaded.0 != self.doc {
             return Err(SaveError::SelfCheck);
         }
-        crate::io::write_atomic(path, &bytes).map_err(|source| SaveError::Io {
+        let sidecar = serde_json::to_vec_pretty(&Sidecar {
+            version: 1,
+            uid: self.doc.uid.to_string(),
+            fingerprint: fingerprint(&bytes),
+            names: self.names.clone(),
+        })
+        .map_err(|_| SaveError::SelfCheck)?;
+        let target_sidecar = sidecar_path(path);
+        let expected_sidecar = match std::fs::read(&target_sidecar) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(source) => {
+                return Err(SaveError::Io {
+                    path: target_sidecar.display().to_string(),
+                    source,
+                });
+            }
+        };
+        let needs_sidecar = self.names != Names::default()
+            || self.sidecar_bytes.is_some()
+            || expected_sidecar.is_some();
+        write(path, &bytes).map_err(|source| SaveError::Io {
             path: path.display().to_string(),
             source,
         })?;
         self.disk = self.doc.clone();
         self.disk_bytes = Some(bytes);
+        self.path = Some(path.to_path_buf());
+        self.sidecar_bytes = expected_sidecar;
+        if needs_sidecar {
+            self.names_pending = true;
+            let meta = sidecar_path(path);
+            if let Err(source) = write(&meta, &sidecar) {
+                self.metadata_warnings = vec![format!(
+                    "Layout saved; names not saved: {source}. Retry Save to write the names."
+                )];
+                return Err(SaveError::Io {
+                    path: format!("layout saved; names not saved at {}", meta.display()),
+                    source,
+                });
+            }
+            self.sidecar_bytes = Some(sidecar);
+        } else {
+            self.sidecar_bytes = None;
+        }
+        self.disk_names = self.names.clone();
+        self.names_pending = false;
+        self.metadata_warnings.clear();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod save_tests {
+    use super::*;
+    #[test]
+    fn partial_sidecar_failure_remains_dirty_and_can_retry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("layout.vil");
+        std::fs::copy(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/corne.vil"
+            ),
+            &path,
+        )
+        .unwrap();
+        let (mut editor, _) = Editor::open(&path).unwrap();
+        editor
+            .apply_named(|_, names| {
+                names.layers.insert(0, "Base".into());
+                Ok(Vec::new())
+            })
+            .unwrap();
+        let mut calls = 0;
+        let error = editor
+            .write_to_with(&path, |target, bytes| {
+                calls += 1;
+                if calls == 2 {
+                    Err(std::io::Error::other("injected sidecar failure"))
+                } else {
+                    crate::io::write_atomic(target, bytes)
+                }
+            })
+            .unwrap_err();
+        assert!(error.to_string().contains("layout saved; names not saved"));
+        assert!(editor.is_dirty());
+        assert!(editor.names_pending());
+        editor.save().unwrap();
+        assert!(!editor.is_dirty());
+        assert_eq!(
+            Editor::open(&path)
+                .unwrap()
+                .0
+                .names()
+                .layers
+                .get(&0)
+                .map(String::as_str),
+            Some("Base")
+        );
     }
 }
