@@ -3,6 +3,7 @@
   import type { BoardKeyDto, KeyCellDto } from "../lib/types";
   import type { ComboOverlay } from "../lib/combos";
   import { bounds, hitKey, marqueeKeys, unrotate, type Point } from "../lib/interactions";
+  import { matrixLabel, type GridPosition } from "../lib/matrix";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
@@ -17,6 +18,9 @@
     onmenu: (id: string, x: number, y: number) => void;
     overlays?: ComboOverlay[];
     locked?: boolean;
+    /** Matrix view: keys are unit cells, labelled row,col, and unoccupied cells are drawn as outlines. */
+    matrix?: boolean;
+    empties?: GridPosition[];
   }
   let {
     keys,
@@ -32,6 +36,8 @@
     onmenu,
     overlays = [],
     locked = false,
+    matrix = false,
+    empties = [],
   }: Props = $props();
   const U = 60,
     GAP = 4;
@@ -154,7 +160,7 @@
   viewBox={`${box.x * U} ${box.y * U} ${box.w * U + GAP} ${box.h * U + GAP}`}
   preserveAspectRatio="xMidYMid meet"
   role="group"
-  aria-label="Keyboard layer"
+  aria-label={matrix ? "Matrix layer" : "Keyboard layer"}
   onpointerdown={down}
   onpointermove={move}
   onpointerup={up}
@@ -173,6 +179,14 @@
     return true;
   }}
 >
+  {#if matrix}
+    {#each empties as position (matrixLabel(position))}
+      <g class="empty-cell" aria-hidden="true">
+        <rect x={position.col * U + GAP} y={position.row * U + GAP} width={U - GAP} height={U - GAP} rx="7" />
+        <text x={position.col * U + GAP + 5} y={position.row * U + GAP + 12}>{matrixLabel(position)}</text>
+      </g>
+    {/each}
+  {/if}
   {#each keys as k, i (k.id)}
     {@const cell = cells[i]}
     {@const lines = (cell?.label ?? "").split("\n")}
@@ -238,6 +252,7 @@
           x={(k.x + k.w / 2) * U + GAP / 2}
           y={(k.y + k.h / 2) * U + GAP / 2 + (li - (lines.length - 1) / 2) * 17 + 5}>{line}</text
         >{/each}
+      {#if matrix}<text class="matrix-label" x={k.x * U + GAP + 5} y={k.y * U + GAP + 12}>{matrixLabel({ row: k.row, col: k.col })}</text>{/if}
       {#if cell?.changed}<circle cx={(k.x + k.w) * U - 7} cy={k.y * U + 10} r="3" />{/if}
     </g>
   {/each}
@@ -295,6 +310,23 @@
   }
   .kind-trns text {
     fill: var(--key-trns);
+  }
+  .key .matrix-label,
+  .empty-cell text {
+    font-size: 9px;
+    font-weight: 450;
+    fill: var(--muted);
+    text-anchor: start;
+    pointer-events: none;
+  }
+  .empty-cell rect {
+    fill: none;
+    stroke: var(--subtle-edge);
+    stroke-width: 1px;
+    stroke-dasharray: 4 3;
+  }
+  .empty-cell {
+    pointer-events: none;
   }
   .kind-layer rect,
   .kind-layerTap rect,

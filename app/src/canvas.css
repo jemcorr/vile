@@ -2049,3 +2049,26 @@ kbd {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* Keyboard / Matrix toggle in the toolbar. Same look as the workspace switcher. */
+.board-view-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--well);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 9px;
+}
+.board-view-switch button {
+  padding: var(--space-1) var(--space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.board-view-switch button.active {
+  border-color: var(--edge);
+  background: var(--control);
+  color: var(--fg);
+}

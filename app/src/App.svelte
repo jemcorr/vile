@@ -6,6 +6,7 @@
   import { PENDING_DELAY_MS } from "./lib/pending";
   import { effectiveTheme, nextThemeMode, readThemeMode, writeThemeMode, type ThemeMode } from "./lib/theme";
   import { neighbor } from "./lib/grid";
+  import { emptyMatrixCells, matrixGeometry, readBoardView, writeBoardView, type BoardView } from "./lib/matrix";
   import { actionFor, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
@@ -77,6 +78,14 @@
   // Theme: the stored mode (system, light or dark) resolves to the effective theme on
   // <html data-theme>, which the stylesheets and the PNG export read.
   let themeMode: ThemeMode = $state(readThemeMode());
+  // Board view: the physical layout, or the electrical matrix. Per viewer, never saved to the layout.
+  let boardView: BoardView = $state(readBoardView());
+  const matrixKeys = $derived(ui.view?.board ? matrixGeometry(ui.view.board.keys) : []);
+  const matrixEmpties = $derived(ui.view?.board ? emptyMatrixCells(ui.view.board.keys) : []);
+  function setBoardView(view: BoardView): void {
+    boardView = view;
+    writeBoardView(view);
+  }
   const systemDark = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
   let prefersDark = $state(systemDark?.matches ?? true);
   $effect(() => {
@@ -654,7 +663,8 @@
     e.preventDefault();
     if (action.kind === "move") {
       const previous = ui.cursor;
-      ui.cursor = previous ? neighbor(ui.view?.board?.keys ?? [], previous, action.dir) : ui.view?.board?.keys[0]?.id ?? "";
+      const keys = boardView === "matrix" ? matrixKeys : ui.view?.board?.keys ?? [];
+      ui.cursor = previous ? neighbor(keys, previous, action.dir) : keys[0]?.id ?? "";
       ui.selection = action.extend
         ? Array.from(new Set([...ui.selection, previous, ui.cursor])).filter(Boolean)
         : [ui.cursor].filter(Boolean);
@@ -824,6 +834,10 @@
     {#if drafts}<button class="draft-indicator" onclick={() => { switchPanel('macros'); ui.sideVisible = true; ui.revealMacro = ui.draftMacro; }}>Macro draft M{ui.draftMacro}</button>{/if}
     <span class="spacer"></span>
     <button class="command-button" onclick={() => (ui.mode = 'palette')}><Icon name="command"/>Commands<kbd>⌘K</kbd></button>
+    <nav class="board-view-switch" aria-label="Board view">
+      <button class:active={boardView === "keyboard"} aria-pressed={boardView === "keyboard"} title="Physical layout from the definition" onclick={() => setBoardView("keyboard")}>Keyboard</button>
+      <button class:active={boardView === "matrix"} aria-pressed={boardView === "matrix"} title="Electrical rows and columns, as stored in the .vil file" onclick={() => setBoardView("matrix")}>Matrix</button>
+    </nav>
     <button class="icon-button theme-button" aria-label={themeLabel} title={themeLabel} onclick={cycleTheme}><Icon name={themeIcon}/></button>
     <button class="pending-button" onclick={() => { switchPanel('diff'); ui.sideVisible = true; }}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
     <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>⌘S</kbd></button>
@@ -864,7 +878,9 @@
           </p>{/if}
         <div class="keyboard-viewport">
           <Keyboard
-            keys={ui.view.board.keys}
+            keys={boardView === "matrix" ? matrixKeys : ui.view.board.keys}
+            matrix={boardView === "matrix"}
+            empties={boardView === "matrix" ? matrixEmpties : []}
             {cells}
             cursor={ui.cursor}
             selection={comboSelection}
@@ -891,7 +907,7 @@
               void apply({ type: "setKeys", layer: ui.layer, keys: [id], keycode: wire })}
             onedit={editKey}
             onmenu={menuKey}
-            overlays={ui.showCombos ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
+            overlays={ui.showCombos && boardView === "keyboard" ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
           />
         </div>
         <div class="board-caption"><span><i class="legend-dot"></i>Changed since save</span><span>Shift-click to select more <span class="hint-separator">·</span> Double-click to type a keycode</span></div>

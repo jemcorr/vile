@@ -155,6 +155,7 @@ function openPicker(): void {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.removeItem("vile.boardView");
   ui.view = null;
   ui.layer = 0;
   ui.cursor = "";
@@ -517,6 +518,30 @@ describe("desktop editing workflow", () => {
       paths: ["layout[0][0][0]"],
       patch: { base: 4 },
     });
+  });
+  it("keeps selection across board views and navigates the displayed matrix", async () => {
+    const model = view();
+    // Electrically adjacent keys sit on opposite sides in the physical definition.
+    model.board!.keys[1]!.x = -2;
+    fake.getView.mockResolvedValue(model);
+    app = mount(App, { target: document.body });
+    await settle();
+    ui.cursor = "r0c0";
+    ui.selection = ["r0c0"];
+    await settle();
+    button("Matrix").click();
+    await settle();
+    expect(ui.selection).toEqual(["r0c0"]);
+    expect(localStorage.getItem("vile.boardView")).toBe("matrix");
+    expect(document.querySelector('svg[aria-label="Matrix layer"]')).not.toBeNull();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await settle();
+    expect(ui.selection).toEqual(["r0c1"]);
+    button("Keyboard").click();
+    await settle();
+    expect(ui.selection).toEqual(["r0c1"]);
+    expect(localStorage.getItem("vile.boardView")).toBe("keyboard");
+    expect(fake.applyOp).not.toHaveBeenCalled();
   });
   it("edits combo triggers by code without changing its output", async () => {
     app = mount(App, { target: document.body });
