@@ -311,6 +311,9 @@
   .kind-trns rect {
     fill: var(--key-trns-bg);
   }
+  .kind-no rect {
+    fill: var(--key-no-bg);
+  }
   .key .matrix-label,
   .empty-cell text {
     font-size: 9px;

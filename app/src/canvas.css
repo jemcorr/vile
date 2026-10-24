@@ -18,7 +18,8 @@
   --subtle-edge: #2b2b31;
   --key-bg: #2c2d33;
   --key-fg: #efeff2;
-  --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-no-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-trns-bg: color-mix(in srgb, var(--key-bg) 67.5%, var(--bg));
   --key-border: #45464f;
   --key-layer: #27394e;
   --key-mod: #423a2b;
@@ -53,7 +54,8 @@
   --subtle-edge: #e3e3e9;
   --key-bg: #ffffff;
   --key-fg: #282830;
-  --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-no-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-trns-bg: color-mix(in srgb, var(--key-bg) 67.5%, var(--bg));
   --key-border: #ccccd6;
   --key-layer: #e1e9f5;
   --key-mod: #f1e9db;
@@ -570,6 +572,12 @@ kbd {
 }
 .canvas-app .tile:hover {
   border-color: var(--cursor);
+  background: var(--hover);
+}
+.canvas-app .tile.no-key {
+  background: var(--key-no-bg);
+}
+.canvas-app .tile.no-key:hover {
   background: var(--hover);
 }
 .canvas-app .tile.transparent-key {

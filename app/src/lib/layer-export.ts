@@ -59,6 +59,7 @@ export interface ExportTheme {
   background: string;
   foreground: string;
   muted: string;
+  no: string;
   transparent: string;
   key: string;
   keyForeground: string;
@@ -91,7 +92,8 @@ export function readExportTheme(): ExportTheme {
     background: color("--bg"),
     foreground: color("--fg"),
     muted: color("--muted"),
-    transparent: mixHex(color("--key-bg"), color("--bg"), 0.35),
+    no: mixHex(color("--key-bg"), color("--bg"), 0.35),
+    transparent: mixHex(color("--key-bg"), color("--bg"), 0.675),
     key: color("--key-bg"),
     keyForeground: color("--key-fg"),
     border: color("--key-border"),
@@ -495,6 +497,8 @@ function layoutFeatures(
 
 function keyColor(kind: string | undefined, theme: ExportTheme): string {
   switch (kind) {
+    case "no":
+      return theme.no;
     case "trns":
       return theme.transparent;
     case "layer":

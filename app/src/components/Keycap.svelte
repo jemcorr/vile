@@ -74,6 +74,9 @@
   .kind-trns rect {
     fill: var(--key-trns-bg);
   }
+  .kind-no rect {
+    fill: var(--key-no-bg);
+  }
   .kind-layer rect,
   .kind-layerTap rect,
   .kind-layerMod rect {

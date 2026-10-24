@@ -30,6 +30,7 @@ function hit(
   pickerLabel: string,
   summary: string,
   pickerGroup: string,
+  code = 0x7000,
 ): SearchHitDto {
   return {
     name,
@@ -39,7 +40,7 @@ function hit(
     description: `Full behavior for ${name}.`,
     insert: name,
     complete: true,
-    code: 0x7000,
+    code,
     label: name,
     category: "Quantum",
     group: "quantum",
@@ -54,7 +55,7 @@ const restore = hit(
   "Restore keys",
   "Key remapping",
 );
-async function picker() {
+async function picker(results: SearchHitDto[] = [swap, audio, restore]) {
   const key: KeycodeView = {
     code: 0x7000,
     wire: swap.name,
@@ -64,7 +65,7 @@ async function picker() {
     category: "Quantum",
     parts: { kind: "raw", code: 0x7000 },
   };
-  api.searchKeycodes.mockResolvedValue([swap, audio, restore]);
+  api.searchKeycodes.mockResolvedValue(results);
   api.composeKeycode.mockResolvedValue(key);
   api.keycodeView.mockResolvedValue(key);
   const choose = vi.fn();
@@ -90,6 +91,15 @@ async function picker() {
 }
 
 describe("picker presentation", () => {
+  it("marks KC_NO and KC_TRNS cards for their theme fills", async () => {
+    const no = hit("KC_NO", "No key", "No action", "Basic", 0);
+    const transparent = hit("KC_TRNS", "▽", "Use lower layer", "Basic", 1);
+    await picker([no, transparent]);
+
+    expect(document.querySelector('[title^="Full behavior for KC_NO"]')?.classList.contains("no-key")).toBe(true);
+    expect(document.querySelector(".tile.transparent-key")).not.toBeNull();
+  });
+
   it("groups category families and keeps full behavior and raw names in tooltips", async () => {
     const { choose, key } = await picker();
     expect([...document.querySelectorAll("h3")].map((heading) => heading.textContent)).toEqual([

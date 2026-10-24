@@ -6,7 +6,8 @@
   --muted: #626269;
   --key-bg: #ffffff;
   --key-fg: #1d1d1f;
-  --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-no-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+  --key-trns-bg: color-mix(in srgb, var(--key-bg) 67.5%, var(--bg));
   --key-border: #c7c7cc;
   --key-layer: #e3ecff;
   --key-mod: #fff1db;
@@ -24,7 +25,8 @@
     --muted: #8e8e93;
     --key-bg: #2c2c2e;
     --key-fg: #f2f2f7;
-    --key-trns-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+    --key-no-bg: color-mix(in srgb, var(--key-bg) 35%, var(--bg));
+    --key-trns-bg: color-mix(in srgb, var(--key-bg) 67.5%, var(--bg));
     --key-border: #48484a;
     --key-layer: #233457;
     --key-mod: #4a3b1f;

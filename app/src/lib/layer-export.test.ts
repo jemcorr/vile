@@ -82,7 +82,8 @@ const theme: ExportTheme = {
   background: "#1c1c1e",
   foreground: "#f2f2f7",
   muted: "#8e8e93",
-  transparent: "#202023",
+  no: "#222224",
+  transparent: "#272729",
   key: "#2c2c2e",
   keyForeground: "#f2f2f7",
   border: "#48484a",
@@ -201,6 +202,18 @@ function canvasMock(failEncoding = false) {
 }
 
 describe("layer PNG rendering", () => {
+  it("renders KC_NO at the old transparent fill and KC_TRNS halfway to a normal key", async () => {
+    const mock = canvasMock();
+    const model = view([[cell("a", 0), cell("b", 1), cell("c", 4)]]);
+    model.board!.keys = [...keys, { id: "c", row: 1, col: 2, x: 2, y: 0, w: 1, h: 1 }];
+
+    await renderLayerSheet(model, theme);
+
+    expect(mock.fills).toEqual([theme.no, theme.transparent, theme.transparent, theme.key]);
+    expect(theme.no).toBe(mixHex(theme.key, theme.background, 0.35));
+    expect(theme.transparent).toBe(mixHex(theme.key, theme.background, 0.675));
+  });
+
   it("renders all layers by key ID, with hold labels, geometry and theme colors but no edit markers", async () => {
     const mock = canvasMock();
     const model = view([
