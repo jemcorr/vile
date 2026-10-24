@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { filterCommands, parseLayerArg, type PaletteCommand } from "../lib/palette";
+  import {
+    filterCommands,
+    parseLayerArg,
+    commandReason,
+    type PaletteCommand,
+  } from "../lib/palette";
+
+  import { ui } from "../lib/state.svelte";
+  import { focusScope } from "../lib/focus";
 
   interface Props {
     layerCount: number;
@@ -71,7 +79,14 @@
 </script>
 
 <div class="overlay">
-  <div class="palette" role="dialog" aria-label="command palette">
+  <div
+    class="palette"
+    role="dialog"
+    aria-modal="true"
+    aria-label="command palette"
+    tabindex="-1"
+    use:focusScope={onclose}
+  >
     {#if stage === "command"}
       <input
         bind:this={input}
@@ -87,9 +102,19 @@
       <ul>
         {#each list as command, i (command.id)}
           <li>
-            <button type="button" class:active={i === active} onclick={() => choose(command)}>
+            <button
+              type="button"
+              class:active={i === active}
+              disabled={!!commandReason(command.id, ui.view, ui.selection.length > 0)}
+              title={commandReason(command.id, ui.view, ui.selection.length > 0)}
+              onclick={() => choose(command)}
+            >
               {command.title}
+              {command.shortcut}
             </button>
+            {#if commandReason(command.id, ui.view, ui.selection.length > 0)}<small
+                >{commandReason(command.id, ui.view, ui.selection.length > 0)}</small
+              >{/if}
           </li>
         {/each}
       </ul>

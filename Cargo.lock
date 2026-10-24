@@ -3978,6 +3978,8 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "vile-core",
+ "vile-device",
  "vile-session",
 ]
 

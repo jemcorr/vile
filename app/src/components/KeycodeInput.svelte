@@ -56,27 +56,20 @@
       onsubmit(first.wire);
       return;
     }
-    const hit = hits[active];
-    if (hit && hit.complete && token(text) !== "") {
-      const second = await resolve(prefix(text) + hit.name);
-      if (second.ok) {
-        onsubmit(second.wire);
-        return;
-      }
-    }
     error = first.error;
   }
 
   function complete(hit: SearchHitDto): void {
     text = prefix(text) + hit.insert;
+    input?.focus();
     void search();
   }
 
   async function keydown(e: KeyboardEvent): Promise<void> {
-    if (e.key === "ArrowDown" || (e.key === "n" && e.ctrlKey)) {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       active = Math.max(Math.min(active + 1, hits.length - 1), 0);
-    } else if (e.key === "ArrowUp" || (e.key === "p" && e.ctrlKey)) {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       active = Math.max(active - 1, 0);
     } else if (e.key === "Tab") {

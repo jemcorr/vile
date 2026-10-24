@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { actionFor } from "./keymap";
+import { actionFor as resolveAction } from "./keymap";
 import type { KeyLike } from "./keymap";
+
+function actionFor(mode: Parameters<typeof resolveAction>[0], event: KeyLike) {
+  return resolveAction(mode, event, true);
+}
 
 function key(k: string, mods: Partial<KeyLike> = {}): KeyLike {
   return { key: k, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods };
@@ -49,8 +53,12 @@ describe("actionFor in normal mode", () => {
     expect(actionFor("normal", key("s", { metaKey: true }))).toEqual({ kind: "save" });
     expect(actionFor("normal", key("o", { metaKey: true }))).toEqual({ kind: "open" });
     expect(actionFor("normal", key("z", { metaKey: true }))).toEqual({ kind: "undo" });
-    expect(actionFor("normal", key("z", { metaKey: true, shiftKey: true }))).toEqual({ kind: "redo" });
-    expect(actionFor("normal", key("Z", { metaKey: true, shiftKey: true }))).toEqual({ kind: "redo" });
+    expect(actionFor("normal", key("z", { metaKey: true, shiftKey: true }))).toEqual({
+      kind: "redo",
+    });
+    expect(actionFor("normal", key("Z", { metaKey: true, shiftKey: true }))).toEqual({
+      kind: "redo",
+    });
     expect(actionFor("normal", key("d"))).toEqual({ kind: "toggleDiffBase" });
     expect(actionFor("normal", key("Tab"))).toEqual({ kind: "nextPanel" });
     expect(actionFor("normal", key("o"))).toEqual({ kind: "toggleCombos" });
@@ -74,5 +82,27 @@ describe("actionFor in other modes", () => {
     expect(actionFor("insert", key("h"))).toBeNull();
     expect(actionFor("palette", key("Escape"))).toBeNull();
     expect(actionFor("editor", key("x"))).toBeNull();
+  });
+});
+
+describe("default layout-independent bindings", () => {
+  it("requires opt-in for letters and permits remapping", () => {
+    for (const letter of ["h", "j", "k", "l", "x", "t", "y", "p", "s", "u", "d", "o", "v", "i"])
+      expect(resolveAction("normal", key(letter))).toBeNull();
+    expect(resolveAction("normal", key("a"), true, { a: "h" })).toEqual({
+      kind: "move",
+      dir: "left",
+    });
+  });
+  it("extends selections and supports conventional clipboard and Delete", () => {
+    expect(resolveAction("normal", key("ArrowLeft", { shiftKey: true }))).toEqual({
+      kind: "move",
+      dir: "left",
+      extend: true,
+    });
+    expect(resolveAction("normal", key("c", { metaKey: true }))).toEqual({ kind: "copy" });
+    expect(resolveAction("normal", key("v", { metaKey: true }))).toEqual({ kind: "paste" });
+    expect(resolveAction("normal", key("x", { metaKey: true }))).toEqual({ kind: "cut" });
+    expect(resolveAction("normal", key("Delete"))).toEqual({ kind: "clear" });
   });
 });

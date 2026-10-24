@@ -1,111 +1,66 @@
 <script lang="ts">
   import type { ComboDto } from "../lib/types";
-
-  interface Props {
-    combos: ComboDto[];
-    onsave: (index: number, keys: string[], output: string) => void;
-  }
-
-  const { combos, onsave }: Props = $props();
-
-  let editing: number | null = $state(null);
-  let draft: string[] = $state(["", "", "", ""]);
-  let output = $state("");
-
-  function inputsText(combo: ComboDto): string {
-    const inputs = combo.keys.filter((k) => k !== "KC_NO");
-    return inputs.length > 0 ? inputs.join(" + ") : "(empty)";
-  }
-
-  function startEdit(combo: ComboDto): void {
-    editing = combo.index;
-    draft = [...combo.keys];
-    output = combo.output;
-  }
-
-  function apply(): void {
-    if (editing === null) return;
-    onsave(editing, [...draft], output);
-    editing = null;
-  }
+  import { ui } from "../lib/state.svelte";
+  import Field from "./Field.svelte";
+  let { combos, onrename }: { combos: ComboDto[]; onrename: (index: number) => void } = $props();
 </script>
 
-<section class="combo-editor">
+<section>
   <h2>Combos</h2>
-  <ul>
-    {#each combos as combo (combo.index)}
-      <li>
-        {#if editing === combo.index}
-          <div class="edit">
-            <span>#{combo.index}</span>
-            {#each draft as _, k (k)}
-              <label>Key {k + 1} <input type="text" bind:value={draft[k]} /></label>
-            {/each}
-            <label>Output <input type="text" bind:value={output} /></label>
-            <div class="buttons">
-              <button type="button" onclick={apply}>Apply</button>
-              <button type="button" onclick={() => (editing = null)}>Cancel</button>
-            </div>
-          </div>
-        {:else}
-          <div class="row">
-            <span class="index">#{combo.index}</span>
-            <span class="keys">{inputsText(combo)}</span>
-            <span>=&gt;</span>
-            <span class="output">{combo.output}</span>
-            <button type="button" onclick={() => startEdit(combo)}>Edit</button>
-          </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
+  <p>Triggers are keycodes. Matching positions share one trigger.</p>
+  {#each combos as combo (combo.index)}<details
+      ontoggle={(e) => {
+        if (!e.currentTarget.open) {
+          if (ui.inspectorPaths[0]?.startsWith(`combo[${combo.index}]`)) ui.inspectorPaths = [];
+          if (ui.comboEditing === combo.index) ui.comboEditing = null;
+        }
+      }}
+    >
+      <summary
+        >{ui.view?.names.combos[combo.index] || `Combo ${combo.index}`} · {combo.keys
+          .map((key, i) =>
+            key === "KC_NO" ? "" : ui.view?.keycodes[`combo[${combo.index}][${i}]`]?.label || key,
+          )
+          .filter(Boolean)
+          .join(" + ") || "Empty"}</summary
+      >
+      <button onclick={() => onrename(combo.index)}>Name combo</button>
+      <button
+        class:active={ui.comboEditing === combo.index}
+        onclick={() => {
+          ui.comboEditing = ui.comboEditing === combo.index ? null : combo.index;
+        }}
+        >{ui.comboEditing === combo.index
+          ? "Finish board triggers"
+          : "Choose triggers on board"}</button
+      >
+      {#each combo.keys as _, i}<Field
+          path={`combo[${combo.index}][${i}]`}
+          label={`Trigger ${i + 1}`}
+        />{/each}<Field path={`combo[${combo.index}][4]`} label="Output" />
+    </details>{/each}
 </section>
 
 <style>
-  .combo-editor h2 {
-    font-size: 14px;
-    margin: 0 0 8px;
+  h2 {
+    font-size: 15px;
   }
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  li {
-    padding: 6px 0;
-    border-bottom: 1px solid var(--key-border);
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    font-size: 13px;
-  }
-  .index {
+  p {
+    font-size: 12px;
     color: var(--muted);
   }
-  .keys,
-  .output {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  details {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--key-border);
   }
-  .edit {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
+  summary {
+    cursor: pointer;
+    padding-bottom: 8px;
   }
-  .edit label {
-    display: flex;
-    gap: 6px;
-    align-items: center;
+  details :global(.field) {
+    margin-top: 4px;
   }
-  .edit input {
-    flex: 1;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  .buttons {
-    display: flex;
-    gap: 6px;
+  .active {
+    background: var(--selected);
   }
 </style>

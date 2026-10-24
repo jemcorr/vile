@@ -3,7 +3,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --bg: #f6f6f4;
   --fg: #1d1d1f;
-  --muted: #8a8a8e;
+  --muted: #626269;
   --key-bg: #ffffff;
   --key-fg: #1d1d1f;
   --key-border: #c7c7cc;
@@ -36,4 +36,49 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  border: 1px solid var(--key-border);
+  background: var(--key-bg);
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+input,
+select,
+textarea {
+  background: var(--key-bg);
+  border: 1px solid var(--key-border);
+  border-radius: 5px;
+  padding: 6px;
+  font-size: 13px;
+}
+kbd {
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  margin-left: 8px;
+}
+:focus-visible {
+  outline: 2px solid var(--cursor);
+  outline-offset: 2px;
+}
+* {
+  box-sizing: border-box;
 }

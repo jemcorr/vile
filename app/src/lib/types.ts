@@ -6,6 +6,9 @@ export type KeyKind =
   | "no"
   | "trns"
   | "basic"
+  | "modifier"
+  | "mouse"
+  | "media"
   | "mods"
   | "modTap"
   | "layerTap"
@@ -25,9 +28,15 @@ export interface BoardKeyDto {
   y: number;
   w: number;
   h: number;
+  name?: string | null;
+  r?: number;
+  rx?: number;
+  ry?: number;
+  secondary?: { x: number; y: number; w: number; h: number } | null;
 }
 
 export interface BoardDto {
+  canMirror?: boolean;
   id: string;
   name: string;
   keys: BoardKeyDto[];
@@ -39,6 +48,10 @@ export interface KeyCellDto {
   label: string;
   kind: KeyKind;
   changed: boolean;
+  path: string;
+  code: number;
+  description: string;
+  previous: string;
 }
 
 export interface DiffLineDto {
@@ -46,6 +59,12 @@ export interface DiffLineDto {
   line: string;
   layer: number | null;
   keyId: string | null;
+  index: number | null;
+  field: string | null;
+  old: string;
+  new: string;
+  oldDescription: string;
+  newDescription: string;
 }
 
 export interface ComboDto {
@@ -98,7 +117,47 @@ export interface AltRepeatDto {
 }
 
 /** uid is a string on purpose: it exceeds 2^53 and must never become a JS number. */
+export type HoldBehavior =
+  { kind: "none" } | { kind: "mod"; mods: number } | { kind: "layer"; layer: number };
+export type LayerOp = "MO" | "TO" | "TG" | "TT" | "OSL" | "DF" | "PDF";
+export type KeyParts =
+  | { kind: "tap"; base: number; wrapMods: number; hold: HoldBehavior }
+  | { kind: "layer"; op: "Mo" | "To" | "Tg" | "Tt" | "Osl" | "Df" | "Pdf"; layer: number }
+  | { kind: "oneShot"; mods: number }
+  | { kind: "layerMod"; layer: number; mods: number }
+  | { kind: "raw"; code: number };
+export interface KeyPartsPatch {
+  base?: number;
+  wrapMods?: number;
+  hold?: HoldBehavior;
+  layer?: number;
+  mods?: number;
+}
+export interface KeycodeView {
+  code: number;
+  wire: string;
+  label: string;
+  description: string;
+  category: string;
+  parts: KeyParts;
+}
+export interface Names {
+  layers: Record<string, string>;
+  macros: Record<string, string>;
+  combos: Record<string, string>;
+}
+export interface MacroUsage {
+  bytes: number;
+  actionBytes: number[];
+}
 export interface ViewModel {
+  revision: number;
+  names: Names;
+  keycodes: Record<string, KeycodeView>;
+  pendingDiff: DiffLineDto[];
+  macroBytes: number;
+  macroCapacity: number | null;
+  geometrySource: "matrix" | "cache" | "device";
   path: string | null;
   uid: string;
   dirty: boolean;
@@ -118,6 +177,9 @@ export interface ViewModel {
 }
 
 export interface SearchHitDto {
+  code: number | null;
+  description: string;
+  category: string;
   name: string;
   insert: string;
   complete: boolean;
@@ -134,6 +196,9 @@ export interface KeyRefDto {
 export type MirrorModeDto = "swap" | "leftToRight" | "rightToLeft";
 
 export type OpDto =
+  | { type: "patchFields"; paths: string[]; patch: KeyPartsPatch }
+  | { type: "replaceFields"; paths: string[]; keycode: string }
+  | { type: "rename"; kind: "layer" | "macro" | "combo"; index: number; name: string }
   | { type: "setKeys"; layer: number; keys: string[]; keycode: string }
   | { type: "clearKeys"; layer: number; keys: string[] }
   | { type: "transparentKeys"; layer: number; keys: string[] }

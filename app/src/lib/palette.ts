@@ -2,6 +2,7 @@ export interface PaletteCommand {
   id: string;
   title: string;
   arg: "none" | "layer";
+  shortcut?: string;
 }
 
 export const COMMANDS: PaletteCommand[] = [
@@ -30,6 +31,55 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "toggleComboOverlay", title: "View: toggle combo overlay", arg: "none" },
 ];
 
+const SHORTCUTS: Record<string, string> = {
+  open: "⌘O",
+  save: "⌘S",
+  undo: "⌘Z",
+  redo: "⇧⌘Z",
+  copyKeys: "⌘C",
+  pasteKeys: "⌘V",
+  cutKeys: "⌘X",
+  clearKeys: "Delete",
+  editKey: "Enter",
+  palette: "⌘K",
+};
+COMMANDS.push(
+  { id: "clearKeys", title: "Clear selected keys", arg: "none" },
+  { id: "transparentKeys", title: "Make selected keys transparent", arg: "none" },
+  { id: "copyKeys", title: "Copy selected keys", arg: "none" },
+  { id: "cutKeys", title: "Cut selected keys", arg: "none" },
+  { id: "pasteKeys", title: "Paste keys", arg: "none" },
+  { id: "swapKeys", title: "Swap selected keys with…", arg: "none" },
+  { id: "editKey", title: "Type keycode", arg: "none" },
+);
+for (const command of COMMANDS) command.shortcut = SHORTCUTS[command.id] ?? "";
+export function commandReason(
+  id: string,
+  view: { canUndo: boolean; canRedo: boolean; board: { canMirror?: boolean } | null } | null,
+  hasSelection: boolean,
+): string {
+  if (id === "open") return "";
+  if (!view) return "Open a layout first";
+  if (id === "undo" && !view.canUndo) return "Nothing to undo";
+  if (id === "redo" && !view.canRedo) return "Nothing to redo";
+  if (id.startsWith("mirror") && !view.board?.canMirror)
+    return "The definition does not supply validated left/right pairs";
+  if (
+    [
+      "clearKeys",
+      "transparentKeys",
+      "copyKeys",
+      "cutKeys",
+      "pasteKeys",
+      "swapKeys",
+      "editKey",
+    ].includes(id) &&
+    !hasSelection
+  )
+    return "Select a key first";
+  return "";
+}
+
 /** How well a title matches a query: 3 prefix, 2 word prefix, 1 substring, 0.5 subsequence, else null. */
 function score(title: string, q: string): number | null {
   const t = title.toLowerCase();
@@ -43,7 +93,10 @@ function score(title: string, q: string): number | null {
   return i === q.length ? 0.5 : null;
 }
 
-export function filterCommands(query: string, commands: PaletteCommand[] = COMMANDS): PaletteCommand[] {
+export function filterCommands(
+  query: string,
+  commands: PaletteCommand[] = COMMANDS,
+): PaletteCommand[] {
   const q = query.trim().toLowerCase();
   if (q === "") return [...commands];
   const scored: { command: PaletteCommand; score: number }[] = [];

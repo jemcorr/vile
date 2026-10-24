@@ -9,7 +9,17 @@ const keys: BoardKeyDto[] = [
 ];
 
 function cell(id: string, wire: string): KeyCellDto {
-  return { id, wire, label: wire, kind: "basic", changed: false };
+  return {
+    id,
+    wire,
+    label: wire,
+    kind: "basic",
+    changed: false,
+    path: id,
+    code: 0,
+    description: wire,
+    previous: wire,
+  };
 }
 
 const cells: KeyCellDto[] = [cell("a", "KC_J"), cell("b", "KC_K"), cell("c", "KC_L")];
@@ -20,6 +30,12 @@ function combo(index: number, inputs: string[], output: string): ComboDto {
 }
 
 describe("comboOverlays", () => {
+  it("includes every position carrying a trigger keycode", () => {
+    const duplicate = [cell("a", "KC_J"), cell("b", "KC_K"), cell("c", "KC_J")];
+    expect(
+      comboOverlays([combo(0, ["KC_J", "KC_K"], "KC_ESCAPE")], duplicate, keys)[0]?.keyIds,
+    ).toEqual(["a", "c", "b"]);
+  });
   it("places a combo between its keys", () => {
     const out = comboOverlays([combo(0, ["KC_J", "KC_K"], "KC_ESCAPE")], cells, keys);
     expect(out).toEqual([{ index: 0, keyIds: ["a", "b"], label: "ESCAPE", cx: 1, cy: 0.5 }]);

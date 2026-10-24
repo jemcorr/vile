@@ -1,46 +1,34 @@
 <script lang="ts">
   import type { DiffBase, DiffLineDto } from "../lib/types";
-
-  interface Props {
-    diff: DiffLineDto[];
-    base: DiffBase;
-    onjump: (layer: number, keyId: string) => void;
-  }
-
-  const { diff, base, onjump }: Props = $props();
-
-  const heading = $derived(
-    base === "git"
-      ? `Changes vs git HEAD (${diff.length})`
-      : `Changes vs file on disk (${diff.length})`,
-  );
-
-  function jump(entry: DiffLineDto): void {
-    if (entry.layer !== null && entry.keyId !== null) {
-      onjump(entry.layer, entry.keyId);
-    }
-  }
+  let {
+    diff,
+    base,
+    onjump,
+  }: { diff: DiffLineDto[]; base: DiffBase; onjump: (layer: number, keyId: string) => void } =
+    $props();
 </script>
 
-<section class="panel">
-  <h2>{heading}</h2>
-  {#if diff.length === 0}
-    <p>No changes</p>
-  {:else}
-    <ul>
-      {#each diff as entry, i (i)}
-        <li>
-          <button type="button" class="line" onclick={() => jump(entry)}>{entry.line}</button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+<section>
+  <h2>{base === "git" ? "Changes vs Git HEAD" : "Pending changes"} ({diff.length})</h2>
+  {#if !diff.length}<p>No changes</p>{/if}
+  <ul>
+    {#each diff as entry, i (i)}<li>
+        <button
+          class="line"
+          onclick={() => {
+            if (entry.layer !== null && entry.keyId !== null) onjump(entry.layer, entry.keyId);
+          }}
+          ><span>{entry.line.split(":")[0]}</span><strong
+            >{entry.oldDescription} → {entry.newDescription}</strong
+          ><code>{entry.old} → {entry.new}</code></button
+        >
+      </li>{/each}
+  </ul>
 </section>
 
 <style>
-  .panel h2 {
+  h2 {
     font-size: 14px;
-    margin: 0 0 8px;
   }
   ul {
     list-style: none;
@@ -48,18 +36,24 @@
     padding: 0;
   }
   .line {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     width: 100%;
     text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--key-border);
+    border-radius: 0;
     background: none;
-    border: none;
-    padding: 2px 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px;
-    color: inherit;
-    cursor: pointer;
+    padding: 10px 2px;
   }
-  .line:hover {
-    background: var(--selected);
+  .line span,
+  .line code {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .line strong {
+    font-weight: 400;
+    font-size: 13px;
   }
 </style>

@@ -10,7 +10,7 @@ export interface KeyLike {
 }
 
 export type Action =
-  | { kind: "move"; dir: Dir }
+  | { kind: "move"; dir: Dir; extend?: boolean }
   | { kind: "layer"; layer: number }
   | { kind: "toggleSelect" }
   | { kind: "visual" }
@@ -19,6 +19,7 @@ export type Action =
   | { kind: "clear" }
   | { kind: "transparent" }
   | { kind: "copy" }
+  | { kind: "cut" }
   | { kind: "paste" }
   | { kind: "swap" }
   | { kind: "undo" }
@@ -65,10 +66,21 @@ const PLAIN: Record<string, Action> = {
 };
 
 /** The action for a key press in the given mode, or null when the key does nothing. */
-export function actionFor(mode: Mode, e: KeyLike): Action | null {
+export function actionFor(
+  mode: Mode,
+  e: KeyLike,
+  vim = false,
+  remaps: Record<string, string> = {},
+): Action | null {
   if (mode !== "normal" && mode !== "visual") return null;
   if (e.metaKey && !e.ctrlKey && !e.altKey) {
     switch (e.key.toLowerCase()) {
+      case "c":
+        return { kind: "copy" };
+      case "v":
+        return { kind: "paste" };
+      case "x":
+        return { kind: "cut" };
       case "s":
         return { kind: "save" };
       case "o":
@@ -82,9 +94,21 @@ export function actionFor(mode: Mode, e: KeyLike): Action | null {
     }
   }
   if (e.ctrlKey && !e.metaKey && !e.altKey) {
-    return e.key === "r" ? { kind: "redo" } : null;
+    return vim && e.key === "r" ? { kind: "redo" } : null;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   if (/^[0-9]$/.test(e.key)) return { kind: "layer", layer: Number(e.key) };
-  return PLAIN[e.key] ?? null;
+  const directions: Record<string, Dir> = {
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "up",
+    ArrowDown: "down",
+  };
+  if (directions[e.key])
+    return e.shiftKey
+      ? { kind: "move", dir: directions[e.key]!, extend: true }
+      : { kind: "move", dir: directions[e.key]! };
+  if (e.key === "Delete" || e.key === "Backspace") return { kind: "clear" };
+  if (["Enter", "Escape"].includes(e.key)) return PLAIN[e.key] ?? null;
+  return vim ? (PLAIN[remaps[e.key] ?? e.key] ?? null) : null;
 }

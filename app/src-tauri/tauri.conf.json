@@ -17,7 +17,8 @@
         "title": "vile",
         "width": 1280,
         "height": 820,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {

@@ -10,7 +10,7 @@ describe("filterCommands", () => {
   it("ranks prefix and word matches first", () => {
     expect(filterCommands("save")[0]?.id).toBe("save");
     expect(filterCommands("save")[1]?.id).toBe("saveAs");
-    expect(filterCommands("swap")[0]?.id).toBe("swapLayer");
+    expect(filterCommands("swap")[0]?.id).toBe("swapKeys");
     expect(filterCommands("git")[0]?.id).toBe("diffGit");
     expect(filterCommands("UNDO")[0]?.id).toBe("undo");
   });

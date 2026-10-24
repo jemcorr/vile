@@ -5,18 +5,29 @@ import type { Mode, Panel } from "./modes";
 
 export const ui = $state({
   view: null as ViewModel | null,
+  generation: 0,
   layer: 0,
-  cursor: "home-left-index",
+  cursor: "",
   selection: [] as string[],
   mode: "normal" as Mode,
   message: "",
   panel: "diff" as Panel,
   showCombos: false,
+  inspectorPaths: [] as string[],
+  baseTarget: false,
+  comboEditing: null as number | null,
+  drafts: {} as Record<string, boolean>,
+  draftMacro: null as number | null,
+  revealMacro: null as number | null,
+  sideVisible: true,
+  vimKeys: false,
+  vimRemaps: {} as Record<string, string>,
   swapMark: null as KeyRefDto[] | null,
 });
 
 /** Replace the view model and keep layer, cursor and selection valid. */
 export function setView(view: ViewModel | null): void {
+  if (view && ui.view && view.revision < ui.view.revision) return;
   ui.view = view;
   if (view === null) {
     ui.layer = 0;
@@ -31,4 +42,5 @@ export function setView(view: ViewModel | null): void {
     ui.cursor = view.board?.keys[0]?.id ?? "";
   }
   ui.selection = ui.selection.filter((id) => ids.has(id));
+  ui.inspectorPaths = ui.inspectorPaths.filter((path) => view.keycodes[path] !== undefined);
 }
