@@ -1010,8 +1010,7 @@
         disabled={!!reason(c.id)}
         title={reason(c.id)}
         onclick={() => void command(c.id)}
-         data-menu-divider={["copyKeys", "swapKeys", "copyLayer", "mirrorLeftToRight"].includes(c.id)}>{canvasMenuLabels[c.id] || c.title}<kbd>{c.shortcut}</kbd>{#if reason(c.id)}<small>{reason(c.id)}</small
-          >{/if}</button
+         data-menu-divider={["copyKeys", "swapKeys", "copyLayer", "mirrorLeftToRight"].includes(c.id)}><span class="menu-label">{canvasMenuLabels[c.id] || c.title}</span>{#if reason(c.id)}<small class="menu-reason">{reason(c.id)}</small>{/if}<kbd>{c.shortcut}</kbd></button
       >{/each}<button role="menuitem" onclick={() => (menu = null)}>Cancel <kbd>Esc</kbd></button>
   </div>{/if}
 {#if layerAction}<div class="overlay">

@@ -1146,6 +1146,21 @@ kbd {
   color: var(--fg);
   outline: none;
 }
+/* Disabled reason sits on the label's row, muted, and truncates instead of widening the menu. */
+.menu[role="menu"] > button[role="menuitem"] .menu-label {
+  flex: none;
+  white-space: nowrap;
+}
+.menu[role="menu"] > button[role="menuitem"] .menu-reason {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
 .menu[role="menu"] button kbd {
   margin-left: auto;
   font-size: 10px;
