@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bounds, rotate } from "./interactions";
 import { planLayerSheet, renderLayerSheet, type ExportTheme } from "./layer-export";
-import type { BoardKeyDto, KeyCellDto, ViewModel } from "./types";
+import type { BoardKeyDto, KeyCellDto, KeycodeView } from "./types";
 
 const keys: BoardKeyDto[] = [
   { id: "a", row: 0, col: 0, x: -1, y: 0, w: 1, h: 1 },
@@ -32,13 +32,49 @@ const cell = (id: string, code: number, label = "A"): KeyCellDto => ({
   previous: "KC_NO",
   changed: true,
 });
-function view(
-  layers = [[cell("a", 4), cell("b", 5)]],
-): Pick<ViewModel, "board" | "layers" | "names"> {
+type ExportView = Parameters<typeof planLayerSheet>[0];
+function view(layers = [[cell("a", 4), cell("b", 5)]]): ExportView {
   return {
     board: { id: "test", name: "Test board", keys },
     layers,
     names: { layers: { "0": "Base", "3": "Symbols" }, macros: {}, combos: {} },
+    keycodes: {},
+    layerCount: layers.length,
+    combos: [],
+    macros: [],
+    tapDances: [],
+    keyOverrides: [],
+    altRepeatKeys: [],
+  };
+}
+function keycodeView(code: number, wire: string, label: string): KeycodeView {
+  return { code, wire, label, description: label, tooltip: "", category: "Basic", parts: { kind: "raw", code } };
+}
+/** The corne fixture: combos 0-3 and macros 0, 2 and 3 are set; every other feature is empty. */
+function fixtureFeatures(model: ExportView): ExportView {
+  const combo = (index: number) => ({
+    index,
+    keys: ["KC_A", "KC_S", "KC_NO", "KC_NO"],
+    output: "KC_ESC",
+    outputLabel: "Esc",
+  });
+  const macro = (index: number) => ({
+    index,
+    actions: [
+      { kind: "tap" as const, keys: ["KC_H"], text: "", delay: 0 },
+      { kind: "text" as const, keys: [], text: "hi", delay: 0 },
+      { kind: "delay" as const, keys: [], text: "", delay: 120 },
+    ],
+  });
+  return {
+    ...model,
+    combos: [0, 1, 2, 3].map(combo),
+    macros: [0, 2, 3].map(macro),
+    keycodes: {
+      "combo[0][0]": keycodeView(4, "KC_A", "A"),
+      "combo[0][4]": keycodeView(41, "KC_ESC", "Esc"),
+      "macro[0][0][1]": keycodeView(11, "KC_H", "H"),
+    },
   };
 }
 const measure = (text: string) => text.length * 12;
@@ -233,5 +269,53 @@ describe("layer PNG rendering", () => {
     await expect(renderLayerSheet(view(), theme)).rejects.toThrow("could not encode");
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     await expect(renderLayerSheet(view(), theme)).rejects.toThrow("cannot render");
+  });
+});
+
+describe("feature sections in the PNG", () => {
+  it("adds Combos and Macros sections with exactly the set entries and no other feature sections", () => {
+    const model = fixtureFeatures(view());
+    const plan = planLayerSheet(model, measure);
+    expect(plan.sections.map((section) => section.feature)).toEqual(["combo", "macro"]);
+    expect(plan.sections.map((section) => section.heading)).toEqual(["Combos", "Macros"]);
+    expect(plan.sections[0]!.entries.map((entry) => entry.index)).toEqual([0, 1, 2, 3]);
+    expect(plan.sections[1]!.entries.map((entry) => entry.index)).toEqual([0, 2, 3]);
+    expect(plan.sections[0]!.entries[0]!.title).toEqual(["Combo 0"]);
+  });
+
+  it("keeps the layer grid size and position identical with or without feature sections", () => {
+    const base = view([[cell("a", 4), cell("b", 5)], [cell("a", 4), cell("b", 0)]]);
+    const withoutFeatures = planLayerSheet(base, measure);
+    const withFeatures = planLayerSheet(fixtureFeatures(base), measure);
+    expect(withFeatures.tiles).toEqual(withoutFeatures.tiles);
+    expect(withFeatures.width).toBe(withoutFeatures.width);
+    expect(withFeatures.tileHeight).toBe(withoutFeatures.tileHeight);
+    expect(withFeatures.height).toBeGreaterThan(withoutFeatures.height);
+    const layerBottom = Math.max(...withFeatures.tiles.map((tile) => tile.y + withFeatures.tileHeight));
+    for (const section of withFeatures.sections) expect(section.y).toBeGreaterThanOrEqual(layerBottom);
+    expect(withFeatures.sections[0]!.y).toBe(withoutFeatures.height / 2);
+  });
+
+  it("skips features with no set entries and does not change the plan for an empty model", () => {
+    const plan = planLayerSheet(view(), measure);
+    expect(plan.sections).toEqual([]);
+    const withTapDance = { ...view(), tapDances: [{ index: 0, onTap: "KC_NO", onHold: "KC_NO", onDoubleTap: "KC_NO", onTapHold: "KC_NO", tappingTerm: 200 }] };
+    expect(planLayerSheet(withTapDance, measure).sections).toEqual([]);
+  });
+
+  it("renders the feature text in dark and light themes without changing the layer tiles", async () => {
+    const mock = canvasMock();
+    const model = fixtureFeatures(view());
+    const dark = await renderLayerSheet(model, theme);
+    const darkText = mock.text.map((entry) => entry.text);
+    expect(darkText).toEqual(expect.arrayContaining(["Combos", "Macros", "Combo 0", "A", "Esc", "Macro 3", '"hi"', "120 ms"]));
+    expect(darkText).not.toEqual(expect.arrayContaining(["Tap dances", "Key overrides", "Alt repeat"]));
+    expect(mock.fills).toContain(theme.key);
+    const light: ExportTheme = { ...theme, background: "#ffffff", foreground: "#1c1c1e", key: "#f2f2f7", keyForeground: "#1c1c1e" };
+    mock.text.length = 0;
+    const lightResult = await renderLayerSheet(model, light);
+    expect(lightResult.layerCount).toBe(dark.layerCount);
+    expect(mock.text.map((entry) => entry.text)).toEqual(darkText);
+    expect(mock.text.find((entry) => entry.text === "Esc")?.color).toBe(light.keyForeground);
   });
 });
