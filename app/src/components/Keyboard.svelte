@@ -17,7 +17,6 @@
     onmenu: (id: string, x: number, y: number) => void;
     overlays?: ComboOverlay[];
     locked?: boolean;
-    fit?: boolean;
   }
   let {
     keys,
@@ -33,7 +32,6 @@
     onmenu,
     overlays = [],
     locked = false,
-    fit = false,
   }: Props = $props();
   const U = 60,
     GAP = 4;
@@ -144,8 +142,8 @@
 <svg
   bind:this={svg}
   class="keyboard"
-  style:width={fit ? "100%" : `${Math.max(box.w * U, 320)}px`}
   viewBox={`${box.x * U} ${box.y * U} ${box.w * U + GAP} ${box.h * U + GAP}`}
+  preserveAspectRatio="xMidYMid meet"
   role="group"
   aria-label="Keyboard layer"
   onpointerdown={down}
@@ -262,7 +260,8 @@
 
 <style>
   .keyboard {
-    max-width: none;
+    width: 100%;
+    height: 100%;
     touch-action: none;
     user-select: none;
   }

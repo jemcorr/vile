@@ -83,7 +83,6 @@
     $state(null);
   let remapsText = $state("");
   let settings = $state(false);
-  let boardFit = $state(false);
   let blankPress: { pointer: number; x: number; y: number; moved: boolean } | null = null;
   function blankTarget(e: PointerEvent): boolean {
     if (
@@ -791,46 +790,44 @@
                 kind: "layer",
                 index: ui.layer,
                 name: ui.view?.names.layers[ui.layer] ?? "",
-              })}>Name layer</button
-          ><button onclick={() => (boardFit = !boardFit)}
-            >{boardFit ? "Full-size keys" : "Fit board"}</button
-          >
+              })}>Name layer</button>
         </div>
         {#if ui.comboEditing !== null}<p class="notice">
             Editing combo {ui.comboEditing} triggers. Click board keys to toggle their keycodes.
             <button onclick={() => (ui.comboEditing = null)}>Done</button>
           </p>{/if}
-        <Keyboard
-          keys={ui.view.board.keys}
-          {cells}
-          cursor={ui.cursor}
-          selection={comboSelection}
-          fit={boardFit}
-          {onkeyclick}
-          locked={ui.comboEditing !== null || busy}
-          onmarquee={(ids, additive) => {
-            ui.selection = additive ? Array.from(new Set([...ui.selection, ...ids])) : ids;
-            ui.inspectorPaths = [];
-          }}
-          onblankclick={() => dismissInteraction(true)}
-          ondragkey={(from, to, copy) => {
-            if (copy) {
-              const source = cells.find((cell) => cell.id === from);
-              if (source)
-                void apply({ type: "setKeys", layer: ui.layer, keys: [to], keycode: source.wire });
-            } else
-              void apply({
-                type: "swapKeys",
-                a: [{ layer: ui.layer, key: from }],
-                b: [{ layer: ui.layer, key: to }],
-              });
-          }}
-          onassign={(id, wire) =>
-            void apply({ type: "setKeys", layer: ui.layer, keys: [id], keycode: wire })}
-          onedit={editKey}
-          onmenu={menuKey}
-          overlays={ui.showCombos ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
-        />
+        <div class="keyboard-viewport">
+          <Keyboard
+            keys={ui.view.board.keys}
+            {cells}
+            cursor={ui.cursor}
+            selection={comboSelection}
+            {onkeyclick}
+            locked={ui.comboEditing !== null || busy}
+            onmarquee={(ids, additive) => {
+              ui.selection = additive ? Array.from(new Set([...ui.selection, ...ids])) : ids;
+              ui.inspectorPaths = [];
+            }}
+            onblankclick={() => dismissInteraction(true)}
+            ondragkey={(from, to, copy) => {
+              if (copy) {
+                const source = cells.find((cell) => cell.id === from);
+                if (source)
+                  void apply({ type: "setKeys", layer: ui.layer, keys: [to], keycode: source.wire });
+              } else
+                void apply({
+                  type: "swapKeys",
+                  a: [{ layer: ui.layer, key: from }],
+                  b: [{ layer: ui.layer, key: to }],
+                });
+            }}
+            onassign={(id, wire) =>
+              void apply({ type: "setKeys", layer: ui.layer, keys: [id], keycode: wire })}
+            onedit={editKey}
+            onmenu={menuKey}
+            overlays={ui.showCombos ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
+          />
+        </div>
         {#if Object.keys(ui.view.keycodes).some( (p) => p.startsWith(`encoder_layout[${ui.layer}]`) )}<details
             ontoggle={(e) => {
               if (
@@ -1206,7 +1203,18 @@
     overflow: hidden;
   }
   .board {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
     padding: 16px;
+    overflow: auto;
+  }
+  .keyboard-viewport {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
     overflow: auto;
   }
   .board-heading {

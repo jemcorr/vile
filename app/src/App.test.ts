@@ -211,7 +211,7 @@ describe("desktop editing workflow", () => {
     await settle();
     ui.selection = ["r0c0"];
     const background = document.querySelector("main.board")!;
-    const control = button("Fit board");
+    const control = button("Hide panel");
     pointer(control, "pointerdown");
     pointer(control, "pointerup");
     control.click();
@@ -272,7 +272,7 @@ describe("desktop editing workflow", () => {
     pointer(value, "pointerdown");
     pointer(value, "pointerup");
     expect(ui.selection).toEqual(["r0c0"]);
-    const control = button("Fit board");
+    const control = button("Hide panel");
     pointer(control, "pointerdown");
     pointer(control, "pointerup");
     control.click();
@@ -324,10 +324,10 @@ describe("desktop editing workflow", () => {
       .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     await settle();
     expect(document.querySelector('[role="menu"]')).not.toBeNull();
-    button("Fit board").click();
+    button("Hide panel").click();
     await settle();
     expect(document.querySelector('[role="menu"]')).toBeNull();
-    expect(button("Full-size keys")).toBeTruthy();
+    expect(button("Show panel")).toBeTruthy();
   });
   it("selects one key and Shift-click adds another", async () => {
     app = mount(App, { target: document.body });
