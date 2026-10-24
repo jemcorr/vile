@@ -303,17 +303,7 @@
   }
   .kind-media rect,
   .kind-mouse rect {
-    fill: #d5eeea;
-  }
-  .kind-media text,
-  .kind-mouse text {
-    fill: #1d1d1f;
-  }
-  .kind-media.selected text,
-  .kind-mouse.selected text,
-  .kind-media.drop text,
-  .kind-mouse.drop text {
-    fill: var(--key-fg);
+    fill: var(--key-media);
   }
   .key.selected rect {
     fill: var(--selected);

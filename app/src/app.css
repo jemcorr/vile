@@ -10,6 +10,7 @@
   --key-layer: #e3ecff;
   --key-mod: #fff1db;
   --key-macro: #eadcff;
+  --key-media: #d5eeea;
   --selected: #b9d4ff;
   --changed: #e8590c;
   --cursor: #d6336c;
@@ -26,6 +27,7 @@
     --key-layer: #233457;
     --key-mod: #4a3b1f;
     --key-macro: #3b2d57;
+    --key-media: #1f4440;
     --selected: #2f5aa8;
     --changed: #ff922b;
     --cursor: #f06595;
