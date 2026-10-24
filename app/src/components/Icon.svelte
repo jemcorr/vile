@@ -14,8 +14,19 @@
     command:
       "M8 9H6a3 3 0 1 1 3-3v12a3 3 0 1 1-3-3h12a3 3 0 1 1-3 3V6a3 3 0 1 1 3 3H8",
   };
+  // Six-dot grip (2 columns by 3 rows). Drawn as filled circles, not a path.
+  const gripDots = [6, 12, 18].flatMap((cy) => [9, 15].map((cx) => ({ cx, cy })));
 </script>
 
+{#if name === "grip"}
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  stroke="none"
+  aria-hidden="true">{#each gripDots as dot}<circle cx={dot.cx} cy={dot.cy} r="1.6" />{/each}</svg>
+{:else}
 <svg
   width={size}
   height={size}
@@ -27,3 +38,4 @@
   stroke-linejoin="round"
   aria-hidden="true"><path d={paths[name] || paths.sliders} /></svg
 >
+{/if}

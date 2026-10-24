@@ -1751,6 +1751,20 @@ kbd {
   gap: var(--space-2);
   min-width: 0;
 }
+/* Drag grip: a fixed hit box so the SVG grip centers on the row like the other header controls. */
+.macro-slot-editor .action-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  color: var(--muted);
+  cursor: grab;
+}
+.macro-slot-editor .action-grip:disabled {
+  cursor: default;
+}
 .macro-slot-editor .action-index {
   min-width: 17px;
   color: var(--muted);
