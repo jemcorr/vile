@@ -1,5 +1,7 @@
 mod common;
 
+use serde_json::json;
+use vile_core::geometry::from_vial_definition;
 use vile_session::Session;
 
 #[test]
@@ -35,6 +37,26 @@ fn open_builds_a_complete_view() {
     assert_eq!(v.alt_repeat_keys.len(), 32);
     assert!(v.path.as_deref().unwrap().ends_with("corne.vil"));
     assert_eq!(s.view(), Some(v));
+}
+
+#[test]
+fn known_knobless_layouts_keep_inactive_encoder_bindings_when_saved() {
+    let (_dir, path) = common::temp_copy("corne.vil");
+    let before = std::fs::read(&path).unwrap();
+    let mut session = Session::new();
+    session.open_path(&path).unwrap();
+    let definition = json!({
+        "matrix":{"rows":8,"cols":7},
+        "layouts":{
+            "labels":[["EX1", "Key", "Encoder"]],
+            "keymap":[["0,0", "0,0\n\n\n0,1\n\n\n\n\n\ne"]]
+        }
+    });
+    let board = from_vial_definition(&definition, session.document().unwrap()).unwrap();
+    let view = session.attach_board(board, None).unwrap();
+    assert_eq!(view.board.unwrap().encoder_indices, Some(vec![]));
+    session.save().unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), before);
 }
 
 #[test]

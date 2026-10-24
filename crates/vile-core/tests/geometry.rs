@@ -5,6 +5,7 @@ use vile_core::{Board, Slot};
 fn document() -> vile_core::Document {
     let mut doc = common::load("corne.vil");
     doc.layout = vec![vec![vec![Slot::Key(vile_core::Keycode(4)); 2]]];
+    doc.encoder_layout = Some(vec![vec![[Slot::Key(vile_core::Keycode(4)); 2]]]);
     doc.layout_options = 0;
     doc
 }
@@ -37,6 +38,47 @@ fn layout_choices_use_reverse_bit_packing_and_align_alternatives() {
     assert_eq!(key.x, 0.0);
     assert_eq!(key.y, 0.0);
     assert_eq!(board.keys.len(), 2);
+}
+
+#[test]
+fn encoder_visibility_follows_the_selected_layout_option() {
+    let mut doc = document();
+    let definition = json!({
+        "matrix":{"rows":1,"cols":2},
+        "layouts":{
+            "labels":[["EX1", "Key", "Encoder", "None"]],
+            "keymap":[["0,0", "0,0\n\n\n0,1\n\n\n\n\n\ne"]]
+        }
+    });
+    for (option, expected) in [(0, vec![]), (1, vec![0]), (2, vec![])] {
+        doc.layout_options = option;
+        assert_eq!(
+            from_vial_definition(&definition, &doc)
+                .unwrap()
+                .encoder_indices,
+            Some(expected)
+        );
+    }
+}
+
+#[test]
+fn unconditional_encoders_are_visible_and_invalid_legends_fall_back() {
+    let doc = document();
+    let definition = json!({
+        "matrix":{"rows":1,"cols":2},
+        "layouts":{"keymap":[["0,0", "0,0\n\n\n\n\n\n\n\n\ne"]]}
+    });
+    assert_eq!(
+        from_vial_definition(&definition, &doc)
+            .unwrap()
+            .encoder_indices,
+        Some(vec![0])
+    );
+    let invalid = json!({
+        "matrix":{"rows":1,"cols":2},
+        "layouts":{"keymap":[["0,0", "0,2\n\n\n\n\n\n\n\n\ne"]]}
+    });
+    assert!(from_vial_definition(&invalid, &doc).is_err());
 }
 #[test]
 fn explicit_pairing_and_semantic_names_are_validated() {

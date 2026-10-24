@@ -44,6 +44,10 @@ pub struct Board {
     pub keys: Vec<BoardKey>,
     #[serde(default)]
     pub mirror_pairs: Vec<[String; 2]>,
+    /// `Some` means a Vial definition identified the active encoder slots.
+    /// `None` means the geometry has no definition, so encoder hardware is unknown.
+    #[serde(default)]
+    pub encoder_indices: Option<Vec<usize>>,
 }
 
 impl Board {
@@ -59,6 +63,7 @@ impl Board {
             name: "Matrix grid".into(),
             source: "matrix".into(),
             mirror_pairs: Vec::new(),
+            encoder_indices: None,
             rows: doc.rows(),
             cols: doc.cols(),
             keys: (0..doc.rows())

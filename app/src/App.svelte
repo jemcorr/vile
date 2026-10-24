@@ -122,6 +122,24 @@
   });
   const drafts = $derived(Object.values(ui.drafts).some(Boolean));
   const cells = $derived(ui.view?.layers[ui.layer] ?? []);
+  const encoderPaths = $derived.by(() =>
+    Object.keys(ui.view?.keycodes ?? {}).filter((path) =>
+      path.startsWith(`encoder_layout[${ui.layer}]`),
+    ),
+  );
+  const visibleEncoderPaths = $derived.by(() => {
+    const visible = ui.view?.board?.encoderIndices;
+    if (!Array.isArray(visible)) return encoderPaths;
+    return encoderPaths.filter((path) => {
+      const match = /^encoder_layout\[\d+\]\[(\d+)\]/.exec(path);
+      return match !== null && visible.includes(Number(match[1]));
+    });
+  });
+  function encoderLabel(path: string): string {
+    const match = /^encoder_layout\[\d+\]\[(\d+)\]\[(\d+)\]$/.exec(path);
+    if (!match) return path;
+    return `Knob ${Number(match[1]) + 1} ${match[2] === "0" ? "clockwise" : "counterclockwise"}`;
+  }
   const activeFeaturePath = $derived(
     ui.sideVisible &&
       ui.inspectorPaths.length === 1 &&
@@ -849,7 +867,7 @@
             overlays={ui.showCombos ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
           />
         </div>
-        {#if Object.keys(ui.view.keycodes).some( (p) => p.startsWith(`encoder_layout[${ui.layer}]`) )}<details
+        {#if visibleEncoderPaths.length}<details
             ontoggle={(e) => {
               if (
                 !e.currentTarget.open &&
@@ -858,10 +876,12 @@
                 ui.inspectorPaths = [];
             }}
           >
-            <summary>Encoders</summary
-            >{#each Object.keys(ui.view.keycodes).filter( (p) => p.startsWith(`encoder_layout[${ui.layer}]`) ) as path}<Field
+            <summary>Knobs</summary
+            >{#if !Array.isArray(ui.view.board.encoderIndices)}<p class="hint">
+                The keyboard definition is unavailable, so these encoder bindings are not confirmed as installed knobs.
+              </p>{/if}{#each visibleEncoderPaths as path}<Field
                 {path}
-                label={path}
+                label={encoderLabel(path)}
               />{/each}
           </details>{/if}
       </main>

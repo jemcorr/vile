@@ -28,6 +28,7 @@ pub struct BoardDto {
     pub name: String,
     pub keys: Vec<BoardKeyDto>,
     pub can_mirror: bool,
+    pub encoder_indices: Option<Vec<usize>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

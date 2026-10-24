@@ -348,6 +348,7 @@ fn board_dto(board: &Board) -> BoardDto {
     BoardDto {
         id: board.id.clone(),
         can_mirror: board.can_mirror(),
+        encoder_indices: board.encoder_indices.clone(),
         name: board.name.clone(),
         keys: board
             .keys

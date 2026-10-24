@@ -37,6 +37,8 @@ export interface BoardKeyDto {
 
 export interface BoardDto {
   canMirror?: boolean;
+  /** Null when matrix geometry cannot confirm installed knobs. */
+  encoderIndices?: number[] | null;
   id: string;
   name: string;
   keys: BoardKeyDto[];

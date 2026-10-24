@@ -15,6 +15,13 @@ const LABELS: [[i8; 12]; 8] = [
     [3, -1, 5, -1, 10, -1, -1, -1, 4, -1, -1, -1],
     [4, -1, -1, -1, 10, -1, -1, -1, -1, -1, -1, -1],
 ];
+
+struct EncoderEntry {
+    index: usize,
+    direction: usize,
+    alternative: Option<(usize, usize)>,
+}
+
 fn pair(text: &str) -> Result<(usize, usize), String> {
     let (a, b) = text
         .split_once(',')
@@ -73,6 +80,58 @@ fn choices(definition: &Value, options: i64) -> Result<Vec<usize>, String> {
     selected.reverse();
     Ok(selected)
 }
+
+fn alternative(
+    definition: &Value,
+    selected: &[usize],
+    label: &str,
+) -> Result<Option<(usize, usize)>, String> {
+    if label.is_empty() {
+        return Ok(None);
+    }
+    let (group, option) = pair(label)?;
+    if group >= selected.len() {
+        return Err("KLE alternative references an unknown option group".into());
+    }
+    let label = definition
+        .pointer(&format!("/layouts/labels/{group}"))
+        .ok_or("KLE alternative references an unknown option group")?;
+    let count = if label.is_string() {
+        2
+    } else {
+        label
+            .as_array()
+            .filter(|choices| choices.len() >= 3)
+            .ok_or("Invalid layout option labels")?
+            .len()
+            - 1
+    };
+    if option >= count {
+        return Err("KLE alternative references an unknown option".into());
+    }
+    Ok(Some((group, option)))
+}
+
+fn encoder_legend(label: &str) -> Result<(usize, usize), String> {
+    let (index, direction) = pair(label)?;
+    if direction > 1 {
+        return Err("KLE encoder direction must be 0 or 1".into());
+    }
+    Ok((index, direction))
+}
+
+fn encoder_capacity(doc: &Document) -> Result<usize, String> {
+    let Some(layers) = &doc.encoder_layout else {
+        return Err("Definition declares encoders but the file has no encoder_layout".into());
+    };
+    let Some(first) = layers.first() else {
+        return Err("Definition declares encoders but encoder_layout has no layers".into());
+    };
+    if layers.len() != doc.layer_count() || layers.iter().any(|layer| layer.len() != first.len()) {
+        return Err("Definition encoders do not match the file's encoder_layout".into());
+    }
+    Ok(first.len())
+}
 fn top_left(key: &BoardKey) -> (f64, f64) {
     let a = key.r.to_radians();
     let mut min = (f64::INFINITY, f64::INFINITY);
@@ -106,6 +165,7 @@ pub fn from_vial_definition(definition: &Value, doc: &Document) -> Result<Board,
         .ok_or("Definition has no KLE keymap")?;
     let selected = choices(definition, doc.layout_options)?;
     let mut parsed: Vec<(BoardKey, Option<(usize, usize)>)> = Vec::new();
+    let mut encoders = Vec::new();
     let (mut x, mut y, mut rx, mut ry, mut r) = (0.0, 0.0, 0.0, 0.0, 0.0);
     let mut align = 4usize;
     for row in rows {
@@ -168,21 +228,22 @@ pub fn from_vial_definition(definition: &Value, doc: &Document) -> Result<Board,
             if w <= 0.0 || h <= 0.0 || w > 100.0 || h > 100.0 {
                 return Err("Invalid KLE key dimensions".into());
             }
-            if !decal && normalized[4] != "e" && normalized[0].contains(',') {
+            if !decal && normalized[4] == "e" {
+                let (encoder, direction) = encoder_legend(normalized[0])?;
+                if encoder >= encoder_capacity(doc)? {
+                    return Err("KLE encoder is outside encoder_layout".into());
+                }
+                encoders.push(EncoderEntry {
+                    index: encoder,
+                    direction,
+                    alternative: alternative(definition, &selected, normalized[8])?,
+                });
+            } else if !decal && normalized[0].contains(',') {
                 let (row, col) = pair(normalized[0])?;
                 if row >= doc.rows() || col >= doc.cols() {
                     return Err("KLE key is outside the matrix".into());
                 }
-                let alternative = if normalized[8].is_empty() {
-                    None
-                } else {
-                    Some(pair(normalized[8])?)
-                };
-                if let Some((group, _option)) = alternative
-                    && group >= selected.len()
-                {
-                    return Err("KLE alternative references an unknown option group".into());
-                }
+                let alternative = alternative(definition, &selected, normalized[8])?;
                 let secondary =
                     if x2 != 0.0 || y2 != 0.0 || (w2 != 0.0 && w2 != w) || (h2 != 0.0 && h2 != h) {
                         Some(KeyRect {
@@ -255,6 +316,21 @@ pub fn from_vial_definition(definition: &Value, doc: &Document) -> Result<Board,
         .unwrap_or("Vial keyboard")
         .into();
     board.source = "Vial definition".into();
+    let mut encoder_indices = BTreeSet::new();
+    let mut encoder_actions = BTreeSet::new();
+    for encoder in encoders {
+        if encoder
+            .alternative
+            .is_some_and(|(group, option)| selected[group] != option)
+        {
+            continue;
+        }
+        if !encoder_actions.insert((encoder.index, encoder.direction)) {
+            return Err("Definition repeats an active encoder direction".into());
+        }
+        encoder_indices.insert(encoder.index);
+    }
+    board.encoder_indices = Some(encoder_indices.into_iter().collect());
     let mut positions = BTreeSet::new();
     for (mut key, alternative) in parsed {
         if let Some((group, option)) = alternative {

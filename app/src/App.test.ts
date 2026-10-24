@@ -55,6 +55,7 @@ function view(): ViewModel {
       id: "matrix",
       name: "Matrix grid",
       canMirror: false,
+      encoderIndices: null,
       keys: [
         { id: "r0c0", row: 0, col: 0, x: 0, y: 0, w: 1, h: 1 },
         { id: "r0c1", row: 0, col: 1, x: 1, y: 0, w: 1, h: 1 },
@@ -177,6 +178,47 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 describe("desktop editing workflow", () => {
+  it("shows only definition-confirmed knob bindings and keeps unknown slots accessible", async () => {
+    const known = view();
+    known.board = { ...known.board!, encoderIndices: [1] };
+    for (const encoder of [0, 1]) {
+      for (const direction of [0, 1]) {
+        known.keycodes[`encoder_layout[0][${encoder}][${direction}]`] = key;
+      }
+    }
+    fake.getView.mockResolvedValue(known);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.body.textContent).toContain("Knob 2 clockwise");
+    expect(document.body.textContent).toContain("Knob 2 counterclockwise");
+    expect(document.body.textContent).not.toContain("Knob 1 clockwise");
+    await unmount(app);
+    app = undefined;
+
+    const unknown = view();
+    for (const encoder of [0, 1]) {
+      for (const direction of [0, 1]) {
+        unknown.keycodes[`encoder_layout[0][${encoder}][${direction}]`] = key;
+      }
+    }
+    fake.getView.mockResolvedValue(unknown);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.body.textContent).toContain("Knob 1 clockwise");
+    expect(document.body.textContent).toContain("not confirmed as installed knobs");
+  });
+
+  it("hides firmware encoder bindings when a known definition selects no knobs", async () => {
+    const noKnobs = view();
+    noKnobs.board = { ...noKnobs.board!, encoderIndices: [] };
+    noKnobs.keycodes["encoder_layout[0][0][0]"] = key;
+    noKnobs.keycodes["encoder_layout[0][0][1]"] = key;
+    fake.getView.mockResolvedValue(noKnobs);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.body.textContent).not.toContain("Knobs");
+  });
+
   it("exports the complete view without changing the current layer, selection or document", async () => {
     app = mount(App, { target: document.body });
     await settle();
