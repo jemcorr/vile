@@ -169,6 +169,23 @@ fn search_and_resolve() {
 }
 
 #[test]
+fn picker_tooltips_keep_full_behavior_without_expanding_inspector_names() {
+    let (_dir, session) = open("corne.vil");
+    let boot = session.search_keycodes("QK_BOOT", 1).remove(0);
+    assert_eq!(boot.picker_label, "Bootloader");
+    assert_eq!(boot.summary, "Flash firmware");
+    assert_eq!(boot.picker_group, "Firmware and reset");
+    assert!(boot.description.contains("flash firmware"));
+    assert_eq!(
+        session.keycode_view("QK_BOOT").unwrap().description,
+        "Enter bootloader"
+    );
+    let reset = session.search_keycodes("QK_CLEAR_EEPROM", 1).remove(0);
+    assert!(reset.description.contains("persistent settings"));
+    assert!(reset.description.contains("depending on the firmware"));
+}
+
+#[test]
 fn diff_base_switches_between_disk_and_git() {
     let (dir, path) = common::temp_copy("corne_v32.vil");
     common::git(dir.path(), &["init", "-q"]);

@@ -3,12 +3,14 @@
 mod catalog;
 mod label;
 mod parts;
+mod picker;
 mod presentation;
 mod search;
 mod table;
 
 pub use catalog::{Catalog, CatalogContext};
 pub use parts::{HoldBehavior, KeyParts, KeyPartsPatch, compose, decompose};
+pub use picker::PickerPresentation;
 pub use presentation::PickerCategory;
 pub use search::SearchHit;
 pub use table::{Group, TableEntry, table};

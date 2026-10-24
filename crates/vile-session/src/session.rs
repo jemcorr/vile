@@ -161,33 +161,45 @@ impl Session {
             hits.truncate(limit);
         }
         hits.into_iter()
-            .map(|hit| SearchHitDto {
-                code: self.catalog().parse(&hit.name).ok().map(|kc| kc.code()),
-                description: self
-                    .catalog()
-                    .parse(&hit.name)
-                    .map(|kc| {
-                        describe(self.editor.as_ref().map(|e| e.names()), &self.catalog(), kc)
-                    })
-                    .unwrap_or_else(|_| format!("{} builder", hit.name)),
-                category: self
-                    .catalog()
-                    .parse(&hit.name)
-                    .map(|kc| self.catalog().category(kc).as_str().into())
-                    .unwrap_or_else(|_| {
-                        if hit.group == "layer_tap" {
-                            "Layers"
-                        } else {
-                            "Modifiers"
-                        }
-                        .into()
-                    }),
-                name: hit.name,
-                insert: hit.insert,
-                complete: hit.complete,
-                label: hit.label,
-                group: hit.group.to_string(),
-                matched: hit.matched,
+            .map(|hit| {
+                let code = catalog.parse(&hit.name).ok();
+                let picker = code.map(|kc| catalog.picker(kc));
+                SearchHitDto {
+                    picker_label: picker.as_ref().map(|p| p.label.clone()).unwrap_or_default(),
+                    summary: picker
+                        .as_ref()
+                        .map(|p| p.summary.clone())
+                        .unwrap_or_default(),
+                    picker_group: picker.map(|p| p.group.into()).unwrap_or_default(),
+                    code: code.map(|kc| kc.code()),
+                    description: code
+                        .map(|kc| {
+                            let description =
+                                describe(self.editor.as_ref().map(|e| e.names()), &catalog, kc);
+                            if description == catalog.description(kc) {
+                                catalog.picker_description(kc)
+                            } else {
+                                description
+                            }
+                        })
+                        .unwrap_or_else(|| format!("{} builder", hit.name)),
+                    category: code
+                        .map(|kc| catalog.category(kc).as_str().into())
+                        .unwrap_or_else(|| {
+                            if hit.group == "layer_tap" {
+                                "Layers"
+                            } else {
+                                "Modifiers"
+                            }
+                            .into()
+                        }),
+                    name: hit.name,
+                    insert: hit.insert,
+                    complete: hit.complete,
+                    label: hit.label,
+                    group: hit.group.to_string(),
+                    matched: hit.matched,
+                }
             })
             .collect()
     }

@@ -177,6 +177,9 @@ export interface ViewModel {
 }
 
 export interface SearchHitDto {
+  pickerLabel: string;
+  summary: string;
+  pickerGroup: string;
   code: number | null;
   description: string;
   category: string;

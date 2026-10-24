@@ -24,6 +24,9 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 const hit: SearchHitDto = {
+  pickerLabel: "Esc",
+  summary: "Escape",
+  pickerGroup: "Editing and locks",
   name: "KC_ESCAPE",
   insert: "KC_ESCAPE",
   complete: true,

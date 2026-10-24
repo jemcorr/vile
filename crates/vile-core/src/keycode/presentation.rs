@@ -32,7 +32,8 @@ impl PickerCategory {
     pub fn for_entry(group: Group, code: u16) -> Self {
         match code {
             0..=1 => return Self::Special,
-            0x1e..=0x27 | 0x3a..=0x45 | 0x68..=0x73 => return Self::Numbers,
+            0x1e..=0x27 | 0x3a..=0x45 | 0x53..=0x63 | 0x67..=0x73 | 0x85 => return Self::Numbers,
+            0xe0..=0xe7 => return Self::Modifiers,
             0x2d..=0x38 => return Self::Symbols,
             0xcd..=0xdf => return Self::Mouse,
             _ => {}
@@ -64,6 +65,13 @@ pub fn mods_description(mods: u8) -> String {
 
 impl Catalog {
     pub fn category(&self, code: Keycode) -> PickerCategory {
+        // Named shifted symbols share the Mods encoding, but belong with symbols.
+        if table()
+            .iter()
+            .any(|entry| entry.code == code.0 && entry.group == Group::Shifted)
+        {
+            return PickerCategory::Symbols;
+        }
         match code.kind() {
             KeycodeKind::Macro { .. } => PickerCategory::Macros,
             KeycodeKind::Layer { .. }

@@ -1,0 +1,173 @@
+QK_BOOT	Bootloader	Flash firmware	Enter the keyboard bootloader to flash firmware. Normal typing stops until the keyboard restarts.
+QK_REBOOT	Reboot	Restart keyboard	Restart the keyboard firmware without entering the bootloader.
+QK_CLEAR_EEPROM	Reset EEPROM	Erase saved settings	Reinitialize the keyboard EEPROM, resetting persistent settings. This can erase saved keymap configuration depending on the firmware.
+MAGIC_SWAP_CONTROL_CAPSLOCK	Ctrl / Caps	Swap keys	Swap Caps Lock and left Ctrl in the keyboard firmware.
+MAGIC_UNSWAP_CONTROL_CAPSLOCK	Ctrl / Caps	Restore keys	Restore the normal mapping of Caps Lock and left Ctrl.
+MAGIC_SWAP_LCTL_LGUI	Left Ctrl / Gui	Swap keys	Swap left Ctrl and left Gui in the keyboard firmware.
+MAGIC_UNSWAP_LCTL_LGUI	Left Ctrl / Gui	Restore keys	Restore the normal mapping of left Ctrl and left Gui.
+MAGIC_SWAP_RCTL_RGUI	Right Ctrl / Gui	Swap keys	Swap right Ctrl and right Gui in the keyboard firmware.
+MAGIC_UNSWAP_RCTL_RGUI	Right Ctrl / Gui	Restore keys	Restore the normal mapping of right Ctrl and right Gui.
+MAGIC_SWAP_CTL_GUI	Ctrl / Gui	Swap keys	Swap Ctrl and Gui on both sides in the keyboard firmware.
+MAGIC_UNSWAP_CTL_GUI	Ctrl / Gui	Restore keys	Restore the normal mapping of Ctrl and Gui on both sides.
+MAGIC_TOGGLE_CTL_GUI	Ctrl / Gui	Toggle swap	Toggle the firmware swap of Ctrl and Gui on both sides.
+MAGIC_SWAP_LALT_LGUI	Left Alt / Gui	Swap keys	Swap left Alt and left Gui in the keyboard firmware.
+MAGIC_UNSWAP_LALT_LGUI	Left Alt / Gui	Restore keys	Restore the normal mapping of left Alt and left Gui.
+MAGIC_SWAP_RALT_RGUI	Right Alt / Gui	Swap keys	Swap right Alt and right Gui in the keyboard firmware.
+MAGIC_UNSWAP_RALT_RGUI	Right Alt / Gui	Restore keys	Restore the normal mapping of right Alt and right Gui.
+MAGIC_SWAP_ALT_GUI	Alt / Gui	Swap keys	Swap Alt and Gui on both sides in the keyboard firmware.
+MAGIC_UNSWAP_ALT_GUI	Alt / Gui	Restore keys	Restore the normal mapping of Alt and Gui on both sides.
+MAGIC_TOGGLE_ALT_GUI	Alt / Gui	Toggle swap	Toggle the firmware swap of Alt and Gui on both sides.
+MAGIC_SWAP_GRAVE_ESC	Grave / Esc	Swap keys	Swap Grave and Escape in the keyboard firmware.
+MAGIC_UNSWAP_GRAVE_ESC	Grave / Esc	Restore keys	Restore the normal mapping of Grave and Escape.
+MAGIC_SWAP_BACKSLASH_BACKSPACE	Backslash / Bspc	Swap keys	Swap Backslash and Backspace in the keyboard firmware.
+MAGIC_UNSWAP_BACKSLASH_BACKSPACE	Backslash / Bspc	Restore keys	Restore the normal mapping of Backslash and Backspace.
+MAGIC_CAPSLOCK_TO_CONTROL	Caps to Ctrl	Enable remap	Make Caps Lock act as Ctrl in the keyboard firmware.
+MAGIC_UNCAPSLOCK_TO_CONTROL	Caps to Ctrl	Disable remap	Stop treating Caps Lock as Ctrl.
+MAGIC_NO_GUI	Gui off	Disable Gui	Disable the Gui keys. Gui is Command on macOS and Windows or Super on other systems.
+MAGIC_UNNO_GUI	Gui on	Enable Gui	Enable the Gui keys. Gui is Command on macOS and Windows or Super on other systems.
+MAGIC_TOGGLE_GUI	Gui toggle	Enable / disable	Toggle whether the keyboard sends the Gui keys.
+MAGIC_HOST_NKRO	NKRO on	All-key rollover	Enable N-key rollover when supported by the keyboard and host.
+MAGIC_UNHOST_NKRO	NKRO off	Disable rollover	Disable N-key rollover.
+MAGIC_TOGGLE_NKRO	NKRO toggle	Toggle rollover	Toggle N-key rollover when supported by the keyboard and host.
+MAGIC_EE_HANDS_LEFT	Left half	Save handedness	Save this split keyboard half as the left half. Requires firmware configured for EE_HANDS.
+MAGIC_EE_HANDS_RIGHT	Right half	Save handedness	Save this split keyboard half as the right half. Requires firmware configured for EE_HANDS.
+AU_ON	Audio on	Keyboard sound	Enable all keyboard audio, including click sounds and music mode.
+AU_OFF	Audio off	Keyboard sound	Disable all keyboard audio, including click sounds and music mode.
+AU_TOG	Audio toggle	Keyboard sound	Toggle all keyboard audio, including click sounds and music mode.
+MU_ON	Music on	Keys play notes	Enable music mode, where keyboard keys play musical notes. Requires audio support.
+MU_OFF	Music off	Keys play notes	Disable music mode, where keyboard keys play musical notes. Requires audio support.
+MU_TOG	Music toggle	Keys play notes	Toggle music mode, where keyboard keys play musical notes. Requires audio support.
+MU_MOD	Music mode	Next scale	Cycle the keyboard music mode through its configured scales.
+CLICKY_TOGGLE	Click sounds	Toggle clicks	Toggle generated click sounds on each keypress. Requires keyboard audio support.
+CLICKY_UP	Click pitch +	Higher pitch	Raise the pitch of generated keyboard click sounds.
+CLICKY_DOWN	Click pitch -	Lower pitch	Lower the pitch of generated keyboard click sounds.
+CLICKY_RESET	Reset clicks	Default pitch	Restore the default pitch of generated keyboard click sounds.
+HPT_ON	Haptics on	Enable feedback	Enable haptic feedback when supported by the keyboard.
+HPT_OFF	Haptics off	Disable feedback	Disable keyboard haptic feedback.
+HPT_TOG	Haptics toggle	Toggle feedback	Toggle keyboard haptic feedback.
+HPT_RST	Reset haptics	Default settings	Restore the default haptic feedback configuration.
+HPT_FBK	Feedback timing	Press / release	Cycle haptic feedback between keypress, key release, and both.
+HPT_BUZ	Solenoid buzz	Toggle buzz	Toggle solenoid buzz. Requires a solenoid haptic driver.
+HPT_MODI	Next waveform	DRV2605L effect	Select the next haptic waveform. Requires a DRV2605L driver.
+HPT_MODD	Prev waveform	DRV2605L effect	Select the previous haptic waveform. Requires a DRV2605L driver.
+HPT_CONT	Continuous	Toggle vibration	Toggle continuous haptic feedback. Requires a compatible driver.
+HPT_CONI	Strength +	Continuous mode	Increase continuous haptic strength. Requires a DRV2605L driver.
+HPT_COND	Strength -	Continuous mode	Decrease continuous haptic strength. Requires a DRV2605L driver.
+HPT_DWLI	Dwell +	Longer pulse	Increase solenoid activation time. Requires a solenoid haptic driver.
+HPT_DWLD	Dwell -	Shorter pulse	Decrease solenoid activation time. Requires a solenoid haptic driver.
+KC_ASDN	Timeout -	Shift sooner	Decrease the Auto Shift hold timeout.
+KC_ASUP	Timeout +	Shift later	Increase the Auto Shift hold timeout.
+KC_ASRP	Report timeout	Type current value	Type the current Auto Shift timeout value.
+KC_ASON	Auto Shift on	Hold for Shift	Enable Auto Shift, which shifts supported keys when held past the timeout.
+KC_ASOFF	Auto Shift off	Disable Auto Shift	Disable Auto Shift.
+KC_ASTG	Auto Shift	Toggle on / off	Toggle Auto Shift, which shifts supported keys when held past the timeout.
+CMB_ON	Combos on	Chorded keys	Enable combo processing in the keyboard firmware.
+CMB_OFF	Combos off	Chorded keys	Disable combo processing in the keyboard firmware.
+CMB_TOG	Combos toggle	Chorded keys	Toggle combo processing in the keyboard firmware.
+QK_CAPS_WORD_TOGGLE	Caps Word	Toggle word caps	Toggle Caps Word, which capitalizes letters until a word-breaking key is pressed. Exact continuation keys depend on firmware configuration.
+QK_REPEAT_KEY	Repeat	Last key	Repeat the last key with its modifiers.
+QK_ALT_REPEAT_KEY	Alt repeat	Alternate key	Send the alternate of the last key. Alternates depend on the firmware configuration.
+BL_TOGG	Toggle	On / off	Toggle the keyboard backlight.
+BL_STEP	Next level	Cycle brightness	Cycle through keyboard backlight brightness levels.
+BL_BRTG	Breathing	Toggle animation	Toggle the keyboard backlight breathing animation.
+BL_ON	On	Maximum brightness	Set the keyboard backlight to its maximum brightness.
+BL_OFF	Off	Disable backlight	Turn off the keyboard backlight.
+BL_INC	Brightness +	Brighter	Increase keyboard backlight brightness.
+BL_DEC	Brightness -	Dimmer	Decrease keyboard backlight brightness.
+RGB_TOG	Toggle	On / off	Toggle RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_MOD	Next effect	Cycle forward	Select the next effect for RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_RMOD	Prev effect	Cycle backward	Select the previous effect for RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_HUI	Hue +	Next color	Increase the hue of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_HUD	Hue -	Previous color	Decrease the hue of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_SAI	Saturation +	More color	Increase the saturation of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_SAD	Saturation -	Less color	Decrease the saturation of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_VAI	Brightness +	Brighter	Increase the brightness of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_VAD	Brightness -	Dimmer	Decrease the brightness of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_SPI	Speed +	Faster effect	Increase the effect speed of RGB lighting. Requires the corresponding firmware lighting feature.
+RGB_SPD	Speed -	Slower effect	Decrease the effect speed of RGB lighting. Requires the corresponding firmware lighting feature.
+RM_ON	On	Enable matrix	Enable RGB matrix. Requires the corresponding firmware lighting feature.
+RM_OFF	Off	Disable matrix	Disable RGB matrix. Requires the corresponding firmware lighting feature.
+RM_TOGG	Toggle	On / off	Toggle RGB matrix. Requires the corresponding firmware lighting feature.
+RM_NEXT	Next effect	Cycle forward	Select the next effect for RGB matrix. Requires the corresponding firmware lighting feature.
+RM_PREV	Prev effect	Cycle backward	Select the previous effect for RGB matrix. Requires the corresponding firmware lighting feature.
+RM_HUEU	Hue +	Next color	Increase the hue of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_HUED	Hue -	Previous color	Decrease the hue of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_SATU	Saturation +	More color	Increase the saturation of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_SATD	Saturation -	Less color	Decrease the saturation of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_VALU	Brightness +	Brighter	Increase the brightness of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_VALD	Brightness -	Dimmer	Decrease the brightness of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_SPDU	Speed +	Faster effect	Increase the effect speed of RGB matrix. Requires the corresponding firmware lighting feature.
+RM_SPDD	Speed -	Slower effect	Decrease the effect speed of RGB matrix. Requires the corresponding firmware lighting feature.
+RGB_M_P	Static	RGB preset	Select the steady color RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_B	Breathing	RGB preset	Select the breathing RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_R	Rainbow	RGB preset	Select the rainbow RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_SW	Swirl	RGB preset	Select the swirl RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_SN	Snake	RGB preset	Select the snake RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_K	Knight	RGB preset	Select the Knight Rider RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_X	Christmas	RGB preset	Select the Christmas RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_G	Gradient	RGB preset	Select the static gradient RGB lighting effect, when compiled into the keyboard firmware.
+RGB_M_T	RGB test	RGB preset	Select the red, green, and blue test RGB lighting effect, when compiled into the keyboard firmware.
+KC_GESC	Esc / Grave	Shift or Gui: grave	Send Escape normally, or Grave when Shift or Gui is held. Firmware settings can change the modifier overrides.
+KC_LSPO	Left Shift / (	Hold / tap	Hold for left Shift; tap for an opening parenthesis. Space Cadet behavior depends on firmware settings.
+KC_RSPC	Right Shift / )	Hold / tap	Hold for right Shift; tap for a closing parenthesis. Space Cadet behavior depends on firmware settings.
+KC_LCPO	Left Ctrl / (	Hold / tap	Hold for left Ctrl; tap for an opening parenthesis. Space Cadet behavior depends on firmware settings.
+KC_RCPC	Right Ctrl / )	Hold / tap	Hold for right Ctrl; tap for a closing parenthesis. Space Cadet behavior depends on firmware settings.
+KC_LAPO	Left Alt / (	Hold / tap	Hold for left Alt; tap for an opening parenthesis. Space Cadet behavior depends on firmware settings.
+KC_RAPC	Right Alt / )	Hold / tap	Hold for right Alt; tap for a closing parenthesis. Space Cadet behavior depends on firmware settings.
+KC_SFTENT	Shift / Enter	Hold / tap	Hold for right Shift; tap for Enter. Space Cadet behavior depends on firmware settings.
+QK_LAYER_LOCK	Layer lock	Lock highest layer	Toggle the lock on the highest active layer. Requires Layer Lock support.
+FN_MO13	Lower / Adjust	Hold Fn layer	Hold to enable the lower Fn layer, plus the adjust layer when FN_MO23 is also held. Defaults are layers 1 and 3; firmware configuration can change them.
+FN_MO23	Upper / Adjust	Hold Fn layer	Hold to enable the upper Fn layer, plus the adjust layer when FN_MO13 is also held. Defaults are layers 2 and 3; firmware configuration can change them.
+DYN_REC_START1	Record 1	Dynamic macro	Start recording dynamic macro 1 on the keyboard.
+DYN_REC_START2	Record 2	Dynamic macro	Start recording dynamic macro 2 on the keyboard.
+DYN_REC_STOP	Stop recording	Dynamic macro	Finish recording the current dynamic macro.
+DYN_MACRO_PLAY1	Play 1	Dynamic macro	Play dynamic macro 1 from the keyboard recording buffer.
+DYN_MACRO_PLAY2	Play 2	Dynamic macro	Play dynamic macro 2 from the keyboard recording buffer.
+KC_PWR	Power	System power	Send the power HID key to the host. Support and behavior depend on the operating system and application.
+KC_SLEP	Sleep	System sleep	Send the sleep HID key to the host. Support and behavior depend on the operating system and application.
+KC_WAKE	Wake	System wake	Send the wake HID key to the host. Support and behavior depend on the operating system and application.
+KC_EXEC	Execute	Application action	Send the execute HID key to the host. Support and behavior depend on the operating system and application.
+KC_HELP	Help	Application help	Send the help HID key to the host. Support and behavior depend on the operating system and application.
+KC_SLCT	Select	Application action	Send the select HID key to the host. Support and behavior depend on the operating system and application.
+KC_STOP	Stop	Application action	Send the stop HID key to the host. Support and behavior depend on the operating system and application.
+KC_AGIN	Again	Repeat action	Send the again HID key to the host. Support and behavior depend on the operating system and application.
+KC_UNDO	Undo	Application action	Send the undo HID key to the host. Support and behavior depend on the operating system and application.
+KC_CUT	Cut	Clipboard	Send the cut HID key to the host. Support and behavior depend on the operating system and application.
+KC_COPY	Copy	Clipboard	Send the copy HID key to the host. Support and behavior depend on the operating system and application.
+KC_PSTE	Paste	Clipboard	Send the paste HID key to the host. Support and behavior depend on the operating system and application.
+KC_FIND	Find	Application search	Send the find HID key to the host. Support and behavior depend on the operating system and application.
+KC_CALC	Calculator	Launch app	Send the calculator HID key to the host. Support and behavior depend on the operating system and application.
+KC_MAIL	Mail	Launch app	Send the mail HID key to the host. Support and behavior depend on the operating system and application.
+KC_MSEL	Media player	Launch app	Send the media player HID key to the host. Support and behavior depend on the operating system and application.
+KC_MYCM	My Computer	Open file browser	Send the my computer HID key to the host. Support and behavior depend on the operating system and application.
+KC_WSCH	Search	Browser	Send the search HID key to the host. Support and behavior depend on the operating system and application.
+KC_WHOM	Home	Browser	Send the home HID key to the host. Support and behavior depend on the operating system and application.
+KC_WBAK	Back	Browser	Send the back HID key to the host. Support and behavior depend on the operating system and application.
+KC_WFWD	Forward	Browser	Send the forward HID key to the host. Support and behavior depend on the operating system and application.
+KC_WSTP	Stop loading	Browser	Send the stop loading HID key to the host. Support and behavior depend on the operating system and application.
+KC_WREF	Refresh	Browser	Send the refresh HID key to the host. Support and behavior depend on the operating system and application.
+KC_WFAV	Favorites	Browser	Send the favorites HID key to the host. Support and behavior depend on the operating system and application.
+KC_BRIU	Brightness +	Display	Send the brightness + HID key to the host. Support and behavior depend on the operating system and application.
+KC_BRID	Brightness -	Display	Send the brightness - HID key to the host. Support and behavior depend on the operating system and application.
+KC__VOLDOWN	Volume -	Keyboard HID usage	Send the volume - HID key to the host. Support and behavior depend on the operating system and application.
+KC__VOLUP	Volume +	Keyboard HID usage	Send the volume + HID key to the host. Support and behavior depend on the operating system and application.
+KC_MRWD	Rewind	Media seek	Send the rewind HID key to the host. Support and behavior depend on the operating system and application.
+KC_MFFD	Fast forward	Media seek	Send the fast forward HID key to the host. Support and behavior depend on the operating system and application.
+KC_EJCT	Eject	Media	Send the eject HID key to the host. Support and behavior depend on the operating system and application.
+KC_LCAP	Locking Caps	Mechanical lock	Send the locking caps HID key to the host. Support and behavior depend on the operating system and application.
+KC_LNUM	Locking Num	Mechanical lock	Send the locking num HID key to the host. Support and behavior depend on the operating system and application.
+KC_LSCR	Locking Scroll	Mechanical lock	Send the locking scroll HID key to the host. Support and behavior depend on the operating system and application.
+KC_ACL0	Speed 0	Mouse acceleration	Select mouse-key acceleration preset 0. Its speed depends on the firmware mouse-key settings.
+KC_ACL1	Speed 1	Mouse acceleration	Select mouse-key acceleration preset 1. Its speed depends on the firmware mouse-key settings.
+KC_ACL2	Speed 2	Mouse acceleration	Select mouse-key acceleration preset 2. Its speed depends on the firmware mouse-key settings.
+KC_BTN4	Button 4	Auxiliary click	Send mouse button 4. The operating system and application determine its action.
+KC_BTN5	Button 5	Auxiliary click	Send mouse button 5. The operating system and application determine its action.
+KC_NONUS_HASH	ISO #	Non-US symbol	Send the non-US hash key. The host keyboard layout determines the symbol.
+KC_NONUS_BSLASH	ISO backslash	Non-US symbol	Send the non-US backslash key. The host keyboard layout determines the symbol.
+KC_RO	Ro	JIS symbol	Send the JIS Ro key, commonly backslash or underscore. The host layout determines the symbol.
+KC_KANA	Kana	JIS input	Send the JIS Katakana/Hiragana key. Behavior depends on the host input method.
+KC_JYEN	Yen	JIS symbol	Send the JIS Yen key. The host layout determines the symbol.
+KC_HENK	Convert	JIS input	Send the JIS Henkan conversion key. Behavior depends on the host input method.
+KC_MHEN	Non-convert	JIS input	Send the JIS Muhenkan non-conversion key. Behavior depends on the host input method.
+KC_LANG1	Language 1	Hangul / Kana	Send the language 1 key, used for Korean Hangul/English switching or Japanese Mac Kana. Behavior depends on the host layout.
+KC_LANG2	Language 2	Hanja / Eisu	Send the language 2 key, used for Korean Hanja or Japanese Mac Eisu. Behavior depends on the host layout.

@@ -28,6 +28,20 @@
     WRAP: "Key with modifiers (WRAP)",
     OSM: "One-shot modifiers (OSM)",
   };
+  const buildSummaries: Record<string, string> = {
+    MO: "While held",
+    TO: "Switch layer",
+    TG: "Toggle layer",
+    TT: "Hold / tap-toggle",
+    OSL: "Next keypress",
+    DF: "Until reset",
+    PDF: "Save default",
+    LT: "Hold layer / tap key",
+    LM: "Layer + modifiers",
+    MT: "Hold mods / tap key",
+    WRAP: "Key + modifiers",
+    OSM: "Next keypress",
+  };
   const categories = [
     "Basic",
     "Symbols",
@@ -80,6 +94,18 @@
   const visible = $derived(
     hits.filter((hit) => hit.complete && (query.trim() || hit.category === category)),
   );
+  // Search preserves the core's relevance order. Group only category browsing.
+  const sections = $derived.by(() => {
+    if (query.trim()) return [{ name: "", hits: visible }];
+    const groups = new Map<string, SearchHitDto[]>();
+    for (const hit of visible) {
+      const name = hit.pickerGroup;
+      const group = groups.get(name);
+      if (group) group.push(hit);
+      else groups.set(name, [hit]);
+    }
+    return [...groups].map(([name, hits]) => ({ name, hits }));
+  });
   const building = $derived(category === "Layers" || category === "Modifiers");
   $effect(() => {
     const kind = buildKind;
@@ -166,6 +192,7 @@
   <nav aria-label="Keycode categories">
     {#each categories as name}<button
         class:active={category === name}
+        aria-pressed={category === name}
         onclick={() => selectCategory(name)}>{name}</button
       >{/each}
   </nav>
@@ -211,7 +238,8 @@
           onclick={() => {
             if (!suppressDragClick()) onchoose(preview!);
           }}
-          ><span>{preview.label.replaceAll("\n", " ")}</span><small>{preview.description}</small
+          ><span>{preview.label.replaceAll("\n", " ")}</span><small
+            >{buildSummaries[buildKind]}</small
           ></button
         >{/if}
       {#if previewError}<span role="alert">{previewError}</span>{/if}
@@ -233,16 +261,29 @@
   {#if !searching && !error && visible.length === 0}<p>
       No matching keycodes. Try a name, alias, or wire code.
     </p>{/if}
-  <div class="tiles">
-    {#each visible as hit (hit.name)}<button
-        class="tile"
-        title={macroTooltip(hit)}
-        onpointerdown={(e) =>
-          startPointerDrag(e, { kind: "keycode", wire: hit.name, code: hit.code }, hit.label)}
-        onclick={() => {
-          if (!suppressDragClick()) void choose(hit);
-        }}><span>{hit.label || hit.description}</span><small>{hit.description}</small></button
-      >{/each}
+  <div class="results">
+    {#each sections as section (section.name)}
+      <section class="key-group" aria-label={section.name || "Search results"}>
+        {#if section.name}<h3>{section.name}</h3>{/if}
+        <div class="tiles">
+          {#each section.hits as hit (hit.name)}<button
+              class="tile"
+              class:word-label={hit.pickerLabel.length > 5}
+              title={macroTooltip(hit)}
+              aria-label={`${hit.pickerLabel}. ${hit.description} (${hit.name})`}
+              onpointerdown={(e) =>
+                startPointerDrag(
+                  e,
+                  { kind: "keycode", wire: hit.name, code: hit.code },
+                  hit.pickerLabel,
+                )}
+              onclick={() => {
+                if (!suppressDragClick()) void choose(hit);
+              }}><span>{hit.pickerLabel}</span><small>{hit.summary}</small></button
+            >{/each}
+        </div>
+      </section>
+    {/each}
   </div>
   {#if pointerDrag.current}<div
       class="drag-preview"
@@ -312,33 +353,76 @@
   .active {
     background: var(--selected);
   }
-  .tiles {
+  .results {
+    display: grid;
+    gap: 18px;
+    padding-bottom: 6px;
+  }
+  .key-group {
+    min-width: 0;
+  }
+  .key-group h3 {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .key-group h3::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--key-border);
+    opacity: 0.6;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(128px, 100%), 1fr));
+    gap: 7px;
   }
   .tile {
-    min-width: 55px;
-    max-width: 140px;
-    min-height: 58px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
+    min-width: 0;
+    min-height: 82px;
+    padding: 9px 8px;
+    display: grid;
+    grid-template-rows: minmax(32px, auto) minmax(24px, auto);
+    align-content: center;
+    justify-items: center;
+    gap: 5px;
     border-bottom-width: 3px;
+    color: var(--key-fg);
   }
   .tile > span {
-    font-size: 16px;
+    align-self: center;
+    max-width: 100%;
+    font-size: 19px;
+    line-height: 1.15;
+    font-weight: 500;
+    text-align: center;
     white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .tile.word-label > span {
+    font-size: 13px;
   }
   .tile small {
+    max-width: 100%;
     color: var(--muted);
     font-size: 10px;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .preview {
+    width: 160px;
+  }
+  .preview > span {
+    font-size: 14px;
+  }
+  .preview small {
+    font-size: 10px;
   }
   .builder {
     padding-bottom: 10px;

@@ -149,6 +149,9 @@ pub struct ViewModel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHitDto {
+    pub picker_label: String,
+    pub summary: String,
+    pub picker_group: String,
     pub code: Option<u16>,
     pub description: String,
     pub category: String,
