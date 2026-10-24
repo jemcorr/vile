@@ -2039,3 +2039,13 @@ kbd {
 .canvas-app .canvas-feature-editor .override-body > fieldset.modifier-toggles {
   align-content: start;
 }
+
+/* Drag surfaces never select their text natively. Inputs and text fields keep selection. */
+.canvas-app .keyboard,
+.canvas-app .mini-board,
+.canvas-app .key,
+.canvas-app .keycap,
+.canvas-app .tile {
+  -webkit-user-select: none;
+  user-select: none;
+}

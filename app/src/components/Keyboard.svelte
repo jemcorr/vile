@@ -89,6 +89,8 @@
     const p = point(e);
     const key = paintedKey(p);
     if (locked && key) return;
+    // A drag that starts on the board never starts a native text selection of key legends.
+    e.preventDefault();
     gesture = {
       start: p,
       now: p,
@@ -271,6 +273,7 @@
     height: 100%;
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
   }
   .key {
     cursor: pointer;
