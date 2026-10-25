@@ -581,6 +581,37 @@ describe("desktop editing workflow", () => {
     expect(level().textContent).toBe("Fit");
     expect(localStorage.getItem("vile.boardZoom")).toBe("fit");
   });
+  it("keeps the Keymap inspector as a floating card that collapses and remembers it", async () => {
+    const width = window.innerWidth;
+    try {
+      for (const innerWidth of [1440, 760]) {
+        localStorage.removeItem("vile.inspectorCollapsed");
+        window.innerWidth = innerWidth;
+        app = mount(App, { target: document.body });
+        await settle();
+        const card = () => document.querySelector("aside")!;
+        const toggle = () => document.querySelector<HTMLButtonElement>(".inspector-toggle")!;
+        expect(card().classList).toContain("floating-card");
+        expect(toggle().getAttribute("aria-expanded")).toBe("true");
+        toggle().click();
+        await settle();
+        expect(card().classList).toContain("collapsed");
+        expect(toggle().getAttribute("aria-expanded")).toBe("false");
+        expect(toggle().getAttribute("aria-label")).toBe("Show inspector");
+        expect(localStorage.getItem("vile.inspectorCollapsed")).toBe("true");
+        toggle().click();
+        await settle();
+        expect(card().classList).not.toContain("collapsed");
+        expect(localStorage.getItem("vile.inspectorCollapsed")).toBe("false");
+        if (app) await unmount(app);
+        app = undefined;
+        document.body.innerHTML = "";
+      }
+    } finally {
+      window.innerWidth = width;
+      localStorage.removeItem("vile.inspectorCollapsed");
+    }
+  });
   it("requires diff review before saving", async () => {
     app = mount(App, { target: document.body });
     await settle();

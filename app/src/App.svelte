@@ -71,9 +71,30 @@
     }
   }
   let panelSizes = $state(savedPanelSizes());
-  const sideMax = $derived(Math.max(240, viewportWidth - 300));
+  // The Keymap inspector is a floating card: 240 to 420 px, never wider than the window less 2 x 16 px.
+  const sideMax = $derived(Math.max(240, Math.min(420, viewportWidth - 32)));
   const pickerMax = $derived(Math.max(120, viewportHeight - 240));
   const sideWidth = $derived(Math.min(panelSizes.side, sideMax));
+  function readFlag(key: string): boolean {
+    try {
+      return localStorage.getItem(key) === "true";
+    } catch {
+      return false;
+    }
+  }
+  let inspectorCollapsed = $state(readFlag("vile.inspectorCollapsed"));
+  function setInspectorCollapsed(value: boolean): void {
+    inspectorCollapsed = value;
+    try {
+      localStorage.setItem("vile.inspectorCollapsed", String(value));
+    } catch {
+      /* the card still works for this session */
+    }
+  }
+  // Fit leaves room on the right for the expanded card when the window is wide enough for both.
+  const inspectorReserve = $derived(
+    !canvasPanel && !inspectorCollapsed && viewportWidth >= sideWidth + 560 ? sideWidth + 32 : 0,
+  );
   const pickerHeight = $derived(Math.min(panelSizes.picker, pickerMax));
   $effect(() => {
     const saved = JSON.stringify(panelSizes);
@@ -187,14 +208,6 @@
     return true;
   }
   const compact = $derived(viewportWidth < 900);
-  $effect(() => {
-    if (compact) {
-      ui.sideVisible = false;
-      ui.inspectorPaths = [];
-      ui.baseTarget = false;
-      ui.comboEditing = null;
-    }
-  });
   const drafts = $derived(Object.values(ui.drafts).some(Boolean));
   const cells = $derived(ui.view?.layers[ui.layer] ?? []);
   const encoderPaths = $derived.by(() =>
@@ -875,11 +888,6 @@
     </div>
     <div
       class="workspace" class:feature-workspace={canvasPanel} data-workspace={canvasPanel ? ui.panel : "keymap"}
-      style:grid-template-columns={canvasPanel || compact
-        ? "minmax(0, 1fr)"
-        : ui.sideVisible
-          ? `minmax(0, 1fr) 8px ${sideWidth}px`
-          : "minmax(0, 1fr)"}
     >
       <main class="board" class:hidden={canvasPanel}>
         <div class="board-heading"><div><span class="canvas-eyebrow">Layer {ui.layer}</span><h2>{ui.view.names.layers[ui.layer] || 'Layer ' + ui.layer}</h2></div><div class="canvas-layer-switcher">      <LayerBar
@@ -898,7 +906,7 @@
             Editing combo {ui.comboEditing} triggers. Click board keys to toggle their keycodes.
             <button onclick={() => (ui.comboEditing = null)}>Done</button>
           </p>{/if}
-        <div class="keyboard-viewport">
+        <div class="keyboard-viewport" style:padding-right={inspectorReserve ? `${inspectorReserve}px` : null}>
           <Keyboard
             keys={boardView === "matrix" ? matrixKeys : ui.view.board.keys}
             matrix={boardView === "matrix"}
@@ -964,18 +972,25 @@
               />{/each}
           </details>{/if}
       </main>
-      <div class="floating-picker-host" class:hidden={canvasPanel && !activeFeaturePath.length} style:right={!canvasPanel && ui.sideVisible && !compact ? (sideWidth + 30) + "px" : "22px"}><Picker view={ui.view} onchoose={assign} choosingBase={ui.baseTarget} target={targetLabel} /></div>
-      {#if ui.sideVisible && !compact && !canvasPanel}<ResizeHandle
-          orientation="vertical"
-          label="Resize editor panel"
-          value={sideWidth}
-          min={240}
-          max={sideMax}
-          initial={390}
-          onresize={(value) => (panelSizes.side = value)}
-        />{/if}
-      <aside class:hidden={!ui.sideVisible} class:drawer={compact} class:feature-editor={canvasPanel} class:has-feature-inspection={activeFeaturePath.length > 0}>
-        <div class="inspector-heading">{#if canvasPanel}<h1>{canvasPanelNames[ui.panel]}</h1>{#if canvasLedes[ui.panel]}<p class="feature-lede">{canvasLedes[ui.panel]}</p>{/if}{:else}<span class="canvas-eyebrow">Key inspector</span>{/if}{#if !canvasPanel && ui.selection.length}<button class="icon-button" aria-label="Clear selection" title="Clear selection · Esc" onclick={() => dismissInteraction(true)}><Icon name="close" size={14}/></button>{/if}</div>
+      <div class="floating-picker-host" class:hidden={canvasPanel && !activeFeaturePath.length} style:right={`${inspectorReserve ? inspectorReserve + 22 : 22}px`}><Picker view={ui.view} onchoose={assign} choosingBase={ui.baseTarget} target={targetLabel} /></div>
+      {#if !canvasPanel && !inspectorCollapsed}<div class="inspector-edge" style:right={`${sideWidth + 16 - 4}px`}><ResizeHandle
+            orientation="vertical"
+            label="Resize editor panel"
+            value={sideWidth}
+            min={240}
+            max={sideMax}
+            initial={390}
+            onresize={(value) => (panelSizes.side = value)}
+          /></div>{/if}
+      <aside
+        class:hidden={!ui.sideVisible}
+        class:floating-card={!canvasPanel}
+        class:collapsed={!canvasPanel && inspectorCollapsed}
+        class:feature-editor={canvasPanel}
+        class:has-feature-inspection={activeFeaturePath.length > 0}
+        style:--inspector-w={`${sideWidth}px`}
+      >
+        <div class="inspector-heading">{#if canvasPanel}<h1>{canvasPanelNames[ui.panel]}</h1>{#if canvasLedes[ui.panel]}<p class="feature-lede">{canvasLedes[ui.panel]}</p>{/if}{:else}<span class="canvas-eyebrow">Key inspector</span>{#if inspectorCollapsed && ui.selection.length}<span class="hint">{ui.selection.length} selected</span>{/if}{/if}{#if !canvasPanel && ui.selection.length && !inspectorCollapsed}<button class="icon-button" aria-label="Clear selection" title="Clear selection · Esc" onclick={() => dismissInteraction(true)}><Icon name="close" size={14}/></button>{/if}{#if !canvasPanel}<button class="icon-button inspector-toggle" aria-expanded={!inspectorCollapsed} aria-label={inspectorCollapsed ? "Show inspector" : "Hide inspector"} title={inspectorCollapsed ? "Show inspector" : "Hide inspector"} onclick={() => setInspectorCollapsed(!inspectorCollapsed)}><Icon name="chevron" size={14} /></button>{/if}</div>
         <div class="canvas-selection-inspector" class:hidden={canvasPanel && !activeFeaturePath.length}>
         {#if inspected.length}<Inspector
             keys={inspected}
@@ -1293,9 +1308,17 @@
   }
   .workspace {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     position: relative;
     flex: 1;
     min-height: 0;
+  }
+  .inspector-edge {
+    position: absolute;
+    top: var(--space-4);
+    bottom: calc(var(--space-4) + 40px);
+    width: 8px;
+    z-index: 6;
   }
   .board {
     display: flex;
@@ -1324,15 +1347,6 @@
   aside {
     padding: 16px;
     overflow: auto;
-  }
-  aside.drawer {
-    position: absolute;
-    inset: 0 0 0 auto;
-    z-index: 5;
-    width: min(420px, 95%);
-    background: var(--bg);
-    border-left: 1px solid var(--key-border);
-    box-shadow: -8px 0 24px #0003;
   }
   .panels,
   .row {
