@@ -998,4 +998,30 @@ describe("desktop editing workflow", () => {
     expect(primary().title).toBe("No unsaved changes");
     expect(document.querySelector(".consequence")?.textContent).toBe("layout.vil is up to date.");
   });
+  it("marks a layer tab with the yellow dot when the layer has changes", async () => {
+    const changed = view();
+    changed.diff = [
+      {
+        section: "layout",
+        line: "L0 r0c1: KC_A -> KC_B",
+        layer: 0,
+        keyId: "r0c1",
+        index: null,
+        field: null,
+        old: "KC_A",
+        new: "KC_B",
+        oldDescription: "A",
+        newDescription: "B",
+      },
+    ];
+    fake.getView.mockResolvedValue(changed);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.querySelectorAll(".canvas-layer-switcher .layers .tab-change")).toHaveLength(1);
+  });
+  it("leaves layer tabs clean when nothing changed", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.querySelectorAll(".tab-change")).toHaveLength(0);
+  });
 });

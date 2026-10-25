@@ -22,7 +22,7 @@
   {#each Array.from({ length: layerCount }, (_, i) => i) as layer}<button
       class:current={layer === current}
       aria-current={layer === current ? "true" : undefined}
-      title={`Layer ${layer}${layer < 10 ? ` · ${layer}` : ""}`}
+      title={`Layer ${layer}${layer < 10 ? ` · ${layer}` : ""}${changedLayers.has(layer) ? " · changed" : ""}`}
       onclick={() => onselect(layer)}
       oncontextmenu={(e) => {
         e.preventDefault();
@@ -35,7 +35,7 @@
           onmenu(layer, rect.left, rect.bottom);
         }
       }}
-      >{names.layers[layer] || `L${layer}`}{changedLayers.has(layer) ? " •" : ""}<small
+      >{names.layers[layer] || `L${layer}`}{#if changedLayers.has(layer)}<i class="change-dot tab-change" aria-hidden="true"></i>{/if}<small
         >{layer < 10 ? layer : ""}</small
       ></button
     >{/each}

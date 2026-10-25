@@ -1023,7 +1023,7 @@
         <div class="board-heading"><div><span class="canvas-eyebrow">Layer {ui.layer}</span><h2>{ui.view.names.layers[ui.layer] || 'Layer ' + ui.layer}</h2></div><div class="canvas-layer-switcher">      <LayerBar
       layerCount={ui.view.layerCount}
       current={ui.layer}
-      diff={ui.view.pendingDiff}
+      diff={ui.view.diff}
       names={ui.view.names}
       onselect={selectLayer}
       onmenu={(layer, x, y) => {

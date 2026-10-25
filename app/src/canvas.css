@@ -294,6 +294,16 @@ kbd {
   border-color: var(--edge);
   box-shadow: 0 1px 3px #0002;
 }
+.canvas-layer-switcher .layers button {
+  position: relative;
+}
+/* Out of flow, so a changed tab keeps the width it had without changes. */
+.canvas-layer-switcher .layers .tab-change {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  margin: 0;
+}
 .canvas-layer-switcher .layers small {
   font-size: 9px;
   opacity: 0.65;
