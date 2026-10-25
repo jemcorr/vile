@@ -1,0 +1,74 @@
+name: AppImage v0.1.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.1.0
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            patchelf \
+            libfuse2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+        working-directory: app
+      - run: npm run build
+        working-directory: app
+      - run: npm run tauri -- build --bundles appimage
+        working-directory: app
+
+      - name: Package and inspect AppImage
+        run: |
+          mkdir -p release-assets
+          mapfile -t appimages < <(find target/release/bundle/appimage -maxdepth 1 -type f -iname '*.appimage')
+          test "${#appimages[@]}" -eq 1
+          cp "${appimages[0]}" release-assets/vile_0.1.0_linux_amd64.AppImage
+          chmod +x release-assets/vile_0.1.0_linux_amd64.AppImage
+          file release-assets/vile_0.1.0_linux_amd64.AppImage | grep -E 'ELF 64-bit.*x86-64'
+
+          inspection_dir=$(mktemp -d)
+          cd "$inspection_dir"
+          "$GITHUB_WORKSPACE/release-assets/vile_0.1.0_linux_amd64.AppImage" --appimage-extract
+          test -x squashfs-root/AppRun
+          test -n "$(find squashfs-root -type f -name 'vile.desktop' -print -quit)"
+          app_binary=$(find squashfs-root -type f -path '*/usr/bin/vile-app' -print -quit)
+          test -n "$app_binary"
+          file "$app_binary" | grep -E 'ELF 64-bit.*x86-64'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vile-appimage
+          path: release-assets/vile_0.1.0_linux_amd64.AppImage
+          if-no-files-found: error
+          retention-days: 1
