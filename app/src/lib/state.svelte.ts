@@ -8,6 +8,8 @@ export const ui = $state({
   generation: 0,
   layer: 0,
   cursor: "",
+  /** The key a Shift+arrow range grows from. null means the cursor. */
+  anchor: null as string | null,
   selection: [] as string[],
   mode: "normal" as Mode,
   message: "",
@@ -41,6 +43,7 @@ export function setView(view: ViewModel | null): void {
   if (view === null) {
     ui.layer = 0;
     ui.selection = [];
+    ui.anchor = null;
     return;
   }
   if (ui.layer >= view.layerCount) {
@@ -50,6 +53,7 @@ export function setView(view: ViewModel | null): void {
   if (!ids.has(ui.cursor)) {
     ui.cursor = view.board?.keys[0]?.id ?? "";
   }
+  if (ui.anchor !== null && !ids.has(ui.anchor)) ui.anchor = null;
   ui.selection = ui.selection.filter((id) => ids.has(id));
   ui.inspectorPaths = ui.inspectorPaths.filter((path) => view.keycodes[path] !== undefined);
 }

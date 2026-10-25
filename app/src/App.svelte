@@ -9,6 +9,7 @@
   import { emptyMatrixCells, matrixGeometry, readBoardView, writeBoardView, type BoardView } from "./lib/matrix";
   import { actionFor, isMacPlatform, primaryModifierDown, primaryModifierLabel, type Action } from "./lib/keymap";
   import { nextStep, readZoom, writeZoom, type ZoomSetting } from "./lib/zoom";
+  import { keyboardRange, matrixRange } from "./lib/range";
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
@@ -361,6 +362,7 @@
   function resetDocument(): void {
     ui.generation += 1;
     ui.layer = 0;
+    ui.anchor = null;
     ui.selection = [];
     ui.inspectorPaths = [];
     ui.baseTarget = false;
@@ -414,6 +416,7 @@
   }
   function selectLayer(layer: number): void {
     ui.layer = layer;
+    ui.anchor = null;
     ui.selection = [];
     ui.inspectorPaths = [];
     ui.baseTarget = false;
@@ -447,6 +450,7 @@
       return;
     }
     ui.cursor = id;
+    ui.anchor = id;
     ui.inspectorPaths = [];
     ui.baseTarget = false;
     if (ui.swapMark) {
@@ -737,9 +741,15 @@
       const previous = ui.cursor;
       const keys = boardView === "matrix" ? matrixKeys : ui.view?.board?.keys ?? [];
       ui.cursor = previous ? neighbor(keys, previous, action.dir) : keys[0]?.id ?? "";
-      ui.selection = action.extend
-        ? Array.from(new Set([...ui.selection, previous, ui.cursor])).filter(Boolean)
-        : [ui.cursor].filter(Boolean);
+      if (action.extend && ui.cursor) {
+        // Shift+arrow keeps the anchor and selects the range it spans with the cursor.
+        const anchor = ui.anchor ?? (previous || ui.cursor);
+        ui.anchor = anchor;
+        ui.selection = boardView === "matrix" ? matrixRange(keys, anchor, ui.cursor) : keyboardRange(keys, anchor, ui.cursor);
+      } else {
+        ui.anchor = ui.cursor || null;
+        ui.selection = [ui.cursor].filter(Boolean);
+      }
       ui.inspectorPaths = [];
       return;
     }
@@ -815,6 +825,7 @@
     if (ui.mode === "insert" || ui.mode === "palette") ui.mode = "normal";
     if (!hadTransient && clearSelection) {
       ui.cursor = "";
+      ui.anchor = null;
       ui.selection = [];
       ui.inspectorPaths = [];
       ui.swapMark = null;
@@ -958,9 +969,11 @@
             selection={comboSelection}
             {onkeyclick}
             locked={ui.comboEditing !== null || busy}
-            onmarquee={(ids, additive) => {
+            onmarquee={(ids, additive, end) => {
               ui.selection = additive ? Array.from(new Set([...ui.selection, ...ids])) : ids;
-              if (ids.length) ui.cursor = ids[0]!;
+              // The key the marquee ended nearest becomes both cursor and anchor.
+              if (end) ui.cursor = end;
+              ui.anchor = end;
               ui.inspectorPaths = [];
             }}
             onblankclick={() => dismissInteraction(true)}

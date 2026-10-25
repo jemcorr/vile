@@ -221,18 +221,29 @@ describe("board pointer controller", () => {
     pointer(svg, "pointerup", 190, 70);
     svg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(blank).toHaveBeenCalledTimes(1);
-    expect(marquee).toHaveBeenCalledWith(["b"], false);
+    expect(marquee).toHaveBeenCalledWith(["b"], false, "b");
     pointer(svg, "pointerdown", 70, -10);
     pointer(svg, "pointercancel", 70, -10);
     pointer(svg, "pointerup", 70, -10);
     expect(blank).toHaveBeenCalledTimes(1);
+  });
+  it("moves focus off a toolbar button when the board is pressed", async () => {
+    const { svg } = await board();
+    const toolbar = document.createElement("button");
+    document.body.append(toolbar);
+    toolbar.focus();
+    expect(document.activeElement).toBe(toolbar);
+    pointer(svg, "pointerdown", 30, 30);
+    pointer(svg, "pointerup", 30, 30);
+    expect(document.activeElement).not.toBe(toolbar);
+    toolbar.remove();
   });
   it("starts a marquee from a gap between keys", async () => {
     const { svg, click, blank, marquee } = await board();
     pointer(svg, "pointerdown", 92, 20);
     pointer(svg, "pointermove", 160, 70);
     pointer(svg, "pointerup", 160, 70);
-    expect(marquee).toHaveBeenCalledWith(["b"], false);
+    expect(marquee).toHaveBeenCalledWith(["b"], false, "b");
     expect(click).not.toHaveBeenCalled();
     expect(blank).not.toHaveBeenCalled();
   });
@@ -265,7 +276,7 @@ describe("board pointer controller", () => {
     expect(blank).not.toHaveBeenCalled();
     pointer(svg, "pointerup", 190, 70);
     expect(blank).not.toHaveBeenCalled();
-    expect(marquee).toHaveBeenCalledWith(["b"], false);
+    expect(marquee).toHaveBeenCalledWith(["b"], false, "b");
     pointer(svg, "pointerdown", 30, 30);
     pointer(svg, "pointermove", 150, 30, false, 2);
     pointer(svg, "pointercancel", 30, 30, false, 2);
@@ -310,7 +321,7 @@ describe("board pointer controller", () => {
     pointer(svg, "pointerdown", 70, -10);
     pointer(svg, "pointermove", 190, 70);
     pointer(svg, "pointerup", 190, 70);
-    expect(marquee).toHaveBeenCalledWith(["b"], false);
+    expect(marquee).toHaveBeenCalledWith(["b"], false, "b");
     expect(drag).not.toHaveBeenCalled();
   });
 });

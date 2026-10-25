@@ -664,6 +664,31 @@ describe("desktop editing workflow", () => {
     expect(localStorage.getItem("vile.boardView")).toBe("keyboard");
     expect(fake.applyOp).not.toHaveBeenCalled();
   });
+  it("Shift+arrows select a range from the anchor, and plain arrows reset it", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    document
+      .querySelector('[data-key-id="r0c0"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(ui.anchor).toBe("r0c0");
+    const arrow = (key: string, shiftKey = false) =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true }));
+    arrow("ArrowRight", true);
+    await settle();
+    expect(ui.cursor).toBe("r0c1");
+    expect(ui.anchor).toBe("r0c0");
+    expect(ui.selection).toEqual(["r0c0", "r0c1"]);
+    arrow("ArrowLeft", true);
+    await settle();
+    expect(ui.selection).toEqual(["r0c0"]);
+    arrow("ArrowRight", true);
+    arrow("ArrowLeft");
+    await settle();
+    expect(ui.cursor).toBe("r0c0");
+    expect(ui.anchor).toBe("r0c0");
+    expect(ui.selection).toEqual(["r0c0"]);
+  });
   it("edits combo triggers by code without changing its output", async () => {
     app = mount(App, { target: document.body });
     await settle();

@@ -16,13 +16,15 @@
     type ZoomSetting,
   } from "../lib/zoom";
   import { untrack } from "svelte";
+  import { nearestKey } from "../lib/range";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
     cursor: string;
     selection: string[];
     onkeyclick: (id: string, toggle: boolean) => void;
-    onmarquee: (ids: string[], additive: boolean) => void;
+    /** `end` is the candidate key nearest the release point (the new cursor and anchor). */
+    onmarquee: (ids: string[], additive: boolean, end: string | null) => void;
     onblankclick: () => void;
     ondragkey: (from: string, to: string, copy: boolean) => void;
     onassign: (id: string, wire: string) => void;
@@ -236,6 +238,10 @@
     if (locked && key) return;
     // A drag that starts on the board never starts a native text selection of key legends.
     e.preventDefault();
+    // preventDefault stops the browser from moving focus, so a toolbar button clicked before would keep
+    // it and swallow the arrow keys. Release it so the board receives them.
+    if (document.activeElement instanceof HTMLElement && !svg.contains(document.activeElement))
+      document.activeElement.blur();
     gesture = {
       start: p,
       now: p,
@@ -288,7 +294,10 @@
     } else if (g.key) {
       const target = hitKey(keys, end);
       if (target && target !== g.key) ondragkey(g.key, target, e.altKey);
-    } else onmarquee(marqueeKeys(keys, g.start, g.now), g.additive);
+    } else {
+      const ids = marqueeKeys(keys, g.start, g.now);
+      onmarquee(ids, g.additive, nearestKey(keys, g.now, ids));
+    }
     setTimeout(() => {
       suppress = false;
     }, 0);
