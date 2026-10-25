@@ -227,6 +227,25 @@ describe("board pointer controller", () => {
     pointer(svg, "pointerup", 70, -10);
     expect(blank).toHaveBeenCalledTimes(1);
   });
+  it("starts a marquee from a gap between keys", async () => {
+    const { svg, click, blank, marquee } = await board();
+    pointer(svg, "pointerdown", 92, 20);
+    pointer(svg, "pointermove", 160, 70);
+    pointer(svg, "pointerup", 160, 70);
+    expect(marquee).toHaveBeenCalledWith(["b"], false);
+    expect(click).not.toHaveBeenCalled();
+    expect(blank).not.toHaveBeenCalled();
+  });
+  it("treats the curve of a keycap corner as blank and the body as the key", async () => {
+    const { svg, click, blank } = await board();
+    pointer(svg, "pointerdown", 59, 59);
+    pointer(svg, "pointerup", 59, 59);
+    expect(blank).toHaveBeenCalledTimes(1);
+    expect(click).not.toHaveBeenCalled();
+    pointer(svg, "pointerdown", 50, 50);
+    pointer(svg, "pointerup", 50, 50);
+    expect(click).toHaveBeenCalledExactlyOnceWith("a", false);
+  });
   it("treats an unpainted key gutter as blank, including rotated secondary keys", async () => {
     const { svg, click, blank } = await board([
       { ...keys[0]!, r: 90, rx: 0, ry: 0, secondary: { x: 1, y: 0, w: 1, h: 1 } },

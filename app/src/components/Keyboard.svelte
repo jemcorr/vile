@@ -130,6 +130,19 @@
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(matrix.inverse());
     return { x: p.x / U, y: p.y / U };
   }
+  /** The rounded keycap rect (rx 7px), inset by the gap on its leading edges. Points in a corner's curve are blank. */
+  const KEY_RADIUS = 7 / U;
+  function inKeycap(q: Point, rect: { x: number; y: number; w: number; h: number }): boolean {
+    const x0 = rect.x + GAP / U;
+    const y0 = rect.y + GAP / U;
+    const x1 = rect.x + rect.w;
+    const y1 = rect.y + rect.h;
+    if (q.x < x0 || q.x > x1 || q.y < y0 || q.y > y1) return false;
+    const r = Math.min(KEY_RADIUS, (x1 - x0) / 2, (y1 - y0) / 2);
+    const cx = Math.min(Math.max(q.x, x0 + r), x1 - r);
+    const cy = Math.min(Math.max(q.y, y0 + r), y1 - r);
+    return Math.hypot(q.x - cx, q.y - cy) <= r;
+  }
   function paintedKey(p: Point): string | null {
     return (
       [...keys].reverse().find((key) => {
@@ -139,13 +152,7 @@
           ...(key.secondary
             ? [{ ...key.secondary, x: key.x + key.secondary.x, y: key.y + key.secondary.y }]
             : []),
-        ].some(
-          (rect) =>
-            q.x >= rect.x + GAP / U &&
-            q.x <= rect.x + rect.w &&
-            q.y >= rect.y + GAP / U &&
-            q.y <= rect.y + rect.h,
-        );
+        ].some((rect) => inKeycap(q, rect));
       })?.id ?? null
     );
   }
