@@ -120,7 +120,7 @@
       class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
       aria-label={slotAriaLabel(item.index)}
-      title={item.title ?? (item.text || "Empty")}
+      title={`${item.title ?? (item.text || "Empty")}\nDrag to swap · Alt-drag to copy`}
       onclick={() => { if (!suppressDragClick()) onselect(item.index); }}
       oncontextmenu={(e) => menuAt(e, item.index)}
       onpointerdown={(e) =>
