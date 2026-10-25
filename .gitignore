@@ -1,6 +1,7 @@
 /target
 /app/node_modules
 /app/dist
+/app/.svelte-check
 /app/src-tauri/gen
 .DS_Store
 *.extract.*

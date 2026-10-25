@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 - Updated direct npm, Rust, and GitHub Actions dependencies to their latest
-  compatible stable releases. TypeScript remains on 6.0.3 because
-  `svelte-check` does not declare TypeScript 7 support.
+  compatible stable releases. Enabled TypeScript 7.0.2 through `svelte-check`
+  native mode while retaining TypeScript 6.0.3 for the checker API.
 - Aligned the pinned Node.js and npm toolchains with 26.12.1 and 12.2.1.
 
 ## [0.1.0] - 2026-10-24
