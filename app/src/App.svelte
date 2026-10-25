@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { api, errorText } from "./lib/api";
   import { notify, ui, setView } from "./lib/state.svelte";
@@ -95,6 +95,43 @@
   const inspectorReserve = $derived(
     !canvasPanel && !inspectorCollapsed && viewportWidth >= sideWidth + 560 ? sideWidth + 32 : 0,
   );
+  // A collapsed pill sits on the layer ribbon's row. Where the ribbon reaches the pill, the pill moves
+  // to the row below the ribbon, and fit keeps the keys out from under it (see collapsedPlacement).
+  let workspaceEl: HTMLElement | undefined = $state();
+  let asideEl: HTMLElement | undefined = $state();
+  let viewportEl: HTMLElement | undefined = $state();
+  let pillPlacement: { top: number; reserve: number } | null = $state(null);
+  function collapsedPlacement(): { top: number; reserve: number } | null {
+    if (!workspaceEl || !asideEl || !viewportEl || canvasPanel || !inspectorCollapsed) return null;
+    const ribbonEl = workspaceEl.querySelector<HTMLElement>(".canvas-layer-switcher .layers");
+    if (!ribbonEl) return null;
+    const ws = workspaceEl.getBoundingClientRect();
+    const pill = asideEl.getBoundingClientRect();
+    const ribbon = ribbonEl.getBoundingClientRect();
+    // Test the pill on its own row (top inset --space-4), so the result does not depend on where it is now.
+    const rowTop = ws.top + 16;
+    const rowBottom = rowTop + pill.height;
+    const pillLeft = ws.right - 16 - pill.width;
+    const onRibbon =
+      ribbon.right > pillLeft - 8 && ribbon.top < rowBottom && ribbon.bottom > rowTop;
+    if (!onRibbon) return null;
+    const top = ribbon.bottom - ws.top + 8;
+    const viewportTop = viewportEl.getBoundingClientRect().top - ws.top;
+    return { top, reserve: Math.max(0, top + pill.height + 8 - viewportTop) };
+  }
+  $effect(() => {
+    void viewportWidth;
+    void inspectorCollapsed;
+    void canvasPanel;
+    void ui.selection.length;
+    void ui.layer;
+    void ui.view;
+    void boardView;
+    const placement = untrack(collapsedPlacement);
+    untrack(() => {
+      pillPlacement = placement;
+    });
+  });
   const pickerHeight = $derived(Math.min(panelSizes.picker, pickerMax));
   $effect(() => {
     const saved = JSON.stringify(panelSizes);
@@ -888,6 +925,7 @@
     </div>
     <div
       class="workspace" class:feature-workspace={canvasPanel} data-workspace={canvasPanel ? ui.panel : "keymap"}
+      bind:this={workspaceEl}
     >
       <main class="board" class:hidden={canvasPanel}>
         <div class="board-heading"><div><span class="canvas-eyebrow">Layer {ui.layer}</span><h2>{ui.view.names.layers[ui.layer] || 'Layer ' + ui.layer}</h2></div><div class="canvas-layer-switcher">      <LayerBar
@@ -906,7 +944,7 @@
             Editing combo {ui.comboEditing} triggers. Click board keys to toggle their keycodes.
             <button onclick={() => (ui.comboEditing = null)}>Done</button>
           </p>{/if}
-        <div class="keyboard-viewport" style:padding-right={inspectorReserve ? `${inspectorReserve}px` : null}>
+        <div class="keyboard-viewport" bind:this={viewportEl} style:padding-right={inspectorReserve ? `${inspectorReserve}px` : null} style:padding-top={pillPlacement?.reserve ? `${pillPlacement.reserve}px` : null}>
           <Keyboard
             keys={boardView === "matrix" ? matrixKeys : ui.view.board.keys}
             matrix={boardView === "matrix"}
@@ -983,12 +1021,14 @@
             onresize={(value) => (panelSizes.side = value)}
           /></div>{/if}
       <aside
+        bind:this={asideEl}
         class:hidden={!ui.sideVisible}
         class:floating-card={!canvasPanel}
         class:collapsed={!canvasPanel && inspectorCollapsed}
         class:feature-editor={canvasPanel}
         class:has-feature-inspection={activeFeaturePath.length > 0}
         style:--inspector-w={`${sideWidth}px`}
+        style:top={!canvasPanel && inspectorCollapsed && pillPlacement ? `${pillPlacement.top}px` : null}
       >
         <div class="inspector-heading">{#if canvasPanel}<h1>{canvasPanelNames[ui.panel]}</h1>{#if canvasLedes[ui.panel]}<p class="feature-lede">{canvasLedes[ui.panel]}</p>{/if}{:else}<span class="canvas-eyebrow">Key inspector</span>{#if inspectorCollapsed && ui.selection.length}<span class="hint">{ui.selection.length} selected</span>{/if}{/if}{#if !canvasPanel && ui.selection.length && !inspectorCollapsed}<button class="icon-button" aria-label="Clear selection" title="Clear selection · Esc" onclick={() => dismissInteraction(true)}><Icon name="close" size={14}/></button>{/if}{#if !canvasPanel}<button class="icon-button inspector-toggle" aria-expanded={!inspectorCollapsed} aria-label={inspectorCollapsed ? "Show inspector" : "Hide inspector"} title={inspectorCollapsed ? "Show inspector" : "Hide inspector"} onclick={() => setInspectorCollapsed(!inspectorCollapsed)}><Icon name="chevron" size={14} /></button>{/if}</div>
         <div class="canvas-selection-inspector" class:hidden={canvasPanel && !activeFeaturePath.length}>
