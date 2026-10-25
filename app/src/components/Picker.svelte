@@ -2,7 +2,7 @@
   import { tick, onMount } from "svelte";
   import { api, errorText } from "../lib/api";
   import type { KeycodeView, SearchHitDto, KeyParts, ViewModel } from "../lib/types";
-  import { pointerDrag, startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
+  import { startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
   import { createPendingTracker } from "../lib/pending";
   import Modifiers from "./Modifiers.svelte";
   let {
@@ -348,28 +348,12 @@
       </section>
     {/each}
   </div>
-  {#if pointerDrag.current}<div
-      class="drag-preview"
-      style:left={`${pointerDrag.current.clientX + 12}px`}
-      style:top={`${pointerDrag.current.clientY + 12}px`}
-    >
-      {pointerDrag.current.label.replaceAll("\n", " ")}
-    </div>{/if}
     </div>
   </section>
   {/if}
 </section>
 
 <style>
-  .drag-preview {
-    position: fixed;
-    z-index: 1000;
-    pointer-events: none;
-    padding: 8px 12px;
-    border: 1px solid var(--selected);
-    border-radius: 6px;
-    background: var(--bg);
-  }
   .tile {
     touch-action: none;
   }

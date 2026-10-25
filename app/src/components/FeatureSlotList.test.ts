@@ -2,11 +2,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount, tick } from "svelte";
 import FeatureSlotList from "./FeatureSlotList.svelte";
+import DragPreview from "./DragPreview.svelte";
+import { pointerDrag } from "../lib/pointer-drag.svelte";
 
 const mocks = vi.hoisted(() => ({ notify: vi.fn() }));
 vi.mock("../lib/state.svelte", () => ({ notify: mocks.notify }));
 
 let mounted: ReturnType<typeof mount> | undefined;
+let previewMounted: ReturnType<typeof mount> | undefined;
+const originalElementFromPoint = document.elementFromPoint;
 async function settle() {
   await Promise.resolve();
   await tick();
@@ -15,7 +19,14 @@ async function settle() {
 }
 afterEach(async () => {
   if (mounted) await unmount(mounted);
+  if (previewMounted) await unmount(previewMounted);
   mounted = undefined;
+  previewMounted = undefined;
+  pointerDrag.current = null;
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: originalElementFromPoint,
+  });
   document.body.innerHTML = "";
   vi.clearAllMocks();
 });
@@ -45,7 +56,6 @@ function pointer(target: EventTarget, type: string, x: number, altKey = false) {
   target.dispatchEvent(event);
 }
 function drag(source: HTMLButtonElement, target: HTMLButtonElement, altKey = false) {
-  const originalElementFromPoint = document.elementFromPoint;
   Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
   source.setPointerCapture = vi.fn();
   source.hasPointerCapture = vi.fn(() => false);
@@ -53,10 +63,6 @@ function drag(source: HTMLButtonElement, target: HTMLButtonElement, altKey = fal
   pointer(source, "pointerdown", 0);
   pointer(window, "pointermove", 20);
   pointer(window, "pointerup", 20, altKey);
-  Object.defineProperty(document, "elementFromPoint", {
-    configurable: true,
-    value: originalElementFromPoint,
-  });
 }
 
 describe("feature slot actions", () => {
@@ -90,6 +96,61 @@ describe("feature slot actions", () => {
     ]);
   });
 
+  it("shows the held slot, valid target and live copy mode, then clears on cancel and blur", async () => {
+    const operation = render();
+    previewMounted = mount(DragPreview, { target: document.body });
+    await settle();
+    const source = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
+    const target = document.querySelector<HTMLButtonElement>('[data-slot-index="1"]')!;
+    source.setPointerCapture = vi.fn();
+    source.hasPointerCapture = vi.fn(() => false);
+    source.releasePointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
+
+    pointer(source, "pointerdown", 0);
+    pointer(window, "pointermove", 20, true);
+    await settle();
+    expect(source.classList.contains("drag-source")).toBe(true);
+    expect(target.classList.contains("drop-target")).toBe(true);
+    expect(target.classList.contains("copy-target")).toBe(true);
+    expect(document.querySelector(".drag-preview")?.textContent).toContain("Combo C0 · first");
+    expect(document.querySelector(".drag-preview")?.textContent).toContain("Copy");
+
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "Alt" }));
+    await settle();
+    expect(target.classList.contains("drop-target")).toBe(true);
+    expect(target.classList.contains("copy-target")).toBe(false);
+    expect(document.querySelector(".drag-preview")?.textContent).toContain("Swap");
+
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => outside });
+    pointer(window, "pointermove", 28);
+    await settle();
+    expect(target.classList.contains("drop-target")).toBe(false);
+    expect(source.classList.contains("drag-source")).toBe(true);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await settle();
+    expect(document.querySelector(".drag-preview")).toBeNull();
+    expect(source.classList.contains("drag-source")).toBe(false);
+    expect(operation).not.toHaveBeenCalled();
+
+    pointer(source, "pointerdown", 40);
+    pointer(window, "pointermove", 60);
+    pointer(window, "pointercancel", 60);
+    await settle();
+    expect(document.querySelector(".drag-preview")).toBeNull();
+    expect(source.classList.contains("drag-source")).toBe(false);
+
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
+    pointer(source, "pointerdown", 80);
+    pointer(window, "pointermove", 100);
+    window.dispatchEvent(new Event("blur"));
+    await settle();
+    expect(document.querySelector(".drag-preview")).toBeNull();
+    expect(source.classList.contains("drag-source")).toBe(false);
+  });
+
   it("ignores cross-type drags and blocks macro slot operations while a draft is dirty", async () => {
     const operation = render("macro", true);
     await settle();
@@ -110,6 +171,23 @@ describe("feature slot actions", () => {
     await settle();
     expect(operation).not.toHaveBeenCalled();
     expect(mocks.notify).toHaveBeenCalledWith("Apply or revert the macro draft first");
+  });
+
+  it("does not advertise a macro drop target while the draft is dirty", async () => {
+    render("macro", true);
+    await settle();
+    const source = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
+    const target = document.querySelector<HTMLButtonElement>('[data-slot-index="1"]')!;
+    source.setPointerCapture = vi.fn();
+    source.hasPointerCapture = vi.fn(() => false);
+    source.releasePointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
+    pointer(source, "pointerdown", 0);
+    pointer(window, "pointermove", 20);
+    await settle();
+    expect(target.dataset.featureSlotReady).toBe("false");
+    expect(target.classList.contains("drop-target")).toBe(false);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   });
 
   it("leaves Cmd+C and Cmd+V alone in feature text inputs", async () => {

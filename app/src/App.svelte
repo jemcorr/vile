@@ -25,6 +25,7 @@
   import ResizeHandle from "./components/ResizeHandle.svelte";
   import LayerBar from "./components/LayerBar.svelte";
   import Picker from "./components/Picker.svelte";
+  import DragPreview from "./components/DragPreview.svelte";
   import Inspector from "./components/Inspector.svelte";
   import KeycodeInput from "./components/KeycodeInput.svelte";
   import DiffPanel from "./components/DiffPanel.svelte";
@@ -1041,6 +1042,7 @@
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
       {ui.view.warnings.join(" · ")}
     </div>{/if}
+  <DragPreview />
 </div>
 {#if menu}<div
     class="menu"

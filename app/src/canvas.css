@@ -1616,6 +1616,19 @@ kbd {
   outline: 2px solid var(--cursor);
   outline-offset: 1px;
 }
+.canvas-feature-editor .slot-cell.drag-source {
+  opacity: 0.38;
+}
+.canvas-feature-editor .slot-cell.drop-target {
+  border-color: var(--cursor);
+  background: color-mix(in srgb, var(--selected) 70%, var(--bg));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cursor) 45%, transparent);
+}
+.canvas-feature-editor .slot-cell.copy-target {
+  border-color: var(--changed);
+  background: color-mix(in srgb, var(--changed) 28%, var(--bg));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--changed) 45%, transparent);
+}
 .canvas-feature-editor .slot-cell.dirty .slot-id {
   color: var(--changed);
 }

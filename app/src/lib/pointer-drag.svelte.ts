@@ -11,6 +11,7 @@ export interface PointerDrop {
   clientX: number;
   clientY: number;
   altKey?: boolean;
+  featureTarget?: { feature: string; index: number } | null;
 }
 export const pointerDrag = $state<{
   current: (PointerDrop & { label: string }) | null;
@@ -48,7 +49,29 @@ export function startPointerDrag(event: PointerEvent, payload: DragPayload, labe
     (e) => {
       if (e.pointerId !== id) return;
       moved ||= Math.hypot(e.clientX - startX, e.clientY - startY) > 6;
-      if (moved) pointerDrag.current = { payload, label, clientX: e.clientX, clientY: e.clientY };
+      if (moved) {
+        const candidate = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>("[data-feature-slot-kind][data-feature-slot-index]");
+        const feature = candidate?.dataset.featureSlotKind;
+        const index = Number(candidate?.dataset.featureSlotIndex);
+        const featureTarget =
+          payload.kind === "featureSlot" &&
+          feature === payload.feature &&
+          candidate?.dataset.featureSlotReady !== "false" &&
+          Number.isInteger(index) &&
+          index !== payload.index
+            ? { feature, index }
+            : null;
+        pointerDrag.current = {
+          payload,
+          label,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          altKey: e.altKey,
+          featureTarget,
+        };
+      }
     },
     { signal: listeners.signal },
   );
@@ -79,9 +102,20 @@ export function startPointerDrag(event: PointerEvent, payload: DragPayload, labe
     "keydown",
     (e) => {
       if (e.key === "Escape") finish();
+      else if (e.key === "Alt" && pointerDrag.current)
+        pointerDrag.current = { ...pointerDrag.current, altKey: true };
     },
     { signal: listeners.signal },
   );
+  window.addEventListener(
+    "keyup",
+    (e) => {
+      if (e.key === "Alt" && pointerDrag.current)
+        pointerDrag.current = { ...pointerDrag.current, altKey: false };
+    },
+    { signal: listeners.signal },
+  );
+  window.addEventListener("blur", finish, { signal: listeners.signal });
 }
 
 export function pointerDrop(node: Element, accept: (drop: PointerDrop) => boolean) {

@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { pointerDrop, startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
+  import {
+    pointerDrag,
+    pointerDrop,
+    startPointerDrag,
+    suppressDragClick,
+  } from "../lib/pointer-drag.svelte";
   import { notify } from "../lib/state.svelte";
   import type { OpDto } from "../lib/types";
 
@@ -43,6 +48,9 @@
       altRepeat: `Alternate repeat slot AR${index}`,
     }[kind];
     return label;
+  }
+  function dragLabel(index: number, text: string): string {
+    return `${slotAriaLabel(index).replace(" slot", "")} · ${text || "Empty"}`;
   }
   async function copy(index: number): Promise<void> {
     if (!guarded()) return;
@@ -102,8 +110,14 @@
     <button
       class="slot-cell"
       data-slot-index={item.index}
+      data-feature-slot-kind={kind}
+      data-feature-slot-index={item.index}
+      data-feature-slot-ready={kind !== "macro" || !dirty}
       data-state={item.set ? "set" : "empty"}
       class:active={selected === item.index}
+      class:drag-source={pointerDrag.current?.payload.kind === "featureSlot" && pointerDrag.current.payload.feature === kind && pointerDrag.current.payload.index === item.index}
+      class:drop-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index}
+      class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
       aria-label={slotAriaLabel(item.index)}
       title={item.title ?? (item.text || "Empty")}
@@ -113,7 +127,7 @@
         startPointerDrag(
           e,
           { kind: "featureSlot", feature: kind, index: item.index },
-          item.text || `${label} ${item.index}`,
+          dragLabel(item.index, item.text),
         )}
       use:pointerDrop={(event) => drop(event, item.index)}
     >
