@@ -897,6 +897,36 @@ describe("desktop editing workflow", () => {
     expect(document.querySelector('[aria-label="Review changes before save"]')).toBeNull();
     expect(document.activeElement).toBe(save);
   });
+  it("follows the comparison in the count and the legend", async () => {
+    const onCommit = { ...view(), diffBase: "git" as const, dirty: false };
+    onCommit.diff = [
+      {
+        section: "layout",
+        line: "L0 r0c1: KC_A -> KC_B",
+        layer: 0,
+        keyId: "r0c1",
+        index: null,
+        field: null,
+        old: "KC_A",
+        new: "KC_B",
+        oldDescription: "A",
+        newDescription: "B",
+      },
+    ];
+    fake.getView.mockResolvedValue(onCommit);
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.querySelector(".count-wide")?.textContent).toBe("1 since commit");
+    expect(document.querySelector(".pending-button")?.getAttribute("title")).toContain("All of them are saved");
+    expect(document.querySelector(".board-caption")?.textContent).toContain("Changed since commit");
+    expect(button("Review & save").textContent).toContain("Review & save");
+  });
+  it("counts changes since the last save by default", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(document.querySelector(".count-wide")?.textContent).toBe("No changes");
+    expect(document.querySelector(".board-caption")?.textContent).toContain("Changed since save");
+  });
   it("opens the changes sheet from the count without focusing save", async () => {
     app = mount(App, { target: document.body });
     await settle();

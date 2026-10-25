@@ -266,6 +266,26 @@
   const fileName = $derived(ui.view?.path?.split(/[\\/]/).pop() || "this layout");
   const groups = $derived(ui.view ? changeGroups(ui.view) : []);
   const total = $derived(changeCount(groups));
+  const git = $derived(ui.view?.diffBase === "git");
+  const countText = $derived(
+    git
+      ? total
+        ? `${total} since commit`
+        : "Matches commit"
+      : total
+        ? `${total} ${total === 1 ? "change" : "changes"}`
+        : "No changes",
+  );
+  const countTitle = $derived(
+    git
+      ? total
+        ? `Changes since the last Git commit. ${ui.view?.dirty ? "Some are not saved yet." : "All of them are saved."} Click to review.`
+        : `Matches the last Git commit.${ui.view?.dirty ? " Not saved yet." : ""}`
+      : total
+        ? "Changes since the last save. Click to review."
+        : "Nothing changed since the last save.",
+  );
+  const legendTitle = $derived(`A dot marks what differs from ${fileName} ${git ? "in the last Git commit" : "as last saved"}.`);
   const cells = $derived(ui.view?.layers[ui.layer] ?? []);
   const encoderPaths = $derived.by(() =>
     Object.keys(ui.view?.keycodes ?? {}).filter((path) =>
@@ -983,8 +1003,8 @@
       <button class:active={boardView === "matrix"} aria-pressed={boardView === "matrix"} title="Electrical rows and columns, as stored in the .vil file" onclick={() => setBoardView("matrix")}>Matrix</button>
     </nav>
     <button class="icon-button theme-button" aria-label={themeLabel} title={themeLabel} onclick={cycleTheme}><Icon name={themeIcon}/></button>
-    <button class="pending-button" onclick={openChanges}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
-    <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button>
+    <button class="pending-button" title={countTitle} aria-label={countText} onclick={openChanges}><span class:has-changes={ui.view?.dirty} class="status-dot"></span><span class="count-wide">{countText}</span><span class="count-narrow" aria-hidden="true">{total}</span></button>
+    <button class="save-button" title={reason('save') || `Review the changes, then save · ${primaryModifierLabel(navigator.platform)}S`} disabled={!!reason('save')} onclick={() => void command('save')}><span class="save-wide">Review &amp; save</span><span class="save-narrow">Save</span><kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button>
   </header>
   {#if ui.view && ui.view.board}
     <div class="canvas-context">
@@ -1060,7 +1080,7 @@
           />
         </div>
         <div class="board-caption">
-          <span><i class="legend-dot"></i>Changed since save</span>
+          <span title={legendTitle}><i class="legend-dot"></i>{git ? "Changed since commit" : "Changed since save"}</span>
           <span class="board-hints">{`Shift- or ${isMacPlatform(navigator.platform) ? "⌘" : "Ctrl"}-click to add or remove`} <span class="hint-separator">·</span> Double-click to type a keycode</span>
           <div class="zoom-controls" role="group" aria-label="Zoom">
             <button class="icon-button" aria-label="Zoom out" title={`Zoom out · ${primaryModifierLabel(navigator.platform)}−`} disabled={boardScale <= 0.25 + 0.001} onclick={() => setZoom(nextStep(boardScale, -1))}><Icon name="minus" size={14} /></button>

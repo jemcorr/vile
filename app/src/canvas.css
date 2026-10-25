@@ -200,6 +200,24 @@ kbd {
 .status-dot.has-changes {
   background: var(--changed);
 }
+.canvas-app .pending-button,
+.canvas-app .save-button {
+  white-space: nowrap;
+}
+.count-narrow,
+.save-narrow {
+  display: none;
+}
+@media (max-width: 760px) {
+  .count-wide,
+  .save-wide {
+    display: none;
+  }
+  .count-narrow,
+  .save-narrow {
+    display: inline;
+  }
+}
 .canvas-app .save-button {
   background: var(--fg);
   color: var(--on-primary);
