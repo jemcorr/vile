@@ -1272,12 +1272,23 @@ kbd {
 .canvas-app aside .override-options label:has(input[type="checkbox"]) {
   justify-content: space-between;
   flex-direction: row-reverse;
-  width: 100%;
-  padding: var(--space-2) 0;
+  width: calc(100% + 2 * var(--space-2));
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  border-radius: 6px;
   gap: var(--space-3);
   border: 0;
   background: transparent;
   color: var(--fg);
+}
+.canvas-app aside .override-options label:has(input[type="checkbox"]):hover,
+.canvas-app aside .override-options label:has(input[type="checkbox"]:checked),
+.canvas-app aside .override-options label:has(input[type="checkbox"]:checked):hover {
+  background: transparent;
+  color: var(--fg);
+}
+.canvas-app aside .override-options label:has(input[type="checkbox"]):hover:not(:has(input:disabled)) {
+  background: var(--hover);
 }
 .canvas-app aside .override-options input[type="checkbox"] {
   position: relative;
