@@ -10,8 +10,10 @@ export function focusScope(node: HTMLElement, onEscape: () => void) {
         'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
       ),
     ].filter((item) => !item.closest("[hidden], .hidden, details:not([open])"));
+  const initial = () =>
+    node.matches("[data-autofocus]") ? node : node.querySelector<HTMLElement>("[data-autofocus]:not(:disabled)");
   queueMicrotask(() => {
-    if (scopes.at(-1) === node) (controls()[0] ?? node).focus();
+    if (scopes.at(-1) === node) (initial() ?? controls()[0] ?? node).focus();
   });
   function keydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
@@ -37,7 +39,7 @@ export function focusScope(node: HTMLElement, onEscape: () => void) {
   }
   function keepFocus(event: FocusEvent) {
     if (scopes.at(-1) === node && event.target instanceof Node && !node.contains(event.target))
-      (controls()[0] ?? node).focus();
+      (initial() ?? controls()[0] ?? node).focus();
   }
   node.addEventListener("keydown", keydown);
   document.addEventListener("focusin", keepFocus);

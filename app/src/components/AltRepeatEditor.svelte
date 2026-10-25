@@ -23,6 +23,13 @@
     selected = index;
     ui.inspectorPaths = [];
   }
+  $effect(() => {
+    const reveal = ui.revealSlot;
+    if (reveal?.panel === "altRepeat") {
+      pickSlot(reveal.index);
+      ui.revealSlot = null;
+    }
+  });
 
   function altOptionLabel(name: string): string {
     return ALT_REPEAT_OPTION_LABELS[name] ?? name;

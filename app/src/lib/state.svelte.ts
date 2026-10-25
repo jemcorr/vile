@@ -17,7 +17,9 @@ export const ui = $state({
   message: "",
   messageError: false,
   messageSeq: 0,
-  panel: "diff" as Panel,
+  panel: "combos" as Panel,
+  /** A slot a feature editor selects once, then clears (jumps from the changes sheet). */
+  revealSlot: null as { panel: Panel; index: number } | null,
   showCombos: false,
   inspectorPaths: [] as string[],
   baseTarget: false,

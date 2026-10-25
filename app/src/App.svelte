@@ -13,9 +13,11 @@
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
+  import { changeCount, changeGroups, compareErrorText, type ChangeJump } from "./lib/changes";
   import { renderLayerSheet } from "./lib/layer-export";
   import type {
     OpDto,
+    DiffBase,
     KeycodeView,
     KeyPartsPatch,
     MacroActionDto,
@@ -30,7 +32,7 @@
   import DragPreview from "./components/DragPreview.svelte";
   import Inspector from "./components/Inspector.svelte";
   import KeycodeInput from "./components/KeycodeInput.svelte";
-  import DiffPanel from "./components/DiffPanel.svelte";
+  import ChangesSheet from "./components/ChangesSheet.svelte";
   import Palette from "./components/Palette.svelte";
   import ComboEditor from "./components/ComboEditor.svelte";
   import MacroEditor from "./components/MacroEditor.svelte";
@@ -47,7 +49,7 @@
     boardZoom = z;
     writeZoom(z);
   }
-  const canvasPanelNames: Record<string, string> = { diff:'Review', combos:'Combos', macros:'Macros', tapDances:'Tap dances', keyOverrides:'Key overrides', altRepeat:'Alt repeat' };
+  const canvasPanelNames: Record<string, string> = { combos:'Combos', macros:'Macros', tapDances:'Tap dances', keyOverrides:'Key overrides', altRepeat:'Alt repeat' };
   const canvasLedes: Record<string, string> = { combos: 'Press several keys together to send a different key.', macros: 'Send a sequence of keys or text from one key.', tapDances: 'Give one key different actions for tap, hold and double tap.', keyOverrides: "Replace a key when it's pressed with certain modifiers.", altRepeat: 'Choose what the Alt Repeat key sends after each key.' };
   onMount(() => { const useBoard = () => { canvasPanel = false; ui.sideVisible = true; }; const renameMacro = (event: CustomEvent<number>) => { const index = event.detail; rename = { kind: 'macro', index, name: ui.view?.names.macros[index] ?? '' }; }; window.addEventListener('canvas-board-triggers', useBoard); window.addEventListener('canvas-rename-macro', renameMacro as EventListener); return () => { window.removeEventListener('canvas-board-triggers', useBoard); window.removeEventListener('canvas-rename-macro', renameMacro as EventListener); }; });
   let canvasBoardMenu = $state(false);
@@ -224,7 +226,7 @@
   }
   let menu: { kind: "keys" | "layer"; x: number; y: number } | null = $state(null);
   let layerAction: string | null = $state(null);
-  let review: { revision: number; saveAs: boolean; error: string } | null = $state(null);
+  let review: { revision: number; saveAs: boolean; error: string; focusSave: boolean } | null = $state(null);
   let unsaved: "open" | "close" | null = $state(null);
   let afterSave: "open" | "close" | null = $state(null);
   let rename: { kind: "layer" | "macro" | "combo"; index: number; name: string } | null =
@@ -261,6 +263,9 @@
   }
   const compact = $derived(viewportWidth < 900);
   const drafts = $derived(Object.values(ui.drafts).some(Boolean));
+  const fileName = $derived(ui.view?.path?.split(/[\\/]/).pop() || "this layout");
+  const groups = $derived(ui.view ? changeGroups(ui.view) : []);
+  const total = $derived(changeCount(groups));
   const cells = $derived(ui.view?.layers[ui.layer] ?? []);
   const encoderPaths = $derived.by(() =>
     Object.keys(ui.view?.keycodes ?? {}).filter((path) =>
@@ -540,7 +545,43 @@
       return;
     }
     if (!ui.view) return;
-    review = { revision: ui.view.revision, saveAs, error: "" };
+    review = { revision: ui.view.revision, saveAs, error: "", focusSave: true };
+  }
+  function openChanges(): void {
+    if (!ui.view) return;
+    review = { revision: ui.view.revision, saveAs: false, error: "", focusSave: false };
+  }
+  function jump(target: ChangeJump): void {
+    review = null;
+    afterSave = null;
+    if (target.kind === "slot") {
+      switchPanel(target.panel);
+      ui.sideVisible = true;
+      if (target.panel === "macros") ui.revealMacro = target.index;
+      else ui.revealSlot = { panel: target.panel, index: target.index };
+      return;
+    }
+    canvasPanel = false;
+    selectLayer(target.layer);
+    if (target.kind === "keys" && target.keyIds.length) {
+      ui.selection = [...target.keyIds];
+      ui.cursor = target.keyIds[0]!;
+      ui.anchor = ui.cursor;
+      ui.revealTick += 1;
+      // After the sheet's focus scope returns focus to the toolbar, move it to the key.
+      setTimeout(() => document.querySelector<SVGElement>(`.board [data-key-id="${ui.cursor}"]`)?.focus({ preventScroll: true }), 0);
+    }
+  }
+  async function compareWith(base: DiffBase): Promise<void> {
+    if (busy || !ui.view || ui.view.diffBase === base) return;
+    busy = true;
+    try {
+      setView(await api.setDiffBase(base));
+    } catch (e) {
+      notify(base === "git" ? compareErrorText(errorText(e), fileName) : errorText(e), true);
+    } finally {
+      busy = false;
+    }
   }
   async function confirmSave(): Promise<void> {
     if (busy || !review || !ui.view) return;
@@ -696,11 +737,14 @@
       return;
     }
     if (id === "diffDisk" || id === "diffGit") {
-      await change(() => api.setDiffBase(id === "diffGit" ? "git" : "disk"));
+      await compareWith(id === "diffGit" ? "git" : "disk");
+      return;
+    }
+    if (id === "panelDiff") {
+      openChanges();
       return;
     }
     const panels: Record<string, Panel> = {
-      panelDiff: "diff",
       panelCombos: "combos",
       panelMacros: "macros",
       panelTapDances: "tapDances",
@@ -809,7 +853,7 @@
       toggleCombos: "toggleComboOverlay",
     };
     if (action.kind === "nextPanel") {
-      switchPanel(PANELS[(PANELS.indexOf(ui.panel) + 1) % PANELS.length] ?? "diff");
+      switchPanel(PANELS[(PANELS.indexOf(ui.panel) + 1) % PANELS.length] ?? "combos");
       return;
     }
     if (action.kind === "toggleDiffBase") {
@@ -939,7 +983,7 @@
       <button class:active={boardView === "matrix"} aria-pressed={boardView === "matrix"} title="Electrical rows and columns, as stored in the .vil file" onclick={() => setBoardView("matrix")}>Matrix</button>
     </nav>
     <button class="icon-button theme-button" aria-label={themeLabel} title={themeLabel} onclick={cycleTheme}><Icon name={themeIcon}/></button>
-    <button class="pending-button" onclick={() => { switchPanel('diff'); ui.sideVisible = true; }}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
+    <button class="pending-button" onclick={openChanges}><span class:has-changes={ui.view?.dirty} class="status-dot"></span>{ui.view?.pendingDiff.length ? ui.view.pendingDiff.length + (ui.view.pendingDiff.length === 1 ? ' change' : ' changes') : 'No changes'}</button>
     <button class="save-button" title={reason('save') || 'Review staged changes before saving'} disabled={!!reason('save')} onclick={() => void command('save')}>Review &amp; save<kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button>
   </header>
   {#if ui.view && ui.view.board}
@@ -947,7 +991,7 @@
       <div class="context-actions">
         <nav class="workspace-switcher" aria-label="Workspace panels">
           <button class:active={!canvasPanel} aria-pressed={!canvasPanel} onclick={() => { canvasPanel = false; ui.inspectorPaths = []; ui.baseTarget = false; ui.comboEditing = null; }}>Keymap</button>
-          {#each PANELS.filter(p => p !== 'diff') as panel}<button class:active={canvasPanel && ui.panel === panel} aria-pressed={canvasPanel && ui.panel === panel} onclick={() => { switchPanel(panel as Panel); ui.sideVisible = true; }}>{canvasPanelNames[panel]}</button>{/each}
+          {#each PANELS as panel}<button class:active={canvasPanel && ui.panel === panel} aria-pressed={canvasPanel && ui.panel === panel} onclick={() => { switchPanel(panel as Panel); ui.sideVisible = true; }}>{canvasPanelNames[panel]}</button>{/each}
         </nav>
       </div>
     </div>
@@ -1074,36 +1118,7 @@
             Select a key on the board to edit its tap action, modifiers and hold behavior.
           </p>{/if}
         </div>
-        <div class="canvas-feature-editor" class:hidden={!canvasPanel}><nav class="panels canvas-panel-tabs" aria-label="Editor panels">
-          {#each PANELS as panel}<button
-              class:active={ui.panel === panel}
-              aria-current={ui.panel === panel ? "true" : undefined}
-              onclick={() => switchPanel(panel)}
-              >{{
-                diff: "Diff",
-                combos: "Combos",
-                macros: "Macros",
-                tapDances: "Tap dances",
-                keyOverrides: "Overrides",
-                altRepeat: "Alt repeat",
-              }[panel]}</button
-            >{/each}
-        </nav>
-        <div class:hidden={ui.panel !== "diff"}>
-          <div class="row">
-            <button onclick={() => void command("diffDisk")}>Since save</button><button
-              onclick={() => void command("diffGit")}>Git HEAD</button
-            >
-          </div>
-          <DiffPanel
-            diff={ui.view.diff}
-            base={ui.view.diffBase}
-            onjump={(layer, key) => {
-              selectLayer(layer);
-              onkeyclick(key, false);
-            }}
-          />
-        </div>
+        <div class="canvas-feature-editor" class:hidden={!canvasPanel}>
         <div class:hidden={ui.panel !== "combos"}>
           <ComboEditor
             combos={ui.view.combos}
@@ -1200,43 +1215,10 @@
       <button onclick={() => (layerAction = null)}>Cancel</button>
     </div>
   </div>{/if}
-{#if review && ui.view}<div class="overlay">
-    <div
-      class="dialog review"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Review changes before save"
-      tabindex="-1"
-      use:focusScope={() => {
-        review = null;
-        afterSave = null;
-      }}
-    >
-      <h2>Review changes before saving</h2>
-      {#if review.error}<p role="alert">{review.error}</p>{/if}
-      <DiffPanel diff={ui.view.pendingDiff} base="disk" onjump={() => {}} />
-      <div class="row">
-        <button disabled={busy} onclick={() => void confirmSave()}
-          >{review.revision < 0
-            ? "Refresh review"
-            : review.revision !== ui.view.revision
-              ? "Review current changes"
-              : review.saveAs
-                ? "Save reviewed changes as…"
-                : "Save reviewed changes"} <kbd>{primaryModifierLabel(navigator.platform)}S</kbd></button
-        >{#if review.error && !review.saveAs}<button
-            onclick={() => {
-              if (review) review = { ...review, saveAs: true };
-            }}>Save to another file…</button
-          >{/if}<button
-          onclick={() => {
-            review = null;
-            afterSave = null;
-          }}>Cancel</button
-        >
-      </div>
-    </div>
-  </div>{/if}
+{#if review && ui.view}<ChangesSheet view={ui.view} {groups} {total} {review} {busy} {drafts}
+    oncompare={(base) => void compareWith(base)} onjump={jump} onsave={() => void confirmSave()}
+    onsaveas={() => { if (review) review = { ...review, saveAs: true }; }}
+    oncancel={() => { review = null; afterSave = null; }} />{/if}
 {#if unsaved}<div class="overlay">
     <div
       class="dialog"
@@ -1420,16 +1402,11 @@
     padding: 16px;
     overflow: auto;
   }
-  .panels,
   .row {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
     margin-bottom: 8px;
-  }
-  .panels {
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--key-border);
   }
   .active {
     background: var(--selected);
@@ -1480,9 +1457,6 @@
   .dialog h2 {
     font-size: 18px;
     margin: 0;
-  }
-  .review {
-    width: min(750px, calc(100vw - 24px));
   }
   .menu {
     position: fixed;

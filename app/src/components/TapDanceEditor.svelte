@@ -15,6 +15,13 @@
     selected = index;
     ui.inspectorPaths = [];
   }
+  $effect(() => {
+    const reveal = ui.revealSlot;
+    if (reveal?.panel === "tapDances") {
+      pickSlot(reveal.index);
+      ui.revealSlot = null;
+    }
+  });
 
   function slotKeys(e: KeyboardEvent, perColumn: number, pick: (index: number) => void): void {
     const row = selected % perColumn, column = Math.floor(selected / perColumn);

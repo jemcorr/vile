@@ -132,6 +132,7 @@ function view(): ViewModel {
     geometrySource: "matrix",
   };
 }
+const primary = () => document.querySelector<HTMLButtonElement>(".changes-sheet .sheet-primary")!;
 function button(text: string): HTMLButtonElement {
   const found = [...document.querySelectorAll("button")].find((b) =>
     b.textContent?.trim().startsWith(text),
@@ -172,7 +173,8 @@ beforeEach(() => {
   ui.inspectorPaths = [];
   ui.mode = "normal";
   ui.drafts = {};
-  ui.panel = "diff";
+  ui.panel = "combos";
+  ui.revealSlot = null;
   ui.comboEditing = null;
   ui.baseTarget = false;
   ui.sideVisible = true;
@@ -628,7 +630,7 @@ describe("desktop editing workflow", () => {
     await settle();
     expect(fake.save).not.toHaveBeenCalled();
     expect(document.querySelector('[aria-label="Review changes before save"]')).not.toBeNull();
-    button("Save reviewed changes").click();
+    primary().click();
     await settle();
     expect(fake.save).toHaveBeenCalledOnce();
   });
@@ -832,7 +834,7 @@ describe("desktop editing workflow", () => {
     fake.getView.mockResolvedValue({ ...view(), revision: 3 });
     button("Review & save").click();
     await settle();
-    button("Save reviewed changes").click();
+    primary().click();
     await settle();
     expect(document.querySelector('[aria-label="Review changes before save"]')).not.toBeNull();
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("File changed on disk");
@@ -842,7 +844,7 @@ describe("desktop editing workflow", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
       "Review the current diff",
     );
-    button("Save reviewed changes").click();
+    primary().click();
     await settle();
     expect(fake.save).toHaveBeenCalledTimes(2);
   });
@@ -887,12 +889,83 @@ describe("desktop editing workflow", () => {
     save.focus();
     save.click();
     await settle();
-    expect(document.activeElement?.textContent).toContain("Save reviewed changes");
+    expect(document.activeElement).toBe(primary());
     document.activeElement!.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     await settle();
     expect(document.querySelector('[aria-label="Review changes before save"]')).toBeNull();
     expect(document.activeElement).toBe(save);
+  });
+  it("opens the changes sheet from the count without focusing save", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    document.querySelector<HTMLButtonElement>(".pending-button")!.click();
+    await settle();
+    expect(document.querySelector('[aria-label="Review changes before save"]')).not.toBeNull();
+    expect(document.activeElement?.classList.contains("changes-sheet")).toBe(true);
+  });
+  it("lists a changed key and jumps to it", async () => {
+    const changed = view();
+    changed.diff = [
+      {
+        section: "layout",
+        line: "L0 r0c1: KC_A -> KC_B",
+        layer: 0,
+        keyId: "r0c1",
+        index: null,
+        field: null,
+        old: "KC_A",
+        new: "KC_B",
+        oldDescription: "A",
+        newDescription: "B",
+      },
+    ];
+    const cell = changed.layers[0]![1]!;
+    Object.assign(cell, { changed: true, code: 5, label: "B", wire: "KC_B", description: "B" });
+    changed.keycodes["layout[0][0][1]"] = { ...key, code: 5, wire: "KC_B", label: "B", description: "B" };
+    changed.baseline.keycodes["layout[0][0][1]"] = key;
+    changed.names.layers = { 0: "Base" };
+    fake.getView.mockResolvedValue(changed);
+    app = mount(App, { target: document.body });
+    await settle();
+    document.querySelector<HTMLButtonElement>(".pending-button")!.click();
+    await settle();
+    const heading = document.querySelector(".change-group h3")!;
+    expect(heading.textContent).toContain("Layer 0 · Base");
+    expect(heading.textContent).toContain("1 key");
+    const chip = document.querySelector<HTMLButtonElement>(".change-chip")!;
+    expect(chip.textContent).toBe("A → B");
+    chip.click();
+    await settle();
+    expect(document.querySelector(".changes-sheet")).toBeNull();
+    expect(ui.layer).toBe(0);
+    expect(ui.selection).toEqual(["r0c1"]);
+  });
+  it("switches the comparison from the sheet", async () => {
+    fake.setDiffBase.mockRejectedValueOnce(
+      "cannot read the git HEAD version: git failed: fatal: not a git repository",
+    );
+    app = mount(App, { target: document.body });
+    await settle();
+    document.querySelector<HTMLButtonElement>(".pending-button")!.click();
+    await settle();
+    button("Last commit").click();
+    await settle();
+    expect(fake.setDiffBase).toHaveBeenCalledWith("git");
+    expect(ui.message).toContain("layout.vil is not in a Git repository");
+    expect(button("Last save").getAttribute("aria-pressed")).toBe("true");
+  });
+  it("explains an empty sheet and an up-to-date file", async () => {
+    const clean = { ...view(), dirty: false };
+    fake.getView.mockResolvedValue(clean);
+    app = mount(App, { target: document.body });
+    await settle();
+    document.querySelector<HTMLButtonElement>(".pending-button")!.click();
+    await settle();
+    expect(document.querySelector(".sheet-empty")?.textContent).toBe("Everything matches the last save.");
+    expect(primary().disabled).toBe(true);
+    expect(primary().title).toBe("No unsaved changes");
+    expect(document.querySelector(".consequence")?.textContent).toBe("layout.vil is up to date.");
   });
 });
