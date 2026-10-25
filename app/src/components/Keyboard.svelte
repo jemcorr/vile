@@ -17,6 +17,7 @@
   } from "../lib/zoom";
   import { untrack } from "svelte";
   import { nearestKey } from "../lib/range";
+  import { revealShift, type Rect as ScreenRect } from "../lib/reveal";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
@@ -42,6 +43,10 @@
     onzoom?: (z: ZoomSetting) => void;
     /** Effective scale in CSS px per 1u key (60 SVG units), for the zoom controls. */
     scale?: number;
+    /** Client rectangles that cover the board (card, pill, picker bar, zoom controls). Read when revealing. */
+    occluders?: () => ScreenRect[];
+    /** Bumped by the parent when arrows move the cursor, so the cursor key is revealed when zoomed. */
+    revealTick?: number;
   }
   let {
     keys,
@@ -63,6 +68,8 @@
     zoom = "fit",
     onzoom,
     scale: shownScale = $bindable(1),
+    occluders = () => [],
+    revealTick = 0,
   }: Props = $props();
   const U = 60,
     GAP = 4;
@@ -104,9 +111,19 @@
     observer.observe(svg);
     return () => observer.disconnect();
   });
+  // Arrow moves reveal the cursor key while zoomed. Pointer selection never pans the view.
+  let shownTick = 0;
+  $effect(() => {
+    const tick = revealTick;
+    untrack(() => {
+      if (tick !== shownTick) {
+        shownTick = tick;
+        revealCursor(cursor);
+      }
+    });
+  });
   $effect(() => {
     const current = cursor;
-    untrack(() => revealCursor(current));
     if (!svg || !(document.activeElement instanceof SVGElement) || !svg.contains(document.activeElement)) return;
     if (!current) { document.activeElement.blur(); return; }
     const next = svg.querySelector<SVGElement>('[data-key-id="' + current + '"]');
@@ -180,19 +197,53 @@
       pointerZoomTo = null;
     });
   });
-  /** Brings the cursor key into view when zoomed past fit. Keys stay inside the view, not necessarily centred. */
+  /** The key's painted outline (rotated, with its secondary part) as a box in SVG units. */
+  function keyBox(key: BoardKeyDto): { l: number; t: number; r: number; b: number } {
+    const parts = [
+      { x: key.x, y: key.y, w: key.w, h: key.h },
+      ...(key.secondary
+        ? [{ x: key.x + key.secondary.x, y: key.y + key.secondary.y, w: key.secondary.w, h: key.secondary.h }]
+        : []),
+    ];
+    const pts = parts.flatMap((r) =>
+      [
+        [r.x, r.y],
+        [r.x + r.w, r.y],
+        [r.x, r.y + r.h],
+        [r.x + r.w, r.y + r.h],
+      ].map(([x, y]) => rotate(key, { x: x!, y: y! })),
+    );
+    return {
+      l: Math.min(...pts.map((p) => p.x)) * U,
+      t: Math.min(...pts.map((p) => p.y)) * U,
+      r: Math.max(...pts.map((p) => p.x)) * U,
+      b: Math.max(...pts.map((p) => p.y)) * U,
+    };
+  }
+  /**
+   * Brings the cursor key fully into view, 16px clear of the board's edges and of every occluder, when
+   * zoomed past fit. A key that cannot fit is centred. Keys are never moved under an occluder.
+   */
   function revealCursor(id: string): void {
-    if (!fit || zoom === "fit" || !live || !id) return;
+    if (!fit || zoom === "fit" || !live || !id || !svg) return;
     const key = keys.find((k) => k.id === id);
     if (!key) return;
-    const p = rotate(key, { x: key.x + key.w / 2, y: key.y + key.h / 2 });
-    const target = { x: p.x * U, y: p.y * U };
-    const inside =
-      target.x >= vb.x + U / 2 &&
-      target.x <= vb.x + vb.w - U / 2 &&
-      target.y >= vb.y + U / 2 &&
-      target.y <= vb.y + vb.h - U / 2;
-    if (!inside) center = clampCenter(target, content, size, s);
+    const area = svg.getBoundingClientRect();
+    // An SVG unit p sits at area.centre + (p - c) * s in client pixels, because the view is centred on c.
+    const toClient = (x: number, y: number) => ({
+      x: area.left + area.width / 2 + (x - c.x) * s,
+      y: area.top + area.height / 2 + (y - c.y) * s,
+    });
+    const box = keyBox(key);
+    const a = toClient(box.l, box.t);
+    const b = toClient(box.r, box.b);
+    const { dx, dy } = revealShift(
+      { l: a.x, t: a.y, r: b.x, b: b.y },
+      { l: area.left, t: area.top, r: area.right, b: area.bottom },
+      occluders(),
+    );
+    if (dx === 0 && dy === 0) return;
+    center = clampCenter({ x: c.x - dx / s, y: c.y - dy / s }, content, size, s);
   }
   $effect(() => {
     const el = svg;

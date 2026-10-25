@@ -8,6 +8,8 @@ export const ui = $state({
   generation: 0,
   layer: 0,
   cursor: "",
+  /** Counts arrow moves, so a zoomed board reveals the cursor key. */
+  revealTick: 0,
   /** The key a Shift+arrow range grows from. null means the cursor. */
   anchor: null as string | null,
   selection: [] as string[],

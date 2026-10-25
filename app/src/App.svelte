@@ -102,6 +102,20 @@
   let asideEl: HTMLElement | undefined = $state();
   let viewportEl: HTMLElement | undefined = $state();
   let pillPlacement: { top: number; reserve: number } | null = $state(null);
+  // Client rectangles of the things drawn over the board, for revealing the cursor key.
+  function boardOccluders(): { l: number; t: number; r: number; b: number }[] {
+    const out: { l: number; t: number; r: number; b: number }[] = [];
+    const add = (el: Element | null | undefined) => {
+      if (!el) return;
+      const q = el.getBoundingClientRect();
+      if (q.width > 0 && q.height > 0) out.push({ l: q.left, t: q.top, r: q.right, b: q.bottom });
+    };
+    if (!canvasPanel) add(asideEl);
+    add(workspaceEl?.querySelector(".floating-category-bar"));
+    add(workspaceEl?.querySelector(".floating-popup"));
+    add(workspaceEl?.querySelector(".zoom-controls"));
+    return out;
+  }
   function collapsedPlacement(): { top: number; reserve: number } | null {
     if (!workspaceEl || !asideEl || !viewportEl || canvasPanel || !inspectorCollapsed) return null;
     const ribbonEl = workspaceEl.querySelector<HTMLElement>(".canvas-layer-switcher .layers");
@@ -722,9 +736,11 @@
     if (target instanceof Element) {
       if (target.closest("[role=dialog],input,textarea,select,[contenteditable]")) return;
       const control = target.closest("button,summary,a[href],[role=button],[role=menuitem]");
+      // Arrows always reach the board: a focused toolbar button (a zoom button, say) must not swallow them.
       if (
         control &&
         !target.closest("[data-key-id]") &&
+        !e.key.startsWith("Arrow") &&
         (!primaryModifierDown(e, navigator.platform) || !["s", "o", "k", "z", "=", "+", "-", "_", "0"].includes(e.key.toLowerCase()))
       )
         return;
@@ -741,6 +757,7 @@
       const previous = ui.cursor;
       const keys = boardView === "matrix" ? matrixKeys : ui.view?.board?.keys ?? [];
       ui.cursor = previous ? neighbor(keys, previous, action.dir) : keys[0]?.id ?? "";
+      ui.revealTick += 1;
       if (action.extend && ui.cursor) {
         // Shift+arrow keeps the anchor and selects the range it spans with the cursor.
         const anchor = ui.anchor ?? (previous || ui.cursor);
@@ -964,6 +981,8 @@
             zoom={boardZoom}
             onzoom={setZoom}
             bind:scale={boardScale}
+            occluders={boardOccluders}
+            revealTick={ui.revealTick}
             {cells}
             cursor={ui.cursor}
             selection={comboSelection}
