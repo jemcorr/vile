@@ -23,7 +23,7 @@ jobs:
             bundle: nsis
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -46,13 +46,15 @@ jobs:
         with:
           components: clippy
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
-          node-version: 24.15.0
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: app/package-lock.json
 
-      - uses: swatinem/rust-cache@v2
+      - run: npm install --global npm@12.2.1
+
+      - uses: swatinem/rust-cache@v2.9.3
 
       - run: cargo test --workspace
       - run: cargo clippy --workspace --all-targets -- -D warnings

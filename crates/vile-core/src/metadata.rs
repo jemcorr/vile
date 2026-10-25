@@ -22,8 +22,16 @@ pub struct Sidecar {
     pub names: Names,
 }
 pub fn fingerprint(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digest = Sha256::digest(bytes);
+    let mut fingerprint = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        fingerprint.push(char::from(HEX[(byte >> 4) as usize]));
+        fingerprint.push(char::from(HEX[(byte & 0x0f) as usize]));
+    }
+    fingerprint
 }
+
 pub fn sidecar_path(path: &Path) -> PathBuf {
     let mut name = path.as_os_str().to_os_string();
     name.push(".vile.json");
@@ -51,5 +59,16 @@ impl Names {
             .iter()
             .map(|(&old, name)| (permutation.get(old).copied().unwrap_or(old), name.clone()))
             .collect();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn fingerprint_keeps_lowercase_sha256_hex_format() {
+        assert_eq!(
+            super::fingerprint(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 }

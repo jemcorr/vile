@@ -7,10 +7,10 @@ rust-version.workspace = true
 publish.workspace = true
 
 [build-dependencies]
-tauri-build = { version = "=2.7.3", features = [] }
+tauri-build = { version = "=2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "=2.12.4", features = [] }
+tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-dialog = "=2.8.3"
 vile-session = { path = "../../crates/vile-session" }
 
