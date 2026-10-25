@@ -5,6 +5,7 @@
   import { bounds, hitKey, marqueeKeys, unrotate, type Point } from "../lib/interactions";
   import { matrixLabel, type GridPosition } from "../lib/matrix";
   import { isMacPlatform } from "../lib/keymap";
+  import { fitScale, viewBoxFor, type FitCap, type Size } from "../lib/zoom";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
@@ -22,6 +23,8 @@
     /** Matrix view: keys are unit cells, labelled row,col, and unoccupied cells are drawn as outlines. */
     matrix?: boolean;
     empties?: GridPosition[];
+    /** Fill the viewport and scale the board to fit, within these CSS caps. `null` keeps the static viewBox. */
+    fit?: FitCap | null;
   }
   let {
     keys,
@@ -39,11 +42,29 @@
     locked = false,
     matrix = false,
     empties = [],
+    fit = null,
   }: Props = $props();
   const U = 60,
     GAP = 4;
   const box = $derived(bounds(keys));
+  const content = $derived({ x: box.x * U, y: box.y * U, w: box.w * U + GAP, h: box.h * U + GAP });
+  let size: Size = $state({ w: 0, h: 0 });
+  const scale = $derived(fit ? fitScale(content, size, fit) : 0);
+  const vb = $derived(
+    scale > 0
+      ? viewBoxFor({ x: content.x + content.w / 2, y: content.y + content.h / 2 }, size, scale)
+      : content,
+  );
+  const zoomable = $derived(fit !== null);
   let svg: SVGSVGElement;
+  $effect(() => {
+    if (!zoomable || !svg || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) size = { w: entry.contentRect.width, h: entry.contentRect.height };
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  });
   $effect(() => {
     const current = cursor;
     if (!svg || !(document.activeElement instanceof SVGElement) || !svg.contains(document.activeElement)) return;
@@ -162,7 +183,8 @@
 <svg
   bind:this={svg}
   class="keyboard"
-  viewBox={`${box.x * U} ${box.y * U} ${box.w * U + GAP} ${box.h * U + GAP}`}
+  class:zoomable
+  viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
   preserveAspectRatio="xMidYMid meet"
   role="group"
   aria-label={matrix ? "Matrix layer" : "Keyboard layer"}

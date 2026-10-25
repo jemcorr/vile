@@ -164,7 +164,7 @@
       ui.mode === "palette" ||
       !(e.target instanceof Element) ||
       !e.target.matches(
-        ".app,.toolbar,.spacer,.layers,.workspace,.board,.board-heading,aside,.panels,.picker-dock,.picker,.picker-head,.tiles",
+        ".app,.toolbar,.spacer,.layers,.workspace,.board,.board-heading,.keyboard-viewport,aside,.panels,.picker-dock,.picker,.picker-head,.tiles",
       )
     )
       return false;
@@ -888,6 +888,7 @@
             keys={boardView === "matrix" ? matrixKeys : ui.view.board.keys}
             matrix={boardView === "matrix"}
             empties={boardView === "matrix" ? matrixEmpties : []}
+            fit={{ maxWidth: 1040, maxHeight: compact ? 360 : 455 }}
             {cells}
             cursor={ui.cursor}
             selection={comboSelection}
