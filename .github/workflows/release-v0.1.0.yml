@@ -74,14 +74,14 @@ jobs:
         run: |
           mkdir -p release-assets
           ditto -c -k --sequesterRsrc --keepParent \
-            app/src-tauri/target/release/bundle/macos/vile.app \
+            target/release/bundle/macos/vile.app \
             "release-assets/vile_0.1.0_macos_$(uname -m).app.zip"
 
       - name: Package Linux installer
         if: runner.os == 'Linux'
         run: |
           mkdir -p release-assets
-          mapfile -t packages < <(find app/src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb')
+          mapfile -t packages < <(find target/release/bundle/deb -maxdepth 1 -type f -name '*.deb')
           test "${#packages[@]}" -eq 1
           cp "${packages[0]}" release-assets/vile_0.1.0_linux_amd64.deb
 
@@ -90,7 +90,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release-assets | Out-Null
-          $installers = @(Get-ChildItem app/src-tauri/target/release/bundle/nsis -Filter '*-setup.exe')
+          $installers = @(Get-ChildItem target/release/bundle/nsis -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw "Expected one NSIS installer; found $($installers.Count)." }
           Copy-Item $installers[0].FullName release-assets/vile_0.1.0_windows_x64_setup.exe
 
