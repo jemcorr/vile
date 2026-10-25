@@ -566,6 +566,21 @@ describe("desktop editing workflow", () => {
     expect(ui.selection).toEqual(["r0c0"]);
     expect(ui.cursor).toBe("r0c0");
   });
+  it("zooms the keymap board from the caption controls and remembers the level", async () => {
+    localStorage.removeItem("vile.boardZoom");
+    app = mount(App, { target: document.body });
+    await settle();
+    const level = () => document.querySelector<HTMLButtonElement>(".zoom-level")!;
+    expect(level().textContent).toBe("Fit");
+    document.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')!.click();
+    await settle();
+    expect(level().textContent).toBe("110%");
+    expect(Number(localStorage.getItem("vile.boardZoom"))).toBeCloseTo(1.1);
+    level().click();
+    await settle();
+    expect(level().textContent).toBe("Fit");
+    expect(localStorage.getItem("vile.boardZoom")).toBe("fit");
+  });
   it("requires diff review before saving", async () => {
     app = mount(App, { target: document.body });
     await settle();

@@ -404,6 +404,44 @@ kbd {
   gap: var(--space-2);
   white-space: nowrap;
 }
+.board-caption .board-hints {
+  margin-left: auto;
+}
+/* 24px tall, the caption line height: the group must not rise into the floating bar above it. */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-3);
+  padding: 1px;
+  background: var(--well);
+  border: 1px solid var(--subtle-edge);
+  border-radius: 8px;
+}
+.canvas-app .zoom-controls button {
+  height: 20px;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.canvas-app .zoom-controls .icon-button {
+  width: 20px;
+  padding: 0;
+}
+.canvas-app .zoom-controls button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+}
+.canvas-app .zoom-controls .zoom-level {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+.canvas-app .keyboard.zoomable {
+  cursor: default;
+}
 .legend-dot {
   width: 4px;
   height: 4px;

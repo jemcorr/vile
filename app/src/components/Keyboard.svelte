@@ -2,10 +2,20 @@
   import { pointerDrag, pointerDrop } from "../lib/pointer-drag.svelte";
   import type { BoardKeyDto, KeyCellDto } from "../lib/types";
   import type { ComboOverlay } from "../lib/combos";
-  import { bounds, hitKey, marqueeKeys, unrotate, type Point } from "../lib/interactions";
+  import { bounds, hitKey, marqueeKeys, rotate, unrotate, type Point } from "../lib/interactions";
   import { matrixLabel, type GridPosition } from "../lib/matrix";
   import { isMacPlatform } from "../lib/keymap";
-  import { fitScale, viewBoxFor, type FitCap, type Size } from "../lib/zoom";
+  import {
+    clampCenter,
+    clampScale,
+    fitScale,
+    viewBoxFor,
+    zoomAt,
+    type FitCap,
+    type Size,
+    type ZoomSetting,
+  } from "../lib/zoom";
+  import { untrack } from "svelte";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
@@ -25,6 +35,11 @@
     empties?: GridPosition[];
     /** Fill the viewport and scale the board to fit, within these CSS caps. `null` keeps the static viewBox. */
     fit?: FitCap | null;
+    /** Zoom with `fit`: "fit", or an absolute scale (1 = 100%). */
+    zoom?: ZoomSetting;
+    onzoom?: (z: ZoomSetting) => void;
+    /** Effective scale in CSS px per 1u key (60 SVG units), for the zoom controls. */
+    scale?: number;
   }
   let {
     keys,
@@ -43,19 +58,41 @@
     matrix = false,
     empties = [],
     fit = null,
+    zoom = "fit",
+    onzoom,
+    scale: shownScale = $bindable(1),
   }: Props = $props();
   const U = 60,
     GAP = 4;
   const box = $derived(bounds(keys));
   const content = $derived({ x: box.x * U, y: box.y * U, w: box.w * U + GAP, h: box.h * U + GAP });
   let size: Size = $state({ w: 0, h: 0 });
-  const scale = $derived(fit ? fitScale(content, size, fit) : 0);
-  const vb = $derived(
-    scale > 0
-      ? viewBoxFor({ x: content.x + content.w / 2, y: content.y + content.h / 2 }, size, scale)
-      : content,
-  );
+  const fitS = $derived(fit ? fitScale(content, size, fit) : 0);
+  // Scale in CSS px per SVG unit: the fit scale, or the chosen zoom clamped to the range.
+  const s = $derived(!fit || zoom === "fit" ? fitS : clampScale(zoom));
+  const live = $derived(s > 0 && size.w > 0 && size.h > 0);
+  const contentCentre = $derived({ x: content.x + content.w / 2, y: content.y + content.h / 2 });
+  // Pan centre in SVG units. null means the content centre; reset whenever the content or the zoom mode changes.
+  let center: { x: number; y: number } | null = $state(null);
+  const c = $derived(clampCenter(center ?? contentCentre, content, size, s));
+  const vb = $derived(live ? viewBoxFor(c, size, s) : content);
   const zoomable = $derived(fit !== null);
+  let pan: { pointer: number; x: number; y: number; from: { x: number; y: number }; s: number } | null =
+    null;
+  let gestureFrom = 1;
+  $effect(() => {
+    shownScale = s || 1;
+  });
+  $effect(() => {
+    void content.x;
+    void content.y;
+    void content.w;
+    void content.h;
+    center = null;
+  });
+  $effect(() => {
+    if (zoom === "fit") center = null;
+  });
   let svg: SVGSVGElement;
   $effect(() => {
     if (!zoomable || !svg || typeof ResizeObserver === "undefined") return;
@@ -67,6 +104,7 @@
   });
   $effect(() => {
     const current = cursor;
+    untrack(() => revealCursor(current));
     if (!svg || !(document.activeElement instanceof SVGElement) || !svg.contains(document.activeElement)) return;
     if (!current) { document.activeElement.blur(); return; }
     const next = svg.querySelector<SVGElement>('[data-key-id="' + current + '"]');
@@ -116,7 +154,75 @@
     if (current?.payload.kind === "keycode" && svg && !locked) drop = hitKey(keys, point(current));
     else if (!gesture) drop = null;
   });
+  /** SVG units (the space of `content` and `center`), not key units. */
+  function svgPoint(e: Pick<MouseEvent, "clientX" | "clientY">): Point {
+    const p = point(e);
+    return { x: p.x * U, y: p.y * U };
+  }
+  /** Brings the cursor key into view when zoomed past fit. Keys stay inside the view, not necessarily centred. */
+  function revealCursor(id: string): void {
+    if (!fit || zoom === "fit" || !live || !id) return;
+    const key = keys.find((k) => k.id === id);
+    if (!key) return;
+    const p = rotate(key, { x: key.x + key.w / 2, y: key.y + key.h / 2 });
+    const target = { x: p.x * U, y: p.y * U };
+    const inside =
+      target.x >= vb.x + U / 2 &&
+      target.x <= vb.x + vb.w - U / 2 &&
+      target.y >= vb.y + U / 2 &&
+      target.y <= vb.y + vb.h - U / 2;
+    if (!inside) center = clampCenter(target, content, size, s);
+  }
+  $effect(() => {
+    const el = svg;
+    if (!fit || !el) return;
+    const onWheel = (e: WheelEvent): void => {
+      if (e.ctrlKey || e.metaKey) {
+        // Cmd/Ctrl + wheel and trackpad pinch (Chromium) zoom around the pointer.
+        e.preventDefault();
+        const d = Math.max(-50, Math.min(50, e.deltaY));
+        const s1 = clampScale(s * Math.exp(-d * 0.01));
+        center = zoomAt(c, svgPoint(e), s, s1);
+        onzoom?.(s1);
+      } else if (s > fitS + 1e-6) {
+        // Plain wheel and two-finger scroll pan only when the board is larger than the viewport.
+        e.preventDefault();
+        center = clampCenter({ x: c.x + e.deltaX / s, y: c.y + e.deltaY / s }, content, size, s);
+      }
+    };
+    // WebKit reports trackpad pinch as gesture events; Chromium does not fire them.
+    type GestureLike = Event & { scale: number; clientX: number; clientY: number };
+    const onGestureStart = (e: Event): void => {
+      e.preventDefault();
+      gestureFrom = s;
+    };
+    const onGestureChange = (e: Event): void => {
+      const g = e as GestureLike;
+      g.preventDefault();
+      const s1 = clampScale(gestureFrom * g.scale);
+      center = zoomAt(c, svgPoint(g), s, s1);
+      onzoom?.(s1);
+    };
+    const onGestureEnd = (e: Event): void => e.preventDefault();
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("gesturestart", onGestureStart);
+    el.addEventListener("gesturechange", onGestureChange);
+    el.addEventListener("gestureend", onGestureEnd);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
+      el.removeEventListener("gestureend", onGestureEnd);
+    };
+  });
   function down(e: PointerEvent): void {
+    if (e.button === 1 && fit) {
+      // Middle-button drag pans.
+      e.preventDefault();
+      pan = { pointer: e.pointerId, x: e.clientX, y: e.clientY, from: c, s };
+      svg.setPointerCapture(e.pointerId);
+      return;
+    }
     if (e.button !== 0) return;
     const p = point(e);
     const key = paintedKey(p);
@@ -134,6 +240,18 @@
     svg.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent): void {
+    if (pan && pan.pointer === e.pointerId) {
+      center = clampCenter(
+        {
+          x: pan.from.x - (e.clientX - pan.x) / pan.s,
+          y: pan.from.y - (e.clientY - pan.y) / pan.s,
+        },
+        content,
+        size,
+        pan.s,
+      );
+      return;
+    }
     if (!gesture || gesture.pointer !== e.pointerId) return;
     const p = point(e);
     gesture.now = p;
@@ -141,6 +259,11 @@
     drop = gesture.moved && gesture.key ? hitKey(keys, p) : null;
   }
   function up(e: PointerEvent): void {
+    if (pan && pan.pointer === e.pointerId) {
+      if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+      pan = null;
+      return;
+    }
     if (!gesture || gesture.pointer !== e.pointerId) return;
     const g = gesture;
     const end = point(e);
@@ -164,6 +287,11 @@
     }, 0);
   }
   function cancel(e?: PointerEvent): void {
+    if (pan && (!e || pan.pointer === e.pointerId)) {
+      if (svg.hasPointerCapture(pan.pointer)) svg.releasePointerCapture(pan.pointer);
+      pan = null;
+      return;
+    }
     if (e && gesture?.pointer !== e.pointerId) return;
     if (gesture && svg.hasPointerCapture(gesture.pointer))
       svg.releasePointerCapture(gesture.pointer);
@@ -192,6 +320,9 @@
   onpointermove={move}
   onpointerup={up}
   onpointercancel={cancel}
+  onauxclick={(e) => {
+    if (e.button === 1) e.preventDefault();
+  }}
   ondblclick={(e) => {
     const target = paintedKey(point(e));
     if (target && !locked) onedit(target);

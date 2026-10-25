@@ -130,3 +130,23 @@ describe("default layout-independent bindings", () => {
     ).toBeNull();
   });
 });
+
+describe("zoom shortcuts", () => {
+  it("maps Cmd (macOS) with =, -, 0 to zoom actions, and Shift+= to zoom in", () => {
+    expect(actionFor("normal", key("=", { metaKey: true }))).toEqual({ kind: "zoomIn" });
+    expect(actionFor("normal", key("+", { metaKey: true, shiftKey: true }))).toEqual({ kind: "zoomIn" });
+    expect(actionFor("normal", key("-", { metaKey: true }))).toEqual({ kind: "zoomOut" });
+    expect(actionFor("normal", key("0", { metaKey: true }))).toEqual({ kind: "zoomFit" });
+  });
+  it("uses Ctrl on Windows and Linux", () => {
+    expect(resolveAction("normal", key("=", { ctrlKey: true }), false, {}, "Win32")).toEqual({
+      kind: "zoomIn",
+    });
+    expect(resolveAction("normal", key("0", { ctrlKey: true }), false, {}, "Linux x86_64")).toEqual({
+      kind: "zoomFit",
+    });
+  });
+  it("keeps plain digits as layer switches", () => {
+    expect(actionFor("normal", key("0"))).toEqual({ kind: "layer", layer: 0 });
+  });
+});

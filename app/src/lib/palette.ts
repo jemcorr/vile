@@ -32,6 +32,9 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "panelKeyOverrides", title: "Panel: key overrides", arg: "none" },
   { id: "panelAltRepeat", title: "Panel: alt repeat keys", arg: "none" },
   { id: "toggleComboOverlay", title: "View: toggle combo overlay", arg: "none" },
+  { id: "zoomIn", title: "View: zoom in", arg: "none" },
+  { id: "zoomOut", title: "View: zoom out", arg: "none" },
+  { id: "zoomFit", title: "View: fit keyboard", arg: "none" },
 ];
 
 const SHORTCUTS: Record<string, string | ((modifier: string) => string)> = {
@@ -45,6 +48,9 @@ const SHORTCUTS: Record<string, string | ((modifier: string) => string)> = {
   clearKeys: "Delete",
   editKey: "Enter",
   palette: (modifier) => `${modifier}K`,
+  zoomIn: (modifier) => `${modifier}=`,
+  zoomOut: (modifier) => `${modifier}−`,
+  zoomFit: (modifier) => `${modifier}0`,
 };
 COMMANDS.push(
   { id: "clearKeys", title: "Clear selected keys", arg: "none" },

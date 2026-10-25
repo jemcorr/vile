@@ -49,3 +49,16 @@ describe("parseLayerArg", () => {
     expect(parseLayerArg("two", 10)).toBeNull();
   });
 });
+
+describe("zoom commands", () => {
+  it("lists the three view commands with their shortcuts", () => {
+    updateShortcutLabels("MacIntel");
+    const byId = (id: string) => COMMANDS.find((command) => command.id === id);
+    expect(byId("zoomIn")).toMatchObject({ title: "View: zoom in", shortcut: "⌘=" });
+    expect(byId("zoomOut")).toMatchObject({ title: "View: zoom out", shortcut: "⌘−" });
+    expect(byId("zoomFit")).toMatchObject({ title: "View: fit keyboard", shortcut: "⌘0" });
+    expect(filterCommands("zoom").map((command) => command.id)).toEqual(
+      expect.arrayContaining(["zoomIn", "zoomOut"]),
+    );
+  });
+});

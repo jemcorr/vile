@@ -8,6 +8,7 @@
   import { neighbor } from "./lib/grid";
   import { emptyMatrixCells, matrixGeometry, readBoardView, writeBoardView, type BoardView } from "./lib/matrix";
   import { actionFor, isMacPlatform, primaryModifierDown, primaryModifierLabel, type Action } from "./lib/keymap";
+  import { nextStep, readZoom, writeZoom, type ZoomSetting } from "./lib/zoom";
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
@@ -39,6 +40,12 @@
   import { focusScope } from "./lib/focus";
   import Icon from "./components/Icon.svelte";
   let canvasPanel = $state(false);
+  let boardZoom: ZoomSetting = $state(readZoom());
+  let boardScale = $state(1);
+  function setZoom(z: ZoomSetting): void {
+    boardZoom = z;
+    writeZoom(z);
+  }
   const canvasPanelNames: Record<string, string> = { diff:'Review', combos:'Combos', macros:'Macros', tapDances:'Tap dances', keyOverrides:'Key overrides', altRepeat:'Alt repeat' };
   const canvasLedes: Record<string, string> = { combos: 'Press several keys together to send a different key.', macros: 'Send a sequence of keys or text from one key.', tapDances: 'Give one key different actions for tap, hold and double tap.', keyOverrides: "Replace a key when it's pressed with certain modifiers.", altRepeat: 'Choose what the Alt Repeat key sends after each key.' };
   onMount(() => { const useBoard = () => { canvasPanel = false; ui.sideVisible = true; }; const renameMacro = (event: CustomEvent<number>) => { const index = event.detail; rename = { kind: 'macro', index, name: ui.view?.names.macros[index] ?? '' }; }; window.addEventListener('canvas-board-triggers', useBoard); window.addEventListener('canvas-rename-macro', renameMacro as EventListener); return () => { window.removeEventListener('canvas-board-triggers', useBoard); window.removeEventListener('canvas-rename-macro', renameMacro as EventListener); }; });
@@ -638,6 +645,10 @@
       return;
     }
     if (id === "toggleComboOverlay") ui.showCombos = !ui.showCombos;
+    if (id === "zoomIn" || id === "zoomOut" || id === "zoomFit") {
+      if (!canvasPanel) setZoom(id === "zoomFit" ? "fit" : nextStep(boardScale, id === "zoomIn" ? 1 : -1));
+      return;
+    }
   }
   function onkeydown(e: KeyboardEvent): void {
     if (canvasPanel && e.key.startsWith("Arrow")) return;
@@ -660,7 +671,7 @@
       if (
         control &&
         !target.closest("[data-key-id]") &&
-        (!primaryModifierDown(e, navigator.platform) || !["s", "o", "k", "z"].includes(e.key.toLowerCase()))
+        (!primaryModifierDown(e, navigator.platform) || !["s", "o", "k", "z", "=", "+", "-", "_", "0"].includes(e.key.toLowerCase()))
       )
         return;
     }
@@ -668,6 +679,10 @@
     const action = actionFor(ui.mode, e, ui.vimKeys, ui.vimRemaps, navigator.platform);
     if (!action) return;
     e.preventDefault();
+    if (action.kind === "zoomIn" || action.kind === "zoomOut" || action.kind === "zoomFit") {
+      if (!canvasPanel) setZoom(action.kind === "zoomFit" ? "fit" : nextStep(boardScale, action.kind === "zoomIn" ? 1 : -1));
+      return;
+    }
     if (action.kind === "move") {
       const previous = ui.cursor;
       const keys = boardView === "matrix" ? matrixKeys : ui.view?.board?.keys ?? [];
@@ -889,6 +904,9 @@
             matrix={boardView === "matrix"}
             empties={boardView === "matrix" ? matrixEmpties : []}
             fit={{ maxWidth: 1040, maxHeight: compact ? 360 : 455 }}
+            zoom={boardZoom}
+            onzoom={setZoom}
+            bind:scale={boardScale}
             {cells}
             cursor={ui.cursor}
             selection={comboSelection}
@@ -919,7 +937,15 @@
             overlays={ui.showCombos && boardView === "keyboard" ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
           />
         </div>
-        <div class="board-caption"><span><i class="legend-dot"></i>Changed since save</span><span class="board-hints">{`Shift- or ${isMacPlatform(navigator.platform) ? "⌘" : "Ctrl"}-click to add or remove`} <span class="hint-separator">·</span> Double-click to type a keycode</span></div>
+        <div class="board-caption">
+          <span><i class="legend-dot"></i>Changed since save</span>
+          <span class="board-hints">{`Shift- or ${isMacPlatform(navigator.platform) ? "⌘" : "Ctrl"}-click to add or remove`} <span class="hint-separator">·</span> Double-click to type a keycode</span>
+          <div class="zoom-controls" role="group" aria-label="Zoom">
+            <button class="icon-button" aria-label="Zoom out" title={`Zoom out · ${primaryModifierLabel(navigator.platform)}−`} disabled={boardScale <= 0.25 + 0.001} onclick={() => setZoom(nextStep(boardScale, -1))}><Icon name="minus" size={14} /></button>
+            <button class="zoom-level" aria-pressed={boardZoom === "fit"} aria-label={`Zoom ${Math.round(boardScale * 100)}%. Fit to window`} title={`Fit to window · ${primaryModifierLabel(navigator.platform)}0`} onclick={() => setZoom("fit")}>{boardZoom === "fit" ? "Fit" : `${Math.round(boardScale * 100)}%`}</button>
+            <button class="icon-button" aria-label="Zoom in" title={`Zoom in · ${primaryModifierLabel(navigator.platform)}=`} disabled={boardScale >= 4 - 0.001} onclick={() => setZoom(nextStep(boardScale, 1))}><Icon name="plus" size={14} /></button>
+          </div>
+        </div>
         {#if visibleEncoderPaths.length}<details
             ontoggle={(e) => {
               if (

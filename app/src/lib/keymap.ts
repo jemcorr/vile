@@ -47,7 +47,10 @@ export type Action =
   | { kind: "open" }
   | { kind: "toggleDiffBase" }
   | { kind: "nextPanel" }
-  | { kind: "toggleCombos" };
+  | { kind: "toggleCombos" }
+  | { kind: "zoomIn" }
+  | { kind: "zoomOut" }
+  | { kind: "zoomFit" };
 
 const PLAIN: Record<string, Action> = {
   h: { kind: "move", dir: "left" },
@@ -106,6 +109,14 @@ export function actionFor(
         return e.shiftKey ? { kind: "redo" } : { kind: "undo" };
       case "r":
         return vim ? { kind: "redo" } : null;
+      case "=":
+      case "+":
+        return { kind: "zoomIn" };
+      case "-":
+      case "_":
+        return { kind: "zoomOut" };
+      case "0":
+        return { kind: "zoomFit" };
       default:
         return null;
     }
