@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasBit, modNames, MOD_BITS, toggleBit } from "./bits";
+import { hasBit, modNames, MOD_BITS, MOD_LABELS, toggleBit } from "./bits";
 
 describe("bits", () => {
   it("tests and toggles bits", () => {
@@ -15,5 +15,10 @@ describe("bits", () => {
     expect(modNames(0)).toBe("none");
     expect(modNames(0x02)).toBe("LSFT");
     expect(modNames(0x22)).toBe("LSFT+RSFT");
+  });
+
+  it("labels every modifier with a short name", () => {
+    expect(MOD_LABELS.LCTL).toBe("L Ctrl");
+    expect(MOD_BITS.every((m) => MOD_LABELS[m.name] !== undefined)).toBe(true);
   });
 });

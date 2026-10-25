@@ -32,6 +32,52 @@ export const ALT_REPEAT_OPTION_BITS: BitName[] = [
   { bit: 3, name: "enabled" },
 ];
 
+/** Short names for modifier masks, shown next to the wire names. */
+export const MOD_LABELS: Record<string, string> = {
+  LCTL: "L Ctrl",
+  LSFT: "L Shift",
+  LALT: "L Alt",
+  LGUI: "L Gui",
+  RCTL: "R Ctrl",
+  RSFT: "R Shift",
+  RALT: "R Alt",
+  RGUI: "R Gui",
+};
+
+export const KEY_OVERRIDE_OPTION_LABELS: Record<string, string> = {
+  "activation: trigger down": "Activate on key press",
+  "activation: required mod down": "Activate on modifier press",
+  "activation: negative mod up": "Activate on excluded release",
+  "one mod": "Any one modifier",
+  "no reregister trigger": "Don't resend the key",
+  "no unregister on other key down": "Stay on for other keys",
+  enabled: "Enabled",
+};
+
+export const KEY_OVERRIDE_OPTION_TITLES: Record<string, string> = {
+  "activation: trigger down": "Turns on when the trigger key is pressed while the modifiers are held",
+  "activation: required mod down": "Turns on when a required modifier is pressed while the trigger is held",
+  "activation: negative mod up": "Turns on when an excluded modifier is released",
+  "one mod": "One of the trigger modifiers is enough, instead of all of them",
+  "no reregister trigger": "When the override ends, don't press the trigger key again",
+  "no unregister on other key down": "Pressing another key doesn't end the override",
+  enabled: "Turn this override on or off",
+};
+
+export const ALT_REPEAT_OPTION_LABELS: Record<string, string> = {
+  "default to this alt key": "Use as default alternate",
+  bidirectional: "Works both ways",
+  "ignore mod handedness": "Ignore left/right",
+  enabled: "Enabled",
+};
+
+export const ALT_REPEAT_OPTION_TITLES: Record<string, string> = {
+  "default to this alt key": "Used when no other alt repeat entry matches the last key",
+  bidirectional: "Alt Repeat after the alternate key sends the original key",
+  "ignore mod handedness": "Treat left and right modifiers as the same",
+  enabled: "Turn this entry on or off",
+};
+
 export function hasBit(value: number, bit: number): boolean {
   return (value & (1 << bit)) !== 0;
 }
