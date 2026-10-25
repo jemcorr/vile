@@ -703,7 +703,7 @@ kbd {
   .canvas-board-hint {
     display: none;
   }
-  .board-caption > span:last-child {
+  .board-caption > .board-hints {
     font-size: 9px;
   }
   .canvas-app aside {
@@ -753,7 +753,7 @@ kbd {
   .canvas-app .picker-head > span {
     max-width: 280px;
   }
-  .canvas-app .board-caption > span:last-child {
+  .canvas-app .board-caption > .board-hints {
     display: none;
   }
 }

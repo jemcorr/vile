@@ -96,13 +96,23 @@ const cells: KeyCellDto[] = keys.map((key) => ({
   tooltip: "Detailed behavior while this key is held.",
   previous: "KC_A",
 }));
-function pointer(svg: EventTarget, type: string, x: number, y: number, alt = false, id = 1) {
+function pointer(
+  svg: EventTarget,
+  type: string,
+  x: number,
+  y: number,
+  alt = false,
+  id = 1,
+  modifiers: { shiftKey?: boolean; ctrlKey?: boolean } = {},
+) {
   const event = new MouseEvent(type, {
     bubbles: true,
     clientX: x,
     clientY: y,
     button: 0,
     altKey: alt,
+    shiftKey: modifiers.shiftKey ?? false,
+    ctrlKey: modifiers.ctrlKey ?? false,
   });
   Object.defineProperty(event, "pointerId", { value: id });
   svg.dispatchEvent(event);
@@ -166,6 +176,15 @@ describe("board pointer controller", () => {
     pointer(svg, "pointerup", 30, 30);
     svg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(click).toHaveBeenCalledExactlyOnceWith("a", false);
+  });
+  it("passes Shift as the toggle modifier on key clicks", async () => {
+    const { svg, click } = await board();
+    pointer(svg, "pointerdown", 30, 30);
+    pointer(svg, "pointerup", 30, 30);
+    expect(click).toHaveBeenLastCalledWith("a", false);
+    pointer(svg, "pointerdown", 30, 30, false, 1, { shiftKey: true });
+    pointer(svg, "pointerup", 30, 30, false, 1, { shiftKey: true });
+    expect(click).toHaveBeenLastCalledWith("a", true);
   });
   it("reports a completed empty click once but ignores marquee and canceled gestures", async () => {
     const { svg, blank, marquee } = await board();

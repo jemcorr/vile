@@ -4,12 +4,13 @@
   import type { ComboOverlay } from "../lib/combos";
   import { bounds, hitKey, marqueeKeys, unrotate, type Point } from "../lib/interactions";
   import { matrixLabel, type GridPosition } from "../lib/matrix";
+  import { isMacPlatform } from "../lib/keymap";
   interface Props {
     keys: BoardKeyDto[];
     cells: KeyCellDto[];
     cursor: string;
     selection: string[];
-    onkeyclick: (id: string, shift: boolean) => void;
+    onkeyclick: (id: string, toggle: boolean) => void;
     onmarquee: (ids: string[], additive: boolean) => void;
     onblankclick: () => void;
     ondragkey: (from: string, to: string, copy: boolean) => void;
@@ -60,6 +61,10 @@
   } | null = $state(null);
   let drop: string | null = $state(null);
   let suppress = false;
+  /** Shift, or Cmd on macOS and Ctrl elsewhere, adds or removes one key from the selection. */
+  function toggles(e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }): boolean {
+    return e.shiftKey || (isMacPlatform(navigator.platform) ? e.metaKey : e.ctrlKey);
+  }
   function point(e: Pick<MouseEvent, "clientX" | "clientY">): Point {
     const matrix = svg.getScreenCTM();
     if (!matrix) return { x: 0, y: 0 };
@@ -101,7 +106,7 @@
       start: p,
       now: p,
       key,
-      additive: e.shiftKey,
+      additive: toggles(e),
       moved: false,
       pointer: e.pointerId,
     };
@@ -204,7 +209,7 @@
       aria-pressed={selection.includes(k.id)}
       aria-label={`${k.name ?? k.id}: ${cell?.description ?? cell?.wire ?? ""}`}
       onclick={(e) => {
-        if (!suppress) onkeyclick(k.id, e.shiftKey);
+        if (!suppress) onkeyclick(k.id, toggles(e));
       }}
       onkeydown={(e) => {
         if (e.key === " ") {

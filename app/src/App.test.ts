@@ -501,6 +501,37 @@ describe("desktop editing workflow", () => {
     expect(ui.selection).toEqual(["r0c0", "r0c1"]);
     expect(document.querySelector(".inspector")?.textContent).toContain("2 keys selected");
   });
+  it("Shift-click on a selected key removes it", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    const key = (id: string, shiftKey = false) =>
+      document
+        .querySelector(`[data-key-id="${id}"]`)!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey }));
+    key("r0c0");
+    key("r0c1", true);
+    key("r0c1", true);
+    await settle();
+    expect(ui.selection).toEqual(["r0c0"]);
+    key("r0c0", true);
+    await settle();
+    expect(ui.selection).toEqual([]);
+  });
+  it("Ctrl-click toggles a key off macOS", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    const key = (id: string, ctrlKey = false) =>
+      document
+        .querySelector(`[data-key-id="${id}"]`)!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey }));
+    key("r0c0");
+    key("r0c1", true);
+    await settle();
+    expect(ui.selection).toEqual(["r0c0", "r0c1"]);
+    key("r0c1", true);
+    await settle();
+    expect(ui.selection).toEqual(["r0c0"]);
+  });
   it("requires diff review before saving", async () => {
     app = mount(App, { target: document.body });
     await settle();

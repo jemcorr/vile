@@ -7,7 +7,7 @@
   import { effectiveTheme, nextThemeMode, readThemeMode, writeThemeMode, type ThemeMode } from "./lib/theme";
   import { neighbor } from "./lib/grid";
   import { emptyMatrixCells, matrixGeometry, readBoardView, writeBoardView, type BoardView } from "./lib/matrix";
-  import { actionFor, primaryModifierDown, primaryModifierLabel, type Action } from "./lib/keymap";
+  import { actionFor, isMacPlatform, primaryModifierDown, primaryModifierLabel, type Action } from "./lib/keymap";
   import { COMMANDS, commandReason } from "./lib/palette";
   import { PANELS, type Panel } from "./lib/modes";
   import { comboOverlays } from "./lib/combos";
@@ -362,7 +362,7 @@
     ui.baseTarget = false;
     ui.comboEditing = null;
   }
-  function onkeyclick(id: string, shift: boolean): void {
+  function onkeyclick(id: string, toggle: boolean): void {
     if (ui.comboEditing === null) canvasPanel = false;
     const cell = cells.find((cell) => cell.id === id);
     if (!cell) return;
@@ -399,7 +399,13 @@
       ui.selection = [id];
       return;
     }
-    ui.selection = shift ? Array.from(new Set([...ui.selection, id])) : [id];
+    if (!toggle) {
+      ui.selection = [id];
+      return;
+    }
+    ui.selection = ui.selection.includes(id)
+      ? ui.selection.filter((key) => key !== id)
+      : [...ui.selection, id];
   }
   function editKey(id: string): void {
     onkeyclick(id, false);
@@ -911,7 +917,7 @@
             overlays={ui.showCombos && boardView === "keyboard" ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
           />
         </div>
-        <div class="board-caption"><span><i class="legend-dot"></i>Changed since save</span><span>Shift-click to select more <span class="hint-separator">·</span> Double-click to type a keycode</span></div>
+        <div class="board-caption"><span><i class="legend-dot"></i>Changed since save</span><span class="board-hints">{`Shift- or ${isMacPlatform(navigator.platform) ? "⌘" : "Ctrl"}-click to add or remove`} <span class="hint-separator">·</span> Double-click to type a keycode</span></div>
         {#if visibleEncoderPaths.length}<details
             ontoggle={(e) => {
               if (
