@@ -895,6 +895,7 @@
             locked={ui.comboEditing !== null || busy}
             onmarquee={(ids, additive) => {
               ui.selection = additive ? Array.from(new Set([...ui.selection, ...ids])) : ids;
+              if (ids.length) ui.cursor = ids[0]!;
               ui.inspectorPaths = [];
             }}
             onblankclick={() => dismissInteraction(true)}

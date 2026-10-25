@@ -532,6 +532,40 @@ describe("desktop editing workflow", () => {
     await settle();
     expect(ui.selection).toEqual(["r0c0"]);
   });
+  it("a marquee moves the cursor to the first selected key", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    const svg = document.querySelector("svg.keyboard")!;
+    Object.assign(svg, {
+      getScreenCTM: () => ({ inverse: () => ({}) }),
+      setPointerCapture: vi.fn(),
+      releasePointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+    });
+    Object.defineProperty(globalThis, "DOMPoint", {
+      configurable: true,
+      value: class {
+        constructor(
+          public x: number,
+          public y: number,
+        ) {}
+        matrixTransform() {
+          return this;
+        }
+      },
+    });
+    document
+      .querySelector('[data-key-id="r0c1"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(ui.selection).toEqual(["r0c1"]);
+    // Client pixels map 1:1 to SVG units times 60: this rectangle covers only the centre of r0c0.
+    pointer(svg, "pointerdown", -30, -30);
+    pointer(svg, "pointerup", 60, 30);
+    await settle();
+    expect(ui.selection).toEqual(["r0c0"]);
+    expect(ui.cursor).toBe("r0c0");
+  });
   it("requires diff review before saving", async () => {
     app = mount(App, { target: document.body });
     await settle();

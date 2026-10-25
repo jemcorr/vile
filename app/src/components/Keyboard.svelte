@@ -296,10 +296,11 @@
     -webkit-user-select: none;
   }
   .key {
+    --kfill: var(--key-bg);
     cursor: pointer;
   }
   .key rect {
-    fill: var(--key-bg);
+    fill: var(--kfill);
     stroke: var(--key-border);
     stroke-width: 1.5;
   }
@@ -313,11 +314,11 @@
     font-size: 10px;
     fill: var(--muted);
   }
-  .kind-trns rect {
-    fill: var(--key-trns-bg);
+  .kind-trns {
+    --kfill: var(--key-trns-bg);
   }
-  .kind-no rect {
-    fill: var(--key-no-bg);
+  .kind-no {
+    --kfill: var(--key-no-bg);
   }
   .key .matrix-label,
   .empty-cell text {
@@ -336,36 +337,33 @@
   .empty-cell {
     pointer-events: none;
   }
-  .kind-layer rect,
-  .kind-layerTap rect,
-  .kind-layerMod rect {
-    fill: var(--key-layer);
+  .kind-layer,
+  .kind-layerTap,
+  .kind-layerMod {
+    --kfill: var(--key-layer);
   }
-  .kind-modifier rect,
-  .kind-modTap rect,
-  .kind-mods rect,
-  .kind-oneShotMod rect {
-    fill: var(--key-mod);
+  .kind-modifier,
+  .kind-modTap,
+  .kind-mods,
+  .kind-oneShotMod {
+    --kfill: var(--key-mod);
   }
-  .kind-macro rect,
-  .kind-tapDance rect {
-    fill: var(--key-macro);
+  .kind-macro,
+  .kind-tapDance {
+    --kfill: var(--key-macro);
   }
-  .kind-media rect,
-  .kind-mouse rect {
-    fill: var(--key-media);
+  .kind-media,
+  .kind-mouse {
+    --kfill: var(--key-media);
   }
+  /* A selected key keeps its kind colour, tinted toward the accent, so no kind matches the selection. */
   .key.selected rect {
-    fill: var(--selected);
-  }
-  .key.cursor rect {
-    stroke: var(--cursor);
-    stroke-width: 2;
+    fill: color-mix(in srgb, var(--kfill), var(--cursor) 30%);
   }
   .key.drop rect {
     stroke: var(--cursor);
     stroke-width: 4;
-    fill: var(--selected);
+    fill: color-mix(in srgb, var(--kfill), var(--cursor) 30%);
   }
   .key circle {
     fill: var(--changed);

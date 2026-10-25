@@ -186,6 +186,30 @@ describe("board pointer controller", () => {
     pointer(svg, "pointerup", 30, 30, false, 1, { shiftKey: true });
     expect(click).toHaveBeenLastCalledWith("a", true);
   });
+  it("marks only selected keys, and keeps the cursor class without a selection", async () => {
+    const props = (selection: string[]) => ({
+      keys,
+      cells,
+      cursor: "a",
+      selection,
+      onkeyclick: vi.fn(),
+      onmarquee: vi.fn(),
+      onblankclick: vi.fn(),
+      ondragkey: vi.fn(),
+      onassign: vi.fn(),
+      onedit: vi.fn(),
+      onmenu: vi.fn(),
+    });
+    mounted = mount(Keyboard, { target: document.body, props: props(["a"]) });
+    await settle();
+    expect(document.querySelector('[data-key-id="a"]')!.classList).toContain("selected");
+    await unmount(mounted);
+    mounted = mount(Keyboard, { target: document.body, props: props([]) });
+    await settle();
+    const key = document.querySelector('[data-key-id="a"]')!;
+    expect(key.classList).not.toContain("selected");
+    expect(key.classList).toContain("cursor");
+  });
   it("reports a completed empty click once but ignores marquee and canceled gestures", async () => {
     const { svg, blank, marquee } = await board();
     pointer(svg, "pointerdown", 70, -10);

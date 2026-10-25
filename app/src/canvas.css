@@ -379,7 +379,7 @@ kbd {
 }
 .canvas-app .key.selected rect {
   stroke: var(--cursor);
-  stroke-width: 2px;
+  stroke-width: 2.5px;
 }
 .canvas-app .key.selected text {
   fill: var(--fg);
@@ -387,9 +387,6 @@ kbd {
 .canvas-app .key.selected .hold-line {
   fill: var(--fg);
   opacity: 0.8;
-}
-.canvas-app .key.cursor:not(.selected) rect {
-  stroke-width: 1.3px;
 }
 .board-caption {
   display: flex;
