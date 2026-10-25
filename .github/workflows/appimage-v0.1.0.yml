@@ -2,12 +2,22 @@ name: AppImage v0.1.0
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Build a fresh AppImage or verify the existing build artifact
+        required: true
+        type: choice
+        options:
+          - build
+          - verify
+        default: build
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: ${{ inputs.operation == 'build' }}
     name: Build (ubuntu-22.04)
     runs-on: ubuntu-22.04
 
@@ -103,3 +113,76 @@ jobs:
           path: release-assets/vile_0.1.0_linux_amd64.AppImage
           if-no-files-found: error
           retention-days: 1
+
+  verify:
+    if: ${{ inputs.operation == 'verify' }}
+    name: Verify existing AppImage (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: vile-appimage
+          path: release-assets
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 40163173882
+
+      - name: Install runtime and inspection dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-0 \
+            libgtk-3-0 \
+            libfuse2 \
+            binutils \
+            file \
+            xvfb
+
+      - name: Inspect ABI and smoke launch
+        run: |
+          appimage="$GITHUB_WORKSPACE/release-assets/vile_0.1.0_linux_amd64.AppImage"
+          test -f "$appimage"
+          chmod +x "$appimage"
+          file "$appimage" | grep -E 'ELF 64-bit.*x86-64'
+
+          inspection_dir=$(mktemp -d)
+          cd "$inspection_dir"
+          "$appimage" --appimage-extract
+          test -x squashfs-root/AppRun
+          test -n "$(find squashfs-root -type f -name 'vile.desktop' -print -quit)"
+          app_binary=$(find squashfs-root -type f -path '*/usr/bin/vile-app' -print -quit)
+          test -n "$app_binary"
+          file "$app_binary" | grep -E 'ELF 64-bit.*x86-64'
+
+          max_glibc=0
+          for elf in "$app_binary" $(find squashfs-root -type f \( -name '*.so' -o -name '*.so.*' \)); do
+            required=$(readelf --version-info "$elf" 2>/dev/null | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)*' | sed 's/^GLIBC_//' | sort -V | tail -n 1 || true)
+            if [ -n "$required" ] && [ "$(printf '%s\n' "$max_glibc" "$required" | sort -V | tail -n 1)" = "$required" ]; then
+              max_glibc="$required"
+            fi
+          done
+          host_glibc=$(getconf GNU_LIBC_VERSION | awk '{print $2}')
+          printf 'Highest GLIBC symbol version in app and bundled libraries: %s\n' "$max_glibc"
+          printf 'Ubuntu 22.04 verifier GLIBC version: %s\n' "$host_glibc"
+          if [ "$(printf '%s\n' "$host_glibc" "$max_glibc" | sort -V | tail -n 1)" != "$host_glibc" ]; then
+            echo "AppImage requires GLIBC $max_glibc, newer than the verifier's GLIBC $host_glibc."
+            exit 1
+          fi
+
+          mkdir -p "$inspection_dir/home" "$inspection_dir/config" "$inspection_dir/data"
+          run_status=0
+          timeout --signal=TERM --kill-after=5s 20s xvfb-run -a env \
+            HOME="$inspection_dir/home" \
+            XDG_CONFIG_HOME="$inspection_dir/config" \
+            XDG_DATA_HOME="$inspection_dir/data" \
+            APPIMAGE_EXTRACT_AND_RUN=1 \
+            "$appimage" \
+            > "$inspection_dir/app-run.log" 2>&1 || run_status=$?
+          if [ "$run_status" -ne 0 ] && [ "$run_status" -ne 124 ]; then
+            cat "$inspection_dir/app-run.log"
+            exit "$run_status"
+          fi
