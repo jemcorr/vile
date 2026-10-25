@@ -31,7 +31,9 @@ jobs:
             librsvg2-dev \
             libudev-dev \
             patchelf \
-            libfuse2
+            libfuse2 \
+            binutils \
+            xvfb
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -65,6 +67,35 @@ jobs:
           app_binary=$(find squashfs-root -type f -path '*/usr/bin/vile-app' -print -quit)
           test -n "$app_binary"
           file "$app_binary" | grep -E 'ELF 64-bit.*x86-64'
+
+          max_glibc=0
+          for elf in "$app_binary" $(find squashfs-root -type f \( -name '*.so' -o -name '*.so.*' \)); do
+            required=$(readelf --version-info "$elf" 2>/dev/null | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)*' | sed 's/^GLIBC_//' | sort -V | tail -n 1 || true)
+            if [ -n "$required" ] && [ "$(printf '%s\n' "$max_glibc" "$required" | sort -V | tail -n 1)" = "$required" ]; then
+              max_glibc="$required"
+            fi
+          done
+          host_glibc=$(getconf GNU_LIBC_VERSION | awk '{print $2}')
+          printf 'Highest GLIBC symbol version in app and bundled libraries: %s\n' "$max_glibc"
+          printf 'Ubuntu 22.04 build host GLIBC version: %s\n' "$host_glibc"
+          if [ "$(printf '%s\n' "$host_glibc" "$max_glibc" | sort -V | tail -n 1)" != "$host_glibc" ]; then
+            echo "AppImage requires GLIBC $max_glibc, newer than the build host's GLIBC $host_glibc."
+            exit 1
+          fi
+
+          mkdir -p "$inspection_dir/home" "$inspection_dir/config" "$inspection_dir/data"
+          run_status=0
+          timeout --signal=TERM --kill-after=5s 20s xvfb-run -a env \
+            HOME="$inspection_dir/home" \
+            XDG_CONFIG_HOME="$inspection_dir/config" \
+            XDG_DATA_HOME="$inspection_dir/data" \
+            APPIMAGE_EXTRACT_AND_RUN=1 \
+            "$GITHUB_WORKSPACE/release-assets/vile_0.1.0_linux_amd64.AppImage" \
+            > "$inspection_dir/app-run.log" 2>&1 || run_status=$?
+          if [ "$run_status" -ne 0 ] && [ "$run_status" -ne 124 ]; then
+            cat "$inspection_dir/app-run.log"
+            exit "$run_status"
+          fi
 
       - uses: actions/upload-artifact@v7
         with:
