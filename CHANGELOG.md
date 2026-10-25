@@ -1,10 +1,11 @@
 # Changelog
 
-No releases have been tagged or published. The manifests currently declare
-`0.1.0` for the intended first release. This entry records the development
-history from the first commit through `6164ae4`.
-
 ## [Unreleased]
+
+## [0.1.0] - 2026-10-24
+
+This is the first tagged release. It includes the development history from the
+first commit through `b55f1b7`.
 
 ### 2026-10-23
 
