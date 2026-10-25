@@ -1,0 +1,291 @@
+import { describe, expect, it } from "vitest";
+import { changeCount, changeGroups, changedSlots, compareErrorText, shortLabel } from "./changes";
+import type { DiffLineDto, KeycodeView, ViewModel } from "./types";
+
+const parts = { kind: "tap", base: 4, wrapMods: 0, hold: { kind: "none" } } as const;
+const keycode = (code: number, label: string, description = label): KeycodeView => ({
+  code,
+  wire: label === "No key" ? "KC_NO" : `KC_${label}`,
+  label,
+  description,
+  tooltip: description,
+  category: "Basic",
+  parts,
+}) as KeycodeView;
+const NO_KEY = keycode(0, "", "No key");
+const B = keycode(5, "B");
+const A = keycode(4, "A");
+const W = keycode(24, "W");
+
+const cell = (id: string, path: string, value: KeycodeView) => ({
+  id,
+  wire: value.wire,
+  label: value.label,
+  kind: "basic",
+  changed: false,
+  path,
+  code: value.code,
+  description: value.description,
+  tooltip: value.tooltip,
+  previous: "KC_NO",
+});
+
+const line = (partial: Partial<DiffLineDto> & Pick<DiffLineDto, "section">): DiffLineDto => ({
+  line: "",
+  layer: null,
+  keyId: null,
+  index: null,
+  field: null,
+  old: "",
+  new: "",
+  oldDescription: "",
+  newDescription: "",
+  ...partial,
+});
+
+/** Two keys on layer 0 (r0c0, r0c1), one knob, one combo slot, names for layer 0. */
+function makeView(over: Partial<ViewModel> & { keycodes?: Record<string, KeycodeView>; baselineKeycodes?: Record<string, KeycodeView> } = {}): ViewModel {
+  const { keycodes = {}, baselineKeycodes = {}, ...rest } = over;
+  const current: Record<string, KeycodeView> = { "layout[0][0][0]": A, "layout[0][0][1]": NO_KEY, ...keycodes };
+  return {
+    names: { layers: { 0: "Base" }, macros: {}, combos: {} },
+    keycodes: current,
+    pendingDiff: [],
+    diff: [],
+    board: {
+      id: "test",
+      name: "test",
+      keys: [
+        { id: "r0c0", row: 0, col: 0, x: 0, y: 0, w: 1, h: 1, name: null },
+        { id: "r0c1", row: 0, col: 1, x: 1, y: 0, w: 1, h: 1, name: null },
+      ],
+    },
+    layers: [[cell("r0c0", "layout[0][0][0]", A), cell("r0c1", "layout[0][0][1]", NO_KEY)]],
+    combos: [],
+    macros: [],
+    tapDances: [],
+    keyOverrides: [],
+    altRepeatKeys: [],
+    baseline: {
+      keycodes: { "layout[0][0][0]": A, "layout[0][0][1]": B, ...baselineKeycodes },
+      combos: [],
+      macros: [],
+      tapDances: [],
+      keyOverrides: [],
+      altRepeatKeys: [],
+      names: { layers: {}, macros: {}, combos: {} },
+    },
+    ...rest,
+  } as unknown as ViewModel;
+}
+
+const layoutLine = (keyId: string, old: string, neu: string, oldDescription: string, newDescription: string) =>
+  line({ section: "layout", layer: 0, keyId, line: `L0 ${keyId}`, old, new: neu, oldDescription, newDescription });
+
+describe("layer changes", () => {
+  it("groups key changes under the layer name with a chip and a key jump", () => {
+    const view = makeView({ diff: [layoutLine("r0c1", "KC_B", "KC_NO", "B", "No key")] });
+    const [group] = changeGroups(view);
+    expect(group!.title).toBe("Layer 0 · Base");
+    expect(group!.count).toBe("1 key");
+    expect(group!.chips.map((chip) => chip.text)).toEqual(["B → No key"]);
+    expect(group!.chips[0]!.title.startsWith("r0c1:")).toBe(true);
+    expect(group!.chips[0]!.jump).toEqual({ kind: "keys", layer: 0, keyIds: ["r0c1"] });
+    expect(group!.jump).toEqual({ kind: "layer", layer: 0 });
+  });
+
+  it("counts two changed keys", () => {
+    const view = makeView({
+      keycodes: { "layout[0][0][0]": W },
+      diff: [layoutLine("r0c1", "KC_B", "KC_NO", "B", "No key"), layoutLine("r0c0", "KC_A", "KC_W", "A", "W")],
+    });
+    const [group] = changeGroups(view);
+    expect(group!.count).toBe("2 keys");
+    expect(changeCount(changeGroups(view))).toBe(2);
+  });
+
+  it("skips a key that is not on the board", () => {
+    const view = makeView({ diff: [layoutLine("r9c9", "KC_B", "KC_NO", "B", "No key")] });
+    expect(changeGroups(view)).toEqual([]);
+  });
+
+  it("words a knob change as a row", () => {
+    const view = makeView({
+      keycodes: { "encoder_layout[0][0][0]": keycode(0x81, "Vol−", "Vol−") },
+      baselineKeycodes: { "encoder_layout[0][0][0]": keycode(0x80, "Vol+", "Vol+") },
+      diff: [line({ section: "encoder", layer: 0, index: 0, field: "cw", old: "KC_VOLU", new: "KC_VOLD", oldDescription: "Vol+", newDescription: "Vol−" })],
+    });
+    const [group] = changeGroups(view);
+    expect(group!.count).toBe("1 knob");
+    expect(group!.rows[0]!.text).toBe("Knob 1 clockwise");
+    expect(group!.rows[0]!.detail).toBe("Vol+ → Vol−");
+  });
+});
+
+describe("feature slot changes", () => {
+  const combo = (keys: string[], output: string, outputLabel: string) => ({ index: 0, keys, output, outputLabel });
+  const triggers = ["KC_S", "KC_T", "KC_NO", "KC_NO"];
+
+  it("compares a changed combo with its baseline text", () => {
+    const view = makeView({
+      combos: [combo(triggers, "KC_ESCAPE", "Esc")] as never,
+      keycodes: { "combo[0][0]": keycode(0x10, "S"), "combo[0][1]": keycode(0x11, "T") },
+      baselineKeycodes: { "combo[0][0]": keycode(0x10, "S"), "combo[0][1]": keycode(0x12, "H") },
+      diff: [line({ section: "combo", index: 0, line: "combo 0" })],
+    });
+    view.baseline.combos = [combo(["KC_S", "KC_H", "KC_NO", "KC_NO"], "KC_ESCAPE", "Esc")] as never;
+    const [group] = changeGroups(view);
+    expect(group!.title).toBe("Combos");
+    expect(group!.rows[0]!.text).toBe("Combo 0");
+    expect(group!.rows[0]!.detail).toBe("S + T → Esc · was S + H → Esc");
+    expect(group!.rows[0]!.jump).toEqual({ kind: "slot", panel: "combos", index: 0 });
+  });
+
+  it("says New for a combo that was empty and Removed for one that is now empty", () => {
+    const empty = combo(["KC_NO", "KC_NO", "KC_NO", "KC_NO"], "KC_NO", "");
+    const added = makeView({
+      combos: [combo(triggers, "KC_ESCAPE", "Esc")] as never,
+      baselineKeycodes: {},
+      keycodes: { "combo[0][0]": keycode(0x10, "S"), "combo[0][1]": keycode(0x11, "T") },
+      diff: [line({ section: "combo", index: 0, line: "combo 0" })],
+    });
+    added.baseline.combos = [empty] as never;
+    expect(changeGroups(added)[0]!.rows[0]!.detail).toBe("New: S + T → Esc");
+
+    const removed = makeView({
+      baselineKeycodes: { "combo[0][0]": keycode(0x10, "S"), "combo[0][1]": keycode(0x11, "T") },
+      diff: [line({ section: "combo", index: 0, line: "combo 0" })],
+    });
+    removed.combos = [empty] as never;
+    removed.baseline.combos = [combo(triggers, "KC_ESCAPE", "Esc")] as never;
+    expect(changeGroups(removed)[0]!.rows[0]!.detail).toBe("Removed: S + T → Esc");
+  });
+
+  it("words override, tap dance and alt repeat fields and joins them", () => {
+    const view = makeView({
+      diff: [
+        line({ section: "tapDance", index: 2, field: "term", old: "200", new: "180" }),
+        line({ section: "keyOverride", index: 0, field: "layers", old: "65535", new: "65531" }),
+        line({ section: "keyOverride", index: 0, field: "trigger_mods", old: "0", new: "1" }),
+        line({ section: "keyOverride", index: 0, field: "options", old: "7", new: "135" }),
+        line({ section: "altRepeatKey", index: 3, field: "allowed_mods", old: "0", new: "4" }),
+      ],
+    });
+    const groups = changeGroups(view);
+    const byTitle = Object.fromEntries(groups.map((group) => [group.title, group]));
+    expect(byTitle["Tap dances"]!.rows[0]!.detail).toBe("Tapping term: 200 → 180 ms");
+    expect(byTitle["Key overrides"]!.rows[0]!.detail).toBe("Layers: −L2 · Trigger mods: +L Ctrl · Enabled on");
+    expect(byTitle["Alt repeat"]!.rows[0]!.detail).toBe("Allowed mods: +L Alt");
+    expect(byTitle["Alt repeat"]!.rows[0]!.jump).toEqual({ kind: "slot", panel: "altRepeat", index: 3 });
+  });
+
+  it("orders slot rows by index", () => {
+    const view = makeView({
+      diff: [line({ section: "tapDance", index: 4, field: "term", old: "1", new: "2" }), line({ section: "tapDance", index: 1, field: "term", old: "1", new: "3" })],
+    });
+    const [group] = changeGroups(view);
+    expect(group!.rows.map((row) => row.text)).toEqual(["Tap dance 1", "Tap dance 4"]);
+    expect(group!.jump).toEqual({ kind: "slot", panel: "tapDances", index: 1 });
+  });
+});
+
+describe("names, settings and file", () => {
+  it("words added, removed and renamed names and links layer and slot names", () => {
+    const view = makeView({
+      diff: [
+        line({ section: "names", index: 0, field: "layer", old: "", new: "Base" }),
+        line({ section: "names", index: 2, field: "layer", old: "Numbers", new: "" }),
+        line({ section: "names", index: 1, field: "combo", old: "A", new: "B" }),
+      ],
+    });
+    const groups = changeGroups(view);
+    const names = groups.find((group) => group.id === "names")!;
+    expect(names.rows.map((row) => row.detail)).toEqual([
+      "Named “Base”",
+      "Name removed (was “Numbers”)",
+      "“A” → “B”",
+    ]);
+    expect(names.rows[0]!.jump).toEqual({ kind: "layer", layer: 0 });
+    expect(names.rows[2]!.jump).toEqual({ kind: "slot", panel: "combos", index: 1 });
+    expect(names.count).toBe("3 names");
+  });
+
+  it("takes the names-file retry line from the pending diff once", () => {
+    const retry = line({ section: "names", index: null, old: "unsaved", new: "retry save" });
+    const view = makeView({ pendingDiff: [retry] });
+    const names = changeGroups(view).find((group) => group.id === "names")!;
+    expect(names.rows).toHaveLength(1);
+    expect(names.rows[0]).toMatchObject({ text: "Names file", detail: "Not saved yet. Saving retries it.", jump: null });
+    const withLine = makeView({ pendingDiff: [retry], diff: [retry] });
+    expect(changeGroups(withLine).find((group) => group.id === "names")!.rows).toHaveLength(1);
+  });
+
+  it("words settings, meta and presence lines", () => {
+    const view = makeView({
+      diff: [
+        line({ section: "settings", field: "debounce", old: "(none)", new: "5" }),
+        line({ section: "meta", field: "layout_options", old: "0", new: "3" }),
+        line({ section: "combo", old: "present", new: "(absent)" }),
+      ],
+    });
+    const file = changeGroups(view).find((group) => group.id === "file")!;
+    const settings = changeGroups(view).find((group) => group.id === "settings")!;
+    expect(settings.rows[0]).toMatchObject({ text: "QMK setting debounce", detail: "not set → 5", jump: null });
+    expect(file.title).toBe("File");
+    expect(file.rows.map((row) => [row.text, row.detail])).toEqual([
+      ["Layout options", "0 → 3"],
+      ["Combos section", "Removed"],
+    ]);
+  });
+
+  it("orders groups by rank with layers first, and counts every chip and row", () => {
+    const view = makeView({
+      diff: [
+        line({ section: "meta", field: "version", old: "1", new: "2" }),
+        line({ section: "names", index: 0, field: "layer", old: "", new: "Base" }),
+        line({ section: "tapDance", index: 0, field: "term", old: "1", new: "2" }),
+        line({ section: "encoder", layer: 0, index: 0, field: "cw", old: "KC_VOLU", new: "KC_VOLD", oldDescription: "Vol+", newDescription: "Vol−" }),
+        layoutLine("r0c1", "KC_B", "KC_NO", "B", "No key"),
+      ],
+    });
+    const groups = changeGroups(view);
+    expect(groups.map((group) => group.title)).toEqual(["Layer 0 · Base", "Tap dances", "Names", "File"]);
+    expect(changeCount(groups)).toBe(5);
+    expect(changeGroups(makeView({ diff: [] }))).toEqual([]);
+  });
+});
+
+describe("helpers", () => {
+  it("shortens labels to one line", () => {
+    expect(shortLabel(null)).toBe("");
+    expect(shortLabel({ code: 0, label: "" })).toBe("No key");
+    expect(shortLabel({ code: 1, label: "" })).toBe("Transparent");
+    expect(shortLabel({ code: 5, label: "Esc\nL8" })).toBe("Esc L8");
+    expect(shortLabel({ code: 5, label: "S\n⌘" })).toBe("S ⌘");
+  });
+
+  it("marks changed combo and macro slots, including their names", () => {
+    const view = makeView({
+      diff: [
+        line({ section: "combo", index: 0, line: "combo 0" }),
+        line({ section: "names", index: 3, field: "macro", old: "", new: "Wake" }),
+        line({ section: "layout", layer: 0, keyId: "r0c0", line: "" }),
+      ],
+    });
+    const sets = changedSlots(view);
+    expect([...sets.combo]).toEqual([0]);
+    expect([...sets.macro]).toEqual([3]);
+    expect([...sets.tapDance]).toEqual([]);
+  });
+
+  it("explains a failed comparison in plain words", () => {
+    const file = "corne.vil";
+    expect(compareErrorText("cannot read the git HEAD version: git failed: fatal: not a git repository", file)).toBe(
+      "Can't compare with the last commit: corne.vil is not in a Git repository.",
+    );
+    expect(compareErrorText("fatal: invalid object name 'HEAD'.", file)).toBe("Can't compare with the last commit: corne.vil has no commit yet.");
+    expect(compareErrorText("exists on disk, but not in 'HEAD'", file)).toBe("Can't compare with the last commit: corne.vil has no commit yet.");
+    expect(compareErrorText("git is not installed", file)).toBe("Can't compare with the last commit: Git is not installed.");
+    expect(compareErrorText("permission denied", file)).toBe("Can't compare with the last commit: permission denied");
+  });
+});
