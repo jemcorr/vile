@@ -134,7 +134,7 @@
   /* Two shared columns: every row's code starts at one x, and every label at another. */
   .hits {
     display: grid;
-    grid-template-columns: 16ch minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr);
     align-content: start;
     height: min(40vh, 264px);
     overflow-y: auto;
@@ -167,6 +167,8 @@
   }
   .name {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* Keep long identifiers whole at normal widths; ellipsize only when the viewport is too narrow. */
+    max-width: calc(100vw - 56px);
   }
   .label {
     color: var(--muted);
