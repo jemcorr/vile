@@ -4,3 +4,10 @@
 /app/src-tauri/gen
 .DS_Store
 *.extract.*
+
+# Internal project planning and design documents.
+/PLAN.md
+/docs/ux-spec.md
+/docs/vial-replacement-roadmap.md
+/CLAUDE.local.md
+/USER_GUIDE.local.md
