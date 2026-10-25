@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-25
+
+### Fixed
+
+- Key override and alternate repeat option rows show the same padded hover
+  whether their switch is on or off (`a8864ee`).
+- Shift-click and Cmd-click (Ctrl-click on Linux and Windows) add or remove a
+  key from the selection (`b9efd4e`).
+- Keys removed from the selection no longer look selected. Selected keys use an
+  accent ring over their own colour, and the cursor outline shows only during
+  keyboard navigation (`24db02c`).
+- Marquee selection starts anywhere in the keymap canvas, not only over the
+  keyboard (`b344d41`).
+
+### Changed
+
 - Updated direct npm, Rust, and GitHub Actions dependencies to their latest
   compatible stable releases. Enabled TypeScript 7.0.2 through `svelte-check`
   native mode while retaining TypeScript 6.0.3 for the checker API.
