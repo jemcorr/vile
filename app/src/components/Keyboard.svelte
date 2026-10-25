@@ -1,6 +1,7 @@
 <script lang="ts">
   import { pointerDrag, pointerDrop } from "../lib/pointer-drag.svelte";
-  import type { BoardKeyDto, KeyCellDto } from "../lib/types";
+  import type { BoardKeyDto, KeyCellDto, KeycodeView } from "../lib/types";
+  import { shortLabel } from "../lib/changes";
   import type { ComboOverlay } from "../lib/combos";
   import { bounds, hitKey, marqueeKeys, rotate, unrotate, type Point } from "../lib/interactions";
   import { matrixLabel, type GridPosition } from "../lib/matrix";
@@ -47,11 +48,14 @@
     occluders?: () => ScreenRect[];
     /** Bumped by the parent when arrows move the cursor, so the cursor key is revealed when zoomed. */
     revealTick?: number;
+    /** Keycodes at the comparison point, by path. Read for the "Was" hover of changed keys. */
+    baseline?: Record<string, KeycodeView>;
   }
   let {
     keys,
     cells,
     cursor,
+    baseline = {},
     selection,
     onkeyclick,
     onmarquee,
@@ -441,7 +445,7 @@
       role="button"
       tabindex={k.id === (cursor || keys[0]?.id) ? 0 : -1}
       aria-pressed={selection.includes(k.id)}
-      aria-label={`${k.name ?? k.id}: ${cell?.description ?? cell?.wire ?? ""}`}
+      aria-label={`${k.name ?? k.id}: ${cell?.description ?? cell?.wire ?? ""}${cell?.changed ? ", changed" : ""}`}
       onclick={(e) => {
         if (!suppress) onkeyclick(k.id, toggles(e));
       }}
@@ -469,7 +473,7 @@
     >
       <title
         >{cell?.tooltip ?? ""} · {cell?.wire ?? ""}{cell?.changed
-          ? `\n${cell.previous} → ${cell.wire}`
+          ? `\nWas ${baseline[cell.path] ? shortLabel(baseline[cell.path]) : cell.previous}`
           : ""}</title
       >
       <rect

@@ -45,6 +45,22 @@ describe("shared behavior hovers", () => {
     expect(field.getAttribute("aria-label")).toBe(`Output: ${key.description}`);
     expect(field.textContent).not.toContain(key.tooltip);
   });
+  it("marks a keycap changed from the comparison point and shows the earlier value on hover", async () => {
+    const before = { ...key, code: 5, wire: "KC_B", label: "B", description: "B", tooltip: key.tooltip };
+    ui.view = {
+      keycodes: { "macro[0]": { ...key, code: 0xdd } },
+      baseline: { keycodes: { "macro[0]": before } },
+    } as unknown as ViewModel;
+    component = mount(Field, {
+      target: document.body,
+      props: { path: "macro[0]", label: "Output" },
+    });
+    await settle();
+    const field = document.querySelector<HTMLButtonElement>(".keycap-field")!;
+    expect(field.getAttribute("aria-label")).toBe(`Output: ${key.description}, changed`);
+    expect(field.title).toContain("\nWas B");
+    expect(field.querySelector(".change-mark")).not.toBeNull();
+  });
   it("keeps the inspector heading compact and explains both the heading and base on hover", async () => {
     api.keycodeView.mockResolvedValue(key);
     component = mount(Inspector, {

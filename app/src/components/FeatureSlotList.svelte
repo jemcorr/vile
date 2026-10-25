@@ -9,7 +9,7 @@
   import type { OpDto } from "../lib/types";
 
   type Kind = "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat";
-  type Item = { index: number; set: boolean; text: string; title?: string };
+  type Item = { index: number; set: boolean; text: string; title?: string; changed?: boolean };
   let {
     kind,
     items,
@@ -120,7 +120,7 @@
       class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
       aria-label={slotAriaLabel(item.index)}
-      title={`${item.title ?? (item.text || "Empty")}\nDrag to swap · Alt-drag to copy`}
+      title={`${item.title ?? (item.text || "Empty")}${item.changed ? "\nChanged" : ""}\nDrag to swap · Alt-drag to copy`}
       onclick={() => { if (!suppressDragClick()) onselect(item.index); }}
       oncontextmenu={(e) => menuAt(e, item.index)}
       onpointerdown={(e) =>
@@ -131,7 +131,7 @@
         )}
       use:pointerDrop={(event) => drop(event, item.index)}
     >
-      <span class="slot-id">{item.index}</span><span class="slot-desc">{item.text}</span>
+      <span class="slot-id">{item.index}</span><span class="slot-desc">{item.text}</span>{#if item.changed}<i class="change-dot slot-change" aria-hidden="true"></i>{/if}
     </button>
   {/each}
 </div>

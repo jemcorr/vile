@@ -1047,6 +1047,7 @@
             bind:scale={boardScale}
             occluders={boardOccluders}
             revealTick={ui.revealTick}
+            baseline={ui.view.baseline.keycodes}
             {cells}
             cursor={ui.cursor}
             selection={comboSelection}
@@ -1097,7 +1098,7 @@
                 ui.inspectorPaths = [];
             }}
           >
-            <summary>Knobs</summary
+            <summary>Knobs{#if visibleEncoderPaths.some((p) => ui.view?.baseline.keycodes[p])}<i class="change-dot" aria-hidden="true"></i>{/if}</summary
             >{#if !Array.isArray(ui.view.board.encoderIndices)}<p class="hint">
                 The keyboard definition is unavailable, so these encoder bindings are not confirmed as installed knobs.
               </p>{/if}{#each visibleEncoderPaths as path}<Field plain

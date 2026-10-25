@@ -27,7 +27,8 @@
     label = "",
     size = "md",
     selected = false,
-  }: { kind?: string; label?: string; size?: "md" | "sm"; selected?: boolean } = $props();
+    changed = false,
+  }: { kind?: string; label?: string; size?: "md" | "sm"; selected?: boolean; changed?: boolean } = $props();
   const lines = $derived(label ? label.split("\n") : []);
   const hold = $derived(kind === "modTap" || kind === "layerTap");
   const shown = $derived(hold ? [...lines].reverse() : lines);
@@ -41,6 +42,7 @@
         x="32"
         y={37 + (li - (shown.length - 1) / 2) * 17}>{line}</text
       >{/each}
+    {#if changed}<circle class="change-mark" cx="53" cy="10" r="3" />{/if}
   </g>
 </svg>
 
@@ -99,5 +101,8 @@
   .key.cursor rect {
     stroke: var(--cursor);
     stroke-width: 2;
+  }
+  .change-mark {
+    fill: var(--changed);
   }
 </style>

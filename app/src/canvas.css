@@ -467,6 +467,23 @@ kbd {
   display: inline-block;
   border-radius: 50%;
 }
+.change-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--changed);
+  flex: none;
+}
+.canvas-feature-editor .slot-cell .slot-change {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+.canvas-app details > summary .change-dot {
+  margin-left: var(--space-1);
+  vertical-align: middle;
+}
 .canvas-app aside {
   background: var(--panel);
   border-left: 1px solid var(--subtle-edge);

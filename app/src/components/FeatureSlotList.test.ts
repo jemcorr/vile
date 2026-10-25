@@ -30,6 +30,28 @@ afterEach(async () => {
   document.body.innerHTML = "";
   vi.clearAllMocks();
 });
+it("marks a changed slot with a dot and says so in the hover", async () => {
+  mounted = mount(FeatureSlotList, {
+    target: document.body,
+    props: {
+      kind: "combo",
+      label: "Combo",
+      perColumn: 16,
+      selected: 0,
+      onselect: vi.fn(),
+      onoperation: vi.fn(async () => true),
+      items: [
+        { index: 0, set: true, text: "first", changed: true },
+        { index: 1, set: false, text: "", changed: false },
+      ],
+    },
+  });
+  await settle();
+  const changedCell = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
+  expect(changedCell.querySelector(".slot-change")).not.toBeNull();
+  expect(changedCell.title).toContain("Changed");
+  expect(document.querySelector('[data-slot-index="1"]')!.querySelector(".slot-change")).toBeNull();
+});
 function render(kind: "combo" | "macro" = "combo", dirty = false) {
   const operation = vi.fn(async () => true);
   mounted = mount(FeatureSlotList, {

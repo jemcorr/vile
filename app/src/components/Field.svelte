@@ -7,6 +7,7 @@
   // encoder list in the Keymap panel.
   import { ui } from "../lib/state.svelte";
   import Keycap, { keycapKind } from "./Keycap.svelte";
+  import { shortLabel } from "../lib/changes";
   let {
     path,
     label,
@@ -17,6 +18,8 @@
   const active = $derived(ui.inspectorPaths.length === 1 && ui.inspectorPaths[0] === path);
   const kind = $derived(key ? keycapKind(key.code, key.category) : "no");
   const empty = $derived(!key || key.wire === "KC_NO");
+  const was = $derived(ui.view?.baseline?.keycodes[path]);
+  const changed = $derived(!!was && !!key);
   function select(): void {
     ui.inspectorPaths = [path];
     ui.baseTarget = false;
@@ -31,7 +34,7 @@
     title={key ? `${key.tooltip}\n${key.wire}` : path}
     onclick={select}
   >
-    <span>{label}</span><strong>{key?.label || key?.description || "No key"}</strong><small
+    <span>{label}</span>{#if changed}<i class="change-dot" aria-hidden="true"></i>{/if}<strong>{key?.label || key?.description || "No key"}</strong><small
       >{key?.description ?? ""}</small
     ><code>{key?.wire ?? ""}</code>
   </button>
@@ -41,12 +44,12 @@
     class:sm={size === "sm"}
     class:empty
     aria-pressed={active}
-    aria-label={`${label}: ${key?.description || "No key"}`}
-    title={key ? `${key.tooltip}\n${key.wire}` : path}
+    aria-label={`${label}: ${key?.description || "No key"}${changed ? ", changed" : ""}`}
+    title={key ? `${key.tooltip}\n${key.wire}${changed ? `\nWas ${shortLabel(was)}` : ""}` : path}
     data-kind={kind}
     onclick={select}
   >
-    <Keycap {kind} label={key?.label ?? ""} {size} selected={active} />
+    <Keycap {kind} label={key?.label ?? ""} {size} selected={active} {changed} />
     <span class="keycap-caption">{label}</span>
   </button>
 {/if}

@@ -4,7 +4,7 @@ import { mount, unmount, tick } from "svelte";
 import KeycodeInput from "./KeycodeInput.svelte";
 import Keyboard from "./Keyboard.svelte";
 import { startPointerDrag, suppressDragClick } from "../lib/pointer-drag.svelte";
-import type { BoardKeyDto, KeyCellDto, SearchHitDto } from "../lib/types";
+import type { BoardKeyDto, KeyCellDto, KeycodeView, SearchHitDto } from "../lib/types";
 const mocks = vi.hoisted(() => ({ search: vi.fn(), resolve: vi.fn() }));
 vi.mock("../lib/api", () => ({
   api: { searchKeycodes: mocks.search, resolveKeycode: mocks.resolve },
@@ -163,6 +163,42 @@ async function board(boardKeys = keys) {
   return { svg, drag, marquee, click, blank, assign, edit };
 }
 describe("board pointer controller", () => {
+  it("marks a changed key and shows its value at the comparison point on hover", async () => {
+    const before: KeycodeView = {
+      code: 4,
+      wire: "KC_A",
+      label: "A",
+      description: "A",
+      tooltip: "Detailed behavior while this key is held.",
+      category: "Basic",
+      parts: { kind: "tap", base: 4, wrapMods: 0, hold: { kind: "none" } },
+    };
+    const changed = cells.map((cell) =>
+      cell.id === "a" ? { ...cell, changed: true, code: 5, wire: "KC_B", label: "B", description: "B", previous: "KC_A" } : cell,
+    );
+    mounted = mount(Keyboard, {
+      target: document.body,
+      props: {
+        keys,
+        cells: changed,
+        baseline: { "layout[0][0][0]": before },
+        cursor: "a",
+        selection: [],
+        onkeyclick: vi.fn(),
+        onmarquee: vi.fn(),
+        onblankclick: vi.fn(),
+        ondragkey: vi.fn(),
+        onassign: vi.fn(),
+        onedit: vi.fn(),
+        onmenu: vi.fn(),
+      },
+    });
+    await settle();
+    const key = document.querySelector('[data-key-id="a"]')!;
+    expect(key.querySelector("title")?.textContent).toContain("\nWas A");
+    expect(key.getAttribute("aria-label")).toBe("a: B, changed");
+    expect(key.querySelector("circle")).not.toBeNull();
+  });
   it("uses detailed behavior in the board hover while keeping the drawn label compact", async () => {
     await board();
     const key = document.querySelector('[data-key-id="a"]')!;
