@@ -168,6 +168,18 @@
     const p = point(e);
     return { x: p.x * U, y: p.y * U };
   }
+  // Zoom set by the pointer (wheel, pinch) keeps the point under the pointer. Only other zooms
+  // (buttons, shortcuts, palette) bring the cursor key into view.
+  let pointerZoomTo: ZoomSetting | null = null;
+  let shownZoom: ZoomSetting | undefined;
+  $effect(() => {
+    const z = zoom;
+    untrack(() => {
+      if (shownZoom !== undefined && z !== shownZoom && z !== pointerZoomTo) revealCursor(cursor);
+      shownZoom = z;
+      pointerZoomTo = null;
+    });
+  });
   /** Brings the cursor key into view when zoomed past fit. Keys stay inside the view, not necessarily centred. */
   function revealCursor(id: string): void {
     if (!fit || zoom === "fit" || !live || !id) return;
@@ -192,6 +204,7 @@
         const d = Math.max(-50, Math.min(50, e.deltaY));
         const s1 = clampScale(s * Math.exp(-d * 0.01));
         center = zoomAt(c, svgPoint(e), s, s1);
+        pointerZoomTo = s1;
         onzoom?.(s1);
       } else if (s > fitS + 1e-6) {
         // Plain wheel and two-finger scroll pan only when the board is larger than the viewport.
@@ -210,6 +223,7 @@
       g.preventDefault();
       const s1 = clampScale(gestureFrom * g.scale);
       center = zoomAt(c, svgPoint(g), s, s1);
+      pointerZoomTo = s1;
       onzoom?.(s1);
     };
     const onGestureEnd = (e: Event): void => e.preventDefault();
