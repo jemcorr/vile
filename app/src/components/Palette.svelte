@@ -111,8 +111,10 @@
               aria-describedby={disabledReason ? `palette-reason-${command.id}` : undefined}
               onclick={() => choose(command)}
             >
-              <span class="command-title">{command.title}</span>
-              {#if disabledReason}<small id={`palette-reason-${command.id}`} class="command-reason">{disabledReason}</small>{/if}
+              <span class="command-details">
+                <span class="command-title">{command.title}</span>
+                {#if disabledReason}<small id={`palette-reason-${command.id}`} class="command-reason">{disabledReason}</small>{/if}
+              </span>
               {#if command.shortcut}<kbd>{command.shortcut}</kbd>{/if}
             </button>
           </li>
@@ -192,6 +194,13 @@
     cursor: default;
     opacity: 1;
   }
+  .command-details {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .command-title {
     flex: 0 0 auto;
     min-width: 0;
@@ -204,7 +213,7 @@
     max-width: 50%;
     min-width: 0;
     overflow: hidden;
-    text-align: right;
+    text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--muted);
@@ -218,6 +227,12 @@
   }
   ul button.active {
     background: var(--selected);
+  }
+  ul button:disabled.active {
+    color: color-mix(in srgb, var(--muted) 50%, var(--fg));
+  }
+  ul button:disabled.active .command-reason {
+    color: inherit;
   }
   .chosen {
     margin: 0;
