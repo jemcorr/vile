@@ -3,6 +3,11 @@
 vile is a desktop editor for Vial keyboard layouts (`.vil` files). Edit keys and
 layers, review the changes, then save the file.
 
+## Download
+
+Download the macOS Apple silicon, Linux x86_64, or Windows x64 app from the
+[v0.1.0 release](https://github.com/educorrea17/vile/releases/tag/v0.1.0).
+
 ## Run from source
 
 Install Node.js 26.12.1 and Rust 1.90 or newer. Tauri also needs system build
