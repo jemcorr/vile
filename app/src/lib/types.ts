@@ -154,6 +154,17 @@ export interface MacroUsage {
   bytes: number;
   actionBytes: number[];
 }
+export interface BaselineDto {
+  /** Keycode fields whose baseline value differs, by path ("layout[0][1][2]", "combo[3][4]"). */
+  keycodes: Record<string, KeycodeView>;
+  combos: ComboDto[];
+  macros: MacroDto[];
+  tapDances: TapDanceDto[];
+  keyOverrides: KeyOverrideDto[];
+  altRepeatKeys: AltRepeatDto[];
+  /** Names as last saved; names are always compared with the last save. */
+  names: Names;
+}
 export interface ViewModel {
   revision: number;
   names: Names;
@@ -172,6 +183,7 @@ export interface ViewModel {
   layers: KeyCellDto[][];
   diff: DiffLineDto[];
   diffBase: DiffBase;
+  baseline: BaselineDto;
   warnings: string[];
   combos: ComboDto[];
   macros: MacroDto[];

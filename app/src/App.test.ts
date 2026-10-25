@@ -94,6 +94,15 @@ function view(): ViewModel {
     ],
     diff: [],
     diffBase: "disk",
+    baseline: {
+      keycodes: {},
+      combos: [{ index: 0, keys: ["KC_NO", "KC_NO", "KC_NO", "KC_NO"], output: "KC_ESCAPE", outputLabel: "Esc" }],
+      macros: [],
+      tapDances: [],
+      keyOverrides: [],
+      altRepeatKeys: [],
+      names: { layers: {}, macros: {}, combos: {} },
+    },
     warnings: [],
     combos: [
       {

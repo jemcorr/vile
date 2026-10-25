@@ -158,7 +158,7 @@ fn wrong_uid_sidecar_is_ignored_and_external_changes_are_protected() {
     assert!(session.save().is_err());
 }
 #[test]
-fn git_comparison_does_not_change_pending_markers() {
+fn git_comparison_moves_markers_to_the_commit() {
     let (dir, path) = common::temp_copy("corne.vil");
     common::git(dir.path(), &["init", "-q"]);
     common::git(dir.path(), &["add", "."]);
@@ -187,7 +187,13 @@ fn git_comparison_does_not_change_pending_markers() {
     let view = session.set_diff_base("git").unwrap();
     assert!(!view.diff.is_empty());
     assert!(view.pending_diff.is_empty());
+    let cell = &view.layers[0][common::key_index(&view, "r0c0")];
+    assert!(cell.changed);
+    assert_eq!(cell.previous, "KC_NO");
+    assert_eq!(view.baseline.keycodes["layout[0][0][0]"].wire, "KC_NO");
+    let view = session.set_diff_base("disk").unwrap();
     assert!(view.layers.iter().flatten().all(|cell| !cell.changed));
+    assert!(view.baseline.keycodes.is_empty());
 }
 
 #[test]

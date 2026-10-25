@@ -140,6 +140,7 @@ pub struct ViewModel {
     pub layers: Vec<Vec<KeyCellDto>>,
     pub diff: Vec<DiffLineDto>,
     pub diff_base: String,
+    pub baseline: BaselineDto,
     pub warnings: Vec<String>,
     pub combos: Vec<ComboDto>,
     pub macros: Vec<MacroDto>,
@@ -299,6 +300,23 @@ pub struct KeycodeView {
     pub category: String,
     pub parts: KeyParts,
 }
+
+/// What the view compares with: the last save or the last Git commit (`ViewModel.diff_base`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaselineDto {
+    /// Keycode fields whose baseline value differs from the current value, or that the
+    /// current document no longer has, by the paths `Document::keycodes` uses.
+    pub keycodes: BTreeMap<String, KeycodeView>,
+    pub combos: Vec<ComboDto>,
+    pub macros: Vec<MacroDto>,
+    pub tap_dances: Vec<TapDanceDto>,
+    pub key_overrides: Vec<KeyOverrideDto>,
+    pub alt_repeat_keys: Vec<AltRepeatDto>,
+    /// Names as last saved. Names are always compared with the last save.
+    pub names: Names,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MacroUsage {

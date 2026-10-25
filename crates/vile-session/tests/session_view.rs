@@ -2,7 +2,7 @@ mod common;
 
 use serde_json::json;
 use vile_core::geometry::from_vial_definition;
-use vile_session::Session;
+use vile_session::{OpDto, Session};
 
 #[test]
 fn no_file_means_no_view_and_clear_errors() {
@@ -133,4 +133,36 @@ fn save_and_save_as() {
     let v = s.save_as(&other).unwrap();
     assert!(v.path.as_deref().unwrap().ends_with("copy.vil"));
     assert!(other.exists());
+}
+
+#[test]
+fn baseline_lists_changed_fields_and_the_old_slots() {
+    let (_dir, path) = common::temp_copy("corne.vil");
+    let mut s = Session::new();
+    let v = s.open_path(&path).unwrap();
+    assert!(v.baseline.keycodes.is_empty());
+    assert_eq!(v.baseline.combos, v.combos);
+    let combo = v.combos[0].clone();
+    s.apply_op(OpDto::SetKeys {
+        layer: 0,
+        keys: vec!["r0c1".into()],
+        keycode: "KC_A".into(),
+    })
+    .unwrap();
+    let v = s
+        .apply_op(OpDto::SetCombo {
+            index: 0,
+            keys: combo.keys.clone(),
+            output: "KC_TAB".into(),
+        })
+        .unwrap();
+    assert_eq!(v.baseline.keycodes["layout[0][0][1]"].wire, "KC_B");
+    assert_eq!(v.baseline.keycodes["combo[0][4]"].wire, "KC_QUOTE");
+    assert!(!v.baseline.keycodes.contains_key("layout[0][0][2]"));
+    assert_eq!(v.baseline.combos[0].output, "KC_QUOTE");
+    assert_eq!(v.combos[0].output, "KC_TAB");
+    let json = serde_json::to_value(&v).unwrap();
+    assert!(json["baseline"]["keycodes"]["layout[0][0][1]"]["wire"].is_string());
+    assert!(json["baseline"]["tapDances"].is_array());
+    assert!(json["baseline"]["altRepeatKeys"].is_array());
 }

@@ -11,8 +11,9 @@ use vile_core::{
 use vile_core::{DiffBase, Document, Keycode};
 
 use crate::dto::{
-    AltRepeatDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, KeyCellDto, KeyOverrideDto,
-    KeyRefDto, MacroActionDto, MacroDto, OpDto, SearchHitDto, TapDanceDto, ViewModel,
+    AltRepeatDto, BaselineDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, KeyCellDto,
+    KeyOverrideDto, KeyRefDto, MacroActionDto, MacroDto, OpDto, SearchHitDto, TapDanceDto,
+    ViewModel,
 };
 
 /// At most one open document. Every method returns user-facing error text.
@@ -442,7 +443,7 @@ fn build_view(
     geometry_source: &str,
 ) -> ViewModel {
     let doc = editor.doc();
-    let base = editor.disk_doc();
+    let base = editor.base_doc();
     let catalog = doc.catalog();
     let board = editor.board();
     let layers = match board {
@@ -489,84 +490,126 @@ fn build_view(
             DiffBase::Disk => "disk".to_string(),
             DiffBase::GitHead => "git".to_string(),
         },
+        baseline: baseline_dto(editor.base_doc(), editor.disk_names(), doc, editor.names()),
         warnings: warnings
             .iter()
             .chain(editor.metadata_warnings())
             .cloned()
             .collect(),
-        combos: doc
-            .combo
-            .as_ref()
-            .map(|list| {
-                list.iter()
-                    .enumerate()
-                    .map(|(index, combo)| ComboDto {
-                        index,
-                        keys: combo.keys.iter().map(|k| catalog.wire_name(*k)).collect(),
-                        output: catalog.wire_name(combo.output),
-                        output_label: catalog.label(combo.output),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-        macros: doc
-            .macros
-            .iter()
-            .enumerate()
-            .map(|(index, m)| macro_to_dto(&catalog, index, m))
+        combos: combo_dtos(doc, &catalog),
+        macros: macro_dtos(doc, &catalog),
+        tap_dances: tap_dance_dtos(doc, &catalog),
+        key_overrides: key_override_dtos(doc, &catalog),
+        alt_repeat_keys: alt_repeat_dtos(doc, &catalog),
+    }
+}
+
+fn combo_dtos(doc: &Document, catalog: &Catalog) -> Vec<ComboDto> {
+    doc.combo
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .enumerate()
+                .map(|(index, combo)| ComboDto {
+                    index,
+                    keys: combo.keys.iter().map(|k| catalog.wire_name(*k)).collect(),
+                    output: catalog.wire_name(combo.output),
+                    output_label: catalog.label(combo.output),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn macro_dtos(doc: &Document, catalog: &Catalog) -> Vec<MacroDto> {
+    doc.macros
+        .iter()
+        .enumerate()
+        .map(|(index, m)| macro_to_dto(catalog, index, m))
+        .collect()
+}
+
+fn tap_dance_dtos(doc: &Document, catalog: &Catalog) -> Vec<TapDanceDto> {
+    doc.tap_dance
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .enumerate()
+                .map(|(index, td)| TapDanceDto {
+                    index,
+                    on_tap: catalog.wire_name(td.on_tap),
+                    on_hold: catalog.wire_name(td.on_hold),
+                    on_double_tap: catalog.wire_name(td.on_double_tap),
+                    on_tap_hold: catalog.wire_name(td.on_tap_hold),
+                    tapping_term: td.tapping_term,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn key_override_dtos(doc: &Document, catalog: &Catalog) -> Vec<KeyOverrideDto> {
+    doc.key_override
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .enumerate()
+                .map(|(index, ko)| KeyOverrideDto {
+                    index,
+                    trigger: catalog.wire_name(ko.trigger),
+                    replacement: catalog.wire_name(ko.replacement),
+                    layers: ko.layers,
+                    trigger_mods: ko.trigger_mods,
+                    negative_mod_mask: ko.negative_mod_mask,
+                    suppressed_mods: ko.suppressed_mods,
+                    options: ko.options,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn alt_repeat_dtos(doc: &Document, catalog: &Catalog) -> Vec<AltRepeatDto> {
+    doc.alt_repeat_key
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .enumerate()
+                .map(|(index, ar)| AltRepeatDto {
+                    index,
+                    keycode: catalog.wire_name(ar.keycode),
+                    alt_keycode: catalog.wire_name(ar.alt_keycode),
+                    allowed_mods: ar.allowed_mods,
+                    options: ar.options,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Baseline values for the view. `base_names` is the names baseline (always the last save);
+/// `names` only feeds the descriptions, which use the current layer and macro names.
+fn baseline_dto(
+    base: &Document,
+    base_names: &vile_core::metadata::Names,
+    current: &Document,
+    names: &vile_core::metadata::Names,
+) -> BaselineDto {
+    let catalog = base.catalog();
+    let now: std::collections::BTreeMap<String, Keycode> = current.keycodes().into_iter().collect();
+    BaselineDto {
+        keycodes: base
+            .keycodes()
+            .into_iter()
+            .filter(|(path, kc)| now.get(path) != Some(kc))
+            .map(|(path, kc)| (path, keycode_view(Some(names), &catalog, kc)))
             .collect(),
-        tap_dances: doc
-            .tap_dance
-            .as_ref()
-            .map(|list| {
-                list.iter()
-                    .enumerate()
-                    .map(|(index, td)| TapDanceDto {
-                        index,
-                        on_tap: catalog.wire_name(td.on_tap),
-                        on_hold: catalog.wire_name(td.on_hold),
-                        on_double_tap: catalog.wire_name(td.on_double_tap),
-                        on_tap_hold: catalog.wire_name(td.on_tap_hold),
-                        tapping_term: td.tapping_term,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-        key_overrides: doc
-            .key_override
-            .as_ref()
-            .map(|list| {
-                list.iter()
-                    .enumerate()
-                    .map(|(index, ko)| KeyOverrideDto {
-                        index,
-                        trigger: catalog.wire_name(ko.trigger),
-                        replacement: catalog.wire_name(ko.replacement),
-                        layers: ko.layers,
-                        trigger_mods: ko.trigger_mods,
-                        negative_mod_mask: ko.negative_mod_mask,
-                        suppressed_mods: ko.suppressed_mods,
-                        options: ko.options,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-        alt_repeat_keys: doc
-            .alt_repeat_key
-            .as_ref()
-            .map(|list| {
-                list.iter()
-                    .enumerate()
-                    .map(|(index, ar)| AltRepeatDto {
-                        index,
-                        keycode: catalog.wire_name(ar.keycode),
-                        alt_keycode: catalog.wire_name(ar.alt_keycode),
-                        allowed_mods: ar.allowed_mods,
-                        options: ar.options,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
+        combos: combo_dtos(base, &catalog),
+        macros: macro_dtos(base, &catalog),
+        tap_dances: tap_dance_dtos(base, &catalog),
+        key_overrides: key_override_dtos(base, &catalog),
+        alt_repeat_keys: alt_repeat_dtos(base, &catalog),
+        names: base_names.clone(),
     }
 }
 
