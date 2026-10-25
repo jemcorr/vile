@@ -250,7 +250,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#v}"
-          test "$(ls release-assets | wc -l)" -eq 5
+          test "$(ls release-assets | wc -l)" -eq 4
           (cd release-assets && sha256sum -- * > SHA256SUMS && sha256sum -c SHA256SUMS)
           # The notes are this version's changelog section, without its heading.
           awk -v v="$version" '
