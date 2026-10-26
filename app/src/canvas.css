@@ -1755,6 +1755,31 @@ kbd {
 .canvas-feature-editor .slot-cell.picked {
   border-color: var(--cursor);
 }
+.slot-uses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px;
+}
+.slot-uses-label,
+.slot-uses-none {
+  color: var(--muted);
+}
+.use-chip {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+}
+.use-chip:hover,
+.use-chip:focus-visible {
+  background: var(--hover);
+}
 .canvas-feature-editor .slot-cell.drag-source {
   opacity: 0.38;
 }
