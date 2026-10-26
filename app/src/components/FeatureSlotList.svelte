@@ -5,6 +5,7 @@
     startPointerDrag,
     suppressDragClick,
   } from "../lib/pointer-drag.svelte";
+  import { focusScope } from "../lib/focus";
   import { notify } from "../lib/state.svelte";
   import type { OpDto } from "../lib/types";
 
@@ -98,6 +99,12 @@
   }
 </script>
 
+<!-- A click outside the menu closes it, as the keyboard's context menu does. The board has no backdrop. -->
+<svelte:window
+  onclick={(e) => {
+    if (menu && e.target instanceof Element && !e.target.closest(".feature-slot-menu")) menu = null;
+  }}
+/>
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="slot-list feature-slot-list"
@@ -142,9 +149,7 @@
     tabindex="-1"
     style:left="{menu.x}px"
     style:top="{menu.y}px"
-    onkeydown={(e) => {
-      if (e.key === "Escape") menu = null;
-    }}
+    use:focusScope={() => (menu = null)}
   >
     <button role="menuitem" onclick={() => void copy(menu!.index)}
       >Copy <kbd>{shortcutModifier}C</kbd></button
@@ -153,8 +158,6 @@
       >Paste <kbd>{shortcutModifier}V</kbd></button
     >
   </div>
-  <button class="feature-slot-dismiss" aria-label="Close slot menu" onclick={() => (menu = null)}
-  ></button>
 {/if}
 
 <style>
@@ -189,15 +192,5 @@
   }
   .feature-slot-menu kbd {
     color: var(--muted);
-  }
-  .feature-slot-dismiss {
-    position: fixed;
-    inset: 0;
-    z-index: 499;
-    border: 0;
-    background: transparent;
-  }
-  .feature-slot-menu {
-    z-index: 500;
   }
 </style>

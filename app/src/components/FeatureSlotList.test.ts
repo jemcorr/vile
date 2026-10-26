@@ -103,6 +103,33 @@ describe("feature slot actions", () => {
     expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlot", kind: "combo", index: 0 });
   });
 
+  it("opens the slot menu without a backdrop and closes it on outside click or Escape", async () => {
+    render();
+    await settle();
+    const first = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
+    const open = () =>
+      first.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }),
+      );
+    open();
+    await settle();
+    const menu = document.querySelector<HTMLElement>(".feature-slot-menu")!;
+    expect(menu).not.toBeNull();
+    // A full-viewport button under the menu would take the hover fill across the whole workspace.
+    expect(document.querySelector(".feature-slot-dismiss")).toBeNull();
+    expect(menu.contains(document.activeElement)).toBe(true);
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.click();
+    await settle();
+    expect(document.querySelector(".feature-slot-menu")).toBeNull();
+    open();
+    await settle();
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await settle();
+    expect(document.querySelector(".feature-slot-menu")).toBeNull();
+  });
+
   it("swaps on same-type drag and copies on Alt-drop", async () => {
     const operation = render();
     await settle();
