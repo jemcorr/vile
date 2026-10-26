@@ -56,21 +56,24 @@
   const canvasMenuLabels: Record<string, string> = { clearKeys: 'Clear keys', transparentKeys: 'Make transparent', copyKeys: 'Copy', cutKeys: 'Cut', pasteKeys: 'Paste', swapKeys: 'Swap with…', editKey: 'Type keycode…', copyLayer: 'Copy layer', pasteLayer: 'Paste layer', clearLayer: 'Clear layer', transparentLayer: 'Make layer transparent', swapLayer: 'Swap layer with…', moveLayer: 'Move layer to…', mirrorLeftToRight: 'Mirror left to right', mirrorRightToLeft: 'Mirror right to left', mirrorSwap: 'Swap halves' };
   let viewportWidth = $state(1280);
   let viewportHeight = $state(820);
+  const INSPECTOR_WIDTH = 340;
+  // 390 was the old default, saved for every viewer whether or not they resized; read it as unset.
+  const OLD_INSPECTOR_WIDTH = 390;
   function savedPanelSizes(): { side: number; picker: number } {
     try {
       const saved = JSON.parse(localStorage.getItem("vile.panelSizes") ?? "null");
       return {
         side:
-          typeof saved?.side === "number" && Number.isFinite(saved.side)
+          typeof saved?.side === "number" && Number.isFinite(saved.side) && saved.side !== OLD_INSPECTOR_WIDTH
             ? Math.max(240, saved.side)
-            : 390,
+            : INSPECTOR_WIDTH,
         picker:
           typeof saved?.picker === "number" && Number.isFinite(saved.picker)
             ? Math.max(120, saved.picker)
             : 240,
       };
     } catch {
-      return { side: 390, picker: 240 };
+      return { side: INSPECTOR_WIDTH, picker: 240 };
     }
   }
   let panelSizes = $state(savedPanelSizes());
@@ -1107,7 +1110,7 @@
             value={sideWidth}
             min={240}
             max={sideMax}
-            initial={390}
+            initial={INSPECTOR_WIDTH}
             onresize={(value) => (panelSizes.side = value)}
           /></div>{/if}
       <aside
