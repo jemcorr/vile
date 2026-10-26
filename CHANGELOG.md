@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-26
+
+### Fixed
+
+- Collapsing or expanding the key inspector no longer moves or resizes the
+  board; the inspector floats over the canvas (`8072553`).
+- Opening a feature slot's menu no longer greys the workspace, and Escape
+  closes it (`29d4b83`).
+- Keycode search no longer matches letter by letter across descriptions, so
+  exact names such as `KC_TRNS` or `QK_REBOOT` return only their keycode, and
+  keys found through layer names rank after real matches (`5158468`,
+  `8765eb2`).
+- Searching inside an open picker group filters that group, with a way to
+  search all keycodes when nothing matches (`284c977`).
+
+### Changed
+
+- The key inspector is narrower (280 px by default, at most 320 px), drops its
+  deselect button, and uses segmented controls for the hold choice and the
+  modifier side. Hold modifier and Tap modifier are collapsible sections with
+  even spacing (`aa76553`–`75be15d`).
+
 ## [0.2.0] - 2026-10-25
 
 ### Added
