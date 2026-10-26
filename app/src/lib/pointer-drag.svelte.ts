@@ -11,7 +11,7 @@ export interface PointerDrop {
   clientX: number;
   clientY: number;
   altKey?: boolean;
-  featureTarget?: { feature: string; index: number } | null;
+  featureTarget?: { feature: string; index: number; empty: boolean } | null;
 }
 export const pointerDrag = $state<{
   current: (PointerDrop & { label: string }) | null;
@@ -61,7 +61,7 @@ export function startPointerDrag(event: PointerEvent, payload: DragPayload, labe
           candidate?.dataset.featureSlotReady !== "false" &&
           Number.isInteger(index) &&
           index !== payload.index
-            ? { feature, index }
+            ? { feature, index, empty: candidate?.dataset.state === "empty" }
             : null;
         pointerDrag.current = {
           payload,

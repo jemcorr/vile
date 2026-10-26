@@ -477,3 +477,35 @@ describe("feature slot new entries", () => {
     expect(onnew).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("slot drag feedback", () => {
+  it("says Move while a drag is held over an empty slot", async () => {
+    mounted = mount(FeatureSlotList, {
+      target: document.body,
+      props: {
+        kind: "combo",
+        label: "Combo",
+        perColumn: 8,
+        selected: 0,
+        onselect: vi.fn(),
+        onoperation: vi.fn(async () => true),
+        items: [
+          { index: 0, set: true, text: "a" },
+          { index: 1, set: false, text: "" },
+        ],
+      },
+    });
+    previewMounted = mount(DragPreview, { target: document.body });
+    await settle();
+    const source = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
+    const target = document.querySelector<HTMLButtonElement>('[data-slot-index="1"]')!;
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => target });
+    source.setPointerCapture = vi.fn();
+    source.hasPointerCapture = vi.fn(() => false);
+    source.releasePointerCapture = vi.fn();
+    pointer(source, "pointerdown", 0);
+    pointer(window, "pointermove", 20);
+    await settle();
+    expect(document.querySelector(".drag-action")!.textContent).toBe("Move");
+  });
+});

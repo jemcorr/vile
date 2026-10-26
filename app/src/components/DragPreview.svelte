@@ -2,7 +2,9 @@
   import { pointerDrag } from "../lib/pointer-drag.svelte";
 
   const featureDrag = $derived(pointerDrag.current?.payload.kind === "featureSlot");
-  const action = $derived(pointerDrag.current?.altKey ? "Copy" : "Swap");
+  const action = $derived(
+    pointerDrag.current?.altKey ? "Copy" : pointerDrag.current?.featureTarget?.empty ? "Move" : "Swap",
+  );
 </script>
 
 {#if pointerDrag.current}

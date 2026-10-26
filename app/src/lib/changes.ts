@@ -12,7 +12,21 @@ import {
   hasBit,
   type BitName,
 } from "./bits";
-import { comboSet, comboText, currentLabels, flat, macroSet, macroText, type LabelOf } from "./slots";
+import {
+  altRepeatSet,
+  altRepeatText,
+  comboSet,
+  comboText,
+  currentLabels,
+  flat,
+  keyOverrideSet,
+  keyOverrideText,
+  macroSet,
+  macroText,
+  tapDanceSet,
+  tapDanceText,
+  type LabelOf,
+} from "./slots";
 
 export type ChangeJump =
   | { kind: "keys"; layer: number; keyIds: string[] }
@@ -428,10 +442,22 @@ function intentChange(view: ViewModel, intent: IntentDto, index: number): { plac
       if (!section) return null;
       const table = SLOT_TABLE[section];
       const word = table.title.toLowerCase();
-      const swapped = intent.kind === "slotsSwapped";
-      const text = swapped ? `Swapped ${word} ${intent.a} and ${word} ${intent.b}` : `Copied ${word} ${intent.from} to ${word} ${intent.to}`;
-      const index = swapped ? intent.a : intent.to;
-      return { place: { section }, chip: false, row: { id, text, detail: "", title: text, jump: { kind: "slot", panel: table.panel, index } } };
+      if (intent.kind === "slotCopied") {
+        const text = `Copied ${word} ${intent.from} to ${word} ${intent.to}`;
+        return { place: { section }, chip: false, row: { id, text, detail: "", title: text, jump: { kind: "slot", panel: table.panel, index: intent.to } } };
+      }
+      const { a, b } = intent;
+      let text = `Swapped ${word} ${a} and ${word} ${b}`;
+      let index = a;
+      if (!slotIsSet(view, section, a) && slotIsSet(view, section, b)) {
+        text = `Moved ${word} ${a} to ${word} ${b}`;
+        index = b;
+      } else if (slotIsSet(view, section, a) && !slotIsSet(view, section, b)) {
+        text = `Moved ${word} ${b} to ${word} ${a}`;
+        index = a;
+      }
+      const detail = intent.renumbered ? "References renumbered" : "";
+      return { place: { section }, chip: false, row: { id, text, detail, title: detail ? `${text}: ${detail}` : text, jump: { kind: "slot", panel: table.panel, index } } };
     }
   }
 }
@@ -466,32 +492,82 @@ function nameRow(line: DiffLineDto): ChangeRow {
 }
 
 /** Current and comparison-point summaries of a combo or macro slot, without names. */
+/** Whether slot `index` of `section` holds anything in the view. */
+function slotIsSet(view: ViewModel, section: SlotSection, index: number): boolean {
+  switch (section) {
+    case "combo":
+      return !!view.combos.find((slot) => slot.index === index && comboSet(slot));
+    case "macro":
+      return !!view.macros.find((slot) => slot.index === index && macroSet(slot));
+    case "tapDance":
+      return !!view.tapDances.find((slot) => slot.index === index && tapDanceSet(slot));
+    case "keyOverride":
+      return !!view.keyOverrides.find((slot) => slot.index === index && keyOverrideSet(slot));
+    case "altRepeatKey":
+      return !!view.altRepeatKeys.find((slot) => slot.index === index && altRepeatSet(slot));
+  }
+}
+
 function slotState(
-  section: "combo" | "macro",
+  section: SlotSection,
   index: number,
   view: ViewModel,
   reference: BaselineDto,
 ): { curSet: boolean; baseSet: boolean; curText: string; baseText: string } {
   const curLabel = currentLabels(view);
   const refLabel: LabelOf = (path) => reference.keycodes[path]?.label ?? view.keycodes[path]?.label;
-  if (section === "combo") {
-    const cur = view.combos.find((slot) => slot.index === index);
-    const base = reference.combos.find((slot) => slot.index === index);
-    return {
-      curSet: !!cur && comboSet(cur),
-      baseSet: !!base && comboSet(base),
-      curText: cur ? flat(comboText(cur, curLabel)) : "",
-      baseText: base ? flat(comboText(base, refLabel)) : "",
-    };
+  switch (section) {
+    case "combo": {
+      const cur = view.combos.find((slot) => slot.index === index);
+      const base = reference.combos.find((slot) => slot.index === index);
+      return {
+        curSet: !!cur && comboSet(cur),
+        baseSet: !!base && comboSet(base),
+        curText: cur ? flat(comboText(cur, curLabel)) : "",
+        baseText: base ? flat(comboText(base, refLabel)) : "",
+      };
+    }
+    case "macro": {
+      const cur = view.macros.find((slot) => slot.index === index);
+      const base = reference.macros.find((slot) => slot.index === index);
+      return {
+        curSet: !!cur && macroSet(cur),
+        baseSet: !!base && macroSet(base),
+        curText: cur ? flat(macroText(cur, curLabel)) : "",
+        baseText: base ? flat(macroText(base, refLabel)) : "",
+      };
+    }
+    case "tapDance": {
+      const cur = view.tapDances.find((slot) => slot.index === index);
+      const base = reference.tapDances.find((slot) => slot.index === index);
+      return {
+        curSet: !!cur && tapDanceSet(cur),
+        baseSet: !!base && tapDanceSet(base),
+        curText: cur ? flat(tapDanceText(cur, curLabel)) : "",
+        baseText: base ? flat(tapDanceText(base, refLabel)) : "",
+      };
+    }
+    case "keyOverride": {
+      const cur = view.keyOverrides.find((slot) => slot.index === index);
+      const base = reference.keyOverrides.find((slot) => slot.index === index);
+      return {
+        curSet: !!cur && keyOverrideSet(cur),
+        baseSet: !!base && keyOverrideSet(base),
+        curText: cur ? flat(keyOverrideText(cur, curLabel)) : "",
+        baseText: base ? flat(keyOverrideText(base, refLabel)) : "",
+      };
+    }
+    case "altRepeatKey": {
+      const cur = view.altRepeatKeys.find((slot) => slot.index === index);
+      const base = reference.altRepeatKeys.find((slot) => slot.index === index);
+      return {
+        curSet: !!cur && altRepeatSet(cur),
+        baseSet: !!base && altRepeatSet(base),
+        curText: cur ? flat(altRepeatText(cur, curLabel)) : "",
+        baseText: base ? flat(altRepeatText(base, refLabel)) : "",
+      };
+    }
   }
-  const cur = view.macros.find((slot) => slot.index === index);
-  const base = reference.macros.find((slot) => slot.index === index);
-  return {
-    curSet: !!cur && macroSet(cur),
-    baseSet: !!base && macroSet(base),
-    curText: cur ? flat(macroText(cur, curLabel)) : "",
-    baseText: base ? flat(macroText(base, refLabel)) : "",
-  };
 }
 
 /** One row for a feature slot, with every field change of that slot in its detail. */
@@ -499,15 +575,14 @@ function slotRow(section: SlotSection, index: number, lines: DiffLineDto[], view
   const table = SLOT_TABLE[section];
   const jump: ChangeJump = { kind: "slot", panel: table.panel, index };
   let text = `${table.title} ${index}`;
+  const name = section === "combo" ? view.names.combos[index] : section === "macro" ? view.names.macros[index] : undefined;
+  if (name) text += ` · ${name}`;
+  const { curSet, baseSet, curText, baseText } = slotState(section, index, view, reference);
   let detail: string;
-  if (section === "combo" || section === "macro") {
-    const name = section === "combo" ? view.names.combos[index] : view.names.macros[index];
-    if (name) text += ` · ${name}`;
-    const { curSet, baseSet, curText, baseText } = slotState(section, index, view, reference);
-    if (curSet && !baseSet) detail = `New: ${curText}`;
-    else if (!curSet && baseSet) detail = `Removed: ${baseText}`;
-    else if (!curSet && !baseSet) detail = "Changed";
-    else detail = curText === baseText ? "Changed" : `${curText} · was ${baseText}`;
+  if (curSet && !baseSet) detail = `New: ${curText}`;
+  else if (!curSet && baseSet) detail = `Removed: ${baseText}`;
+  else if (section === "combo" || section === "macro") {
+    detail = !curSet && !baseSet ? "Changed" : curText === baseText ? "Changed" : `${curText} · was ${baseText}`;
   } else {
     detail = lines.map((line) => slotFieldPhrase(section, index, line, view, reference)).join(" · ");
   }

@@ -481,3 +481,65 @@ describe("helpers", () => {
     expect(compareErrorText("permission denied", file)).toBe("Can't compare with the last commit: permission denied");
   });
 });
+
+describe("slot moves, renumbering, and new or removed slots", () => {
+  const macro = (index: number, set: boolean) =>
+    ({ index, actions: set ? [{ kind: "tap", keys: ["KC_A"] }] : [] }) as unknown as ViewModel["macros"][number];
+
+  it("words a move to an empty slot and says that references were renumbered", () => {
+    const view = withStory([{ kind: "slotsSwapped", feature: "macro", a: 2, b: 5, renumbered: true }], {
+      macros: [macro(2, false), macro(5, true)],
+    });
+    const groups = changeGroups(view);
+    expect(groups[0]!.rows[0]).toMatchObject({
+      text: "Moved macro 2 to macro 5",
+      detail: "References renumbered",
+      jump: { kind: "slot", panel: "macros", index: 5 },
+    });
+    expect(changeCount(groups)).toBe(1);
+  });
+
+  it("keeps a swap of two set slots as a swap with no detail", () => {
+    const view = withStory([{ kind: "slotsSwapped", feature: "macro", a: 2, b: 5, renumbered: false }], {
+      macros: [macro(2, true), macro(5, true)],
+    });
+    expect(changeGroups(view)[0]!.rows[0]).toMatchObject({ text: "Swapped macro 2 and macro 5", detail: "" });
+  });
+
+  it("names a cleared tap dance as removed, with what it held", () => {
+    const view = withStory(
+      [],
+      {
+        tapDances: [
+          { index: 1, onTap: "KC_NO", onHold: "KC_NO", onDoubleTap: "KC_NO", onTapHold: "KC_NO", tappingTerm: 200 },
+        ] as unknown as ViewModel["tapDances"],
+        baseline: {
+          ...makeView().baseline,
+          keycodes: { "tap_dance[1][0]": keycode(4, "A") },
+          tapDances: [
+            { index: 1, onTap: "KC_A", onHold: "KC_NO", onDoubleTap: "KC_NO", onTapHold: "KC_NO", tappingTerm: 200 },
+          ] as unknown as ViewModel["baseline"]["tapDances"],
+        },
+      },
+      [line({ section: "tapDance", index: 1, field: "onTap", old: "KC_A", new: "KC_NO", oldDescription: "A", newDescription: "" })],
+    );
+    const rows = changeGroups(view).flatMap((group) => group.rows);
+    expect(rows.find((row) => row.id === "slot-tapDance-1")).toMatchObject({ detail: "Removed: Tap A" });
+  });
+
+  it("names a new key override as new, with its keys", () => {
+    const view = withStory(
+      [],
+      {
+        keyOverrides: [
+          { index: 0, trigger: "KC_A", replacement: "KC_B", layers: 65535, triggerMods: 0, negativeModMask: 0, suppressedMods: 0, options: 135 },
+        ] as unknown as ViewModel["keyOverrides"],
+        keycodes: { "key_override[0].trigger": keycode(4, "A"), "key_override[0].replacement": keycode(5, "B") },
+        baseline: { ...makeView().baseline, keyOverrides: [] },
+      },
+      [line({ section: "keyOverride", index: 0, field: "trigger", old: "KC_NO", new: "KC_A", oldDescription: "", newDescription: "A" })],
+    );
+    const rows = changeGroups(view).flatMap((group) => group.rows);
+    expect(rows.find((row) => row.id === "slot-keyOverride-0")).toMatchObject({ detail: "New: A → B" });
+  });
+});
