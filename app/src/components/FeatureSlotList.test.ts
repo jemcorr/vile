@@ -429,3 +429,51 @@ describe("feature slot menu", () => {
     expect(paste.querySelector(".menu-reason")!.textContent).toBe("Clipboard is empty");
   });
 });
+
+describe("feature slot new entries", () => {
+  it("shows + New in the first empty slot, and in others only on hover or focus", async () => {
+    mountSlots([
+      { index: 0, set: true, text: "a" },
+      { index: 1, set: false, text: "" },
+      { index: 2, set: false, text: "" },
+    ]);
+    await settle();
+    expect(document.querySelector('[data-slot-index="1"]')!.classList.contains("first-empty")).toBe(true);
+    expect(document.querySelector('[data-slot-index="2"]')!.classList.contains("first-empty")).toBe(false);
+    expect(document.querySelector('[data-slot-index="1"] .slot-new')!.textContent).toBe("+ New");
+    expect(document.querySelector('[data-slot-index="0"] .slot-new')).toBeNull();
+    expect(document.querySelector('[data-slot-index="2"]')!.getAttribute("aria-label")).toBe("Combo slot C2, empty");
+  });
+
+  it("selects an empty slot and then starts a new entry, without a write", async () => {
+    const operation = vi.fn(async () => true);
+    const onselect = vi.fn();
+    const onnew = vi.fn();
+    mounted = mount(FeatureSlotList, {
+      target: document.body,
+      props: {
+        kind: "combo",
+        label: "Combo",
+        perColumn: 8,
+        selected: 0,
+        onselect,
+        onnew,
+        onoperation: operation,
+        items: [
+          { index: 0, set: true, text: "a" },
+          { index: 1, set: false, text: "" },
+        ],
+      },
+    });
+    await settle();
+    await clickCell(1);
+    await settle();
+    expect(onselect).toHaveBeenCalledWith(1);
+    expect(onnew).toHaveBeenCalledWith(1);
+    expect(onselect.mock.invocationCallOrder[0]).toBeLessThan(onnew.mock.invocationCallOrder[0]!);
+    expect(operation).not.toHaveBeenCalled();
+    await clickCell(0);
+    await settle();
+    expect(onnew).toHaveBeenCalledTimes(1);
+  });
+});

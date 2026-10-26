@@ -42,6 +42,7 @@
     onselect,
     onoperation,
     onrename,
+    onnew,
   }: {
     kind: Kind;
     items: Item[];
@@ -54,6 +55,8 @@
     onoperation: (op: OpDto, done?: string) => Promise<boolean>;
     /** Opens the rename dialog for a combo or macro. */
     onrename?: (index: number) => void;
+    /** Starts the family's first step in an empty slot. It never writes to the document. */
+    onnew?: (index: number) => void;
   } = $props();
   const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
   const KEY_ACTIONS: Record<string, SlotMenuId> = { x: "cut", c: "copy", v: "paste", d: "duplicate" };
@@ -115,6 +118,8 @@
     });
   }
   const menuList: SlotMenuItem[] = $derived(menu ? menuItems() : []);
+  /** The first empty slot shows "+ New" all the time; the others show it on hover or focus. */
+  const firstEmpty = $derived(items.find((item) => !item.set)?.index ?? null);
 
   /** Runs one menu item, or the key that names it. A disabled item says why instead. */
   async function run(id: SlotMenuId): Promise<void> {
@@ -217,6 +222,7 @@
       picked = [];
       anchor = index;
       onselect(index);
+      if (!isSet(index)) onnew?.(index);
       return;
     }
     if (!guarded()) return;
@@ -337,11 +343,12 @@
       data-state={item.set ? "set" : "empty"}
       class:active={selected === item.index}
       class:picked={picked.includes(item.index)}
+      class:first-empty={item.index === firstEmpty}
       class:drag-source={pointerDrag.current?.payload.kind === "featureSlot" && pointerDrag.current.payload.feature === kind && pointerDrag.current.payload.index === item.index}
       class:drop-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index}
       class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
-      aria-label={slotAriaLabel(item.index)}
+      aria-label={slotAriaLabel(item.index) + (item.set ? "" : ", empty")}
       title={`${item.title ?? (item.text || "Empty")}${item.uses ? `\nUsed by ${item.uses}` : ""}${item.changed ? "\nChanged" : ""}\nDrag to swap · Alt-drag to copy`}
       onclick={(e) => clicked(e, item.index)}
       oncontextmenu={(e) => menuAt(e, item.index)}
@@ -353,7 +360,7 @@
         )}
       use:pointerDrop={(event) => drop(event, item.index)}
     >
-      <span class="slot-id">{item.index}</span><span class="slot-desc">{item.text}</span>{#if item.changed}<i class="change-dot slot-change" aria-hidden="true"></i>{/if}
+      <span class="slot-id">{item.index}</span>{#if item.set}<span class="slot-desc">{item.text}</span>{:else}<span class="slot-new" aria-hidden="true">+ New</span>{/if}{#if item.changed}<i class="change-dot slot-change" aria-hidden="true"></i>{/if}
     </button>
   {/each}
 </div>
@@ -385,6 +392,13 @@
 <style>
   .feature-slot-list .slot-cell {
     touch-action: none;
+  }
+  .feature-slot-list .slot-new {
+    color: var(--muted);
+    opacity: 0;
+  }
+  .feature-slot-list .slot-cell[data-state="empty"]:is(:hover, :focus-visible, .active, .first-empty) .slot-new {
+    opacity: 1;
   }
   /* Out of the layout flow: a menu in the grid would stretch to the row's height. */
   .feature-slot-menu {
