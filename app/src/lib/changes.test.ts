@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { changeCount, changeGroups, changedSlots, compareErrorText, shortLabel } from "./changes";
-import type { DiffLineDto, KeycodeView, ViewModel } from "./types";
+import type { DiffLineDto, IntentDto, KeycodeView, KeyCellDto, StoryDto, ViewModel } from "./types";
 
 const parts = { kind: "tap", base: 4, wrapMods: 0, hold: { kind: "none" } } as const;
 const keycode = (code: number, label: string, description = label): KeycodeView => ({
@@ -17,7 +17,7 @@ const B = keycode(5, "B");
 const A = keycode(4, "A");
 const W = keycode(24, "W");
 
-const cell = (id: string, path: string, value: KeycodeView) => ({
+const cell = (id: string, path: string, value: KeycodeView): KeyCellDto => ({
   id,
   wire: value.wire,
   label: value.label,
@@ -252,6 +252,151 @@ describe("names, settings and file", () => {
     expect(groups.map((group) => group.title)).toEqual(["Layer 0 · Base", "Tap dances", "Names", "File"]);
     expect(changeCount(groups)).toBe(5);
     expect(changeGroups(makeView({ diff: [] }))).toEqual([]);
+  });
+});
+
+/** A story over `makeView`, with the rest and the reference defaulting to the view's diff and baseline. */
+function withStory(intents: IntentDto[], over: Partial<ViewModel> = {}, rest: DiffLineDto[] = []): ViewModel {
+  const base = makeView(over);
+  const story: StoryDto = { intents, rest, reference: base.baseline };
+  return { ...base, story } as ViewModel;
+}
+
+const at = (layer: number, keyId: string) => ({ layer, keyId });
+
+describe("intent rows", () => {
+  it("words a cleared layer as one row with its key count", () => {
+    const groups = changeGroups(withStory([{ kind: "layerFilled", layer: 0, value: "KC_NO", keys: 41 }]));
+    expect(groups.map((group) => group.id)).toEqual(["layer-0"]);
+    const [row] = groups[0]!.rows;
+    expect(row).toMatchObject({ text: "Cleared all keys", detail: "41 keys", jump: { kind: "layer", layer: 0 } });
+    expect(groups[0]!.count).toBe("1 change");
+    expect(changeCount(groups)).toBe(1);
+  });
+
+  it("words a transparent fill as one row", () => {
+    const [group] = changeGroups(withStory([{ kind: "layerFilled", layer: 1, value: "KC_TRNS", keys: 26 }]));
+    expect(group!.id).toBe("layer-1");
+    expect(group!.rows[0]!.text).toBe("Made all keys transparent");
+    expect(group!.rows[0]!.detail).toBe("26 keys");
+  });
+
+  it("words a copied layer with its source name and files it under the target layer", () => {
+    const view = withStory([{ kind: "layerCopied", from: 1, to: 3, keys: 26 }], {
+      names: { layers: { 1: "Symbols" }, macros: {}, combos: {} },
+    });
+    const [group] = changeGroups(view);
+    expect(group!.id).toBe("layer-3");
+    expect(group!.rows[0]).toMatchObject({ text: "Copied from layer 1 · Symbols", detail: "26 keys", jump: { kind: "layer", layer: 3 } });
+  });
+
+  it("shows a swap as one chip with the current labels and selects both keys", () => {
+    // After the swap r0c0 holds W and r0c1 holds L.
+    const view = withStory([{ kind: "keysSwapped", a: at(0, "r0c0"), b: at(0, "r0c1") }], {
+      layers: [[cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", A)]],
+      keycodes: { "layout[0][0][0]": W, "layout[0][0][1]": A },
+    });
+    const [group] = changeGroups(view);
+    const [chip] = group!.chips;
+    expect(chip!.text).toBe("W ⇄ A");
+    expect(chip!.jump).toEqual({ kind: "keys", layer: 0, keyIds: ["r0c0", "r0c1"] });
+    expect(group!.count).toBe("1 change");
+    expect(changeCount(changeGroups(view))).toBe(1);
+  });
+
+  it("names the other layer on a swap across layers and selects only the first key", () => {
+    const view = withStory([{ kind: "keysSwapped", a: at(0, "r0c0"), b: at(2, "r0c1") }], {
+      layers: [
+        [cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", NO_KEY)],
+        [],
+        [cell("r0c0", "layout[2][0][0]", NO_KEY), cell("r0c1", "layout[2][0][1]", A)],
+      ],
+    });
+    const [group] = changeGroups(view);
+    expect(group!.chips[0]).toMatchObject({ text: "W ⇄ A (layer 2)", jump: { kind: "keys", layer: 0, keyIds: ["r0c0"] } });
+  });
+
+  it("words a moved key, names the emptied key and the key it replaced", () => {
+    const view = withStory([{ kind: "keyMoved", from: at(0, "r0c1"), to: at(0, "r0c0") }], {
+      layers: [[cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", NO_KEY)]],
+      keycodes: { "layout[0][0][0]": W },
+    });
+    const [group] = changeGroups(view);
+    expect(group!.chips[0]).toMatchObject({
+      text: "Moved W",
+      title: "Moved W from r0c1 to r0c0. r0c1 is now empty. It replaced A.",
+      jump: { kind: "keys", layer: 0, keyIds: ["r0c0"] },
+    });
+  });
+
+  it("does not mention a replacement when the target was empty", () => {
+    const view = withStory([{ kind: "keyMoved", from: at(0, "r0c1"), to: at(0, "r0c0") }], {
+      layers: [[cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", NO_KEY)]],
+      baseline: { ...makeView().baseline, keycodes: { "layout[0][0][1]": B } },
+    });
+    const [group] = changeGroups(view);
+    expect(group!.chips[0]!.title).toBe("Moved W from r0c1 to r0c0. r0c1 is now empty.");
+  });
+
+  it("words a cleared group of keys as a row that selects them all", () => {
+    const [group] = changeGroups(withStory([{ kind: "keysFilled", layer: 0, value: "KC_NO", keys: ["r0c0", "r0c1"] }]));
+    expect(group!.rows[0]).toMatchObject({
+      text: "Cleared 2 keys",
+      jump: { kind: "keys", layer: 0, keyIds: ["r0c0", "r0c1"] },
+    });
+  });
+
+  it("words swapped and copied slots with the slot word and the first slot as jump", () => {
+    const groups = changeGroups(
+      withStory([
+        { kind: "slotsSwapped", feature: "combo", a: 1, b: 4 },
+        { kind: "slotCopied", feature: "altRepeat", from: 0, to: 2 },
+      ]),
+    );
+    expect(groups.map((group) => group.id)).toEqual(["slot-combo", "slot-altRepeatKey"]);
+    expect(groups[0]!.rows[0]).toMatchObject({ text: "Swapped combo 1 and combo 4", jump: { kind: "slot", panel: "combos", index: 1 } });
+    expect(groups[1]!.rows[0]).toMatchObject({ text: "Copied alt repeat 0 to alt repeat 2", jump: { kind: "slot", panel: "altRepeat", index: 2 } });
+    expect(changeCount(groups)).toBe(2);
+  });
+
+  it("puts intent rows in front of the diff rows of their group and counts them together", () => {
+    const view = withStory(
+      [{ kind: "keysSwapped", a: at(0, "r0c0"), b: at(0, "r0c1") }],
+      {
+        layers: [[cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", A)]],
+        keycodes: { "layout[0][0][0]": W, "layout[0][0][1]": A },
+      },
+      [
+        line({ section: "encoder", layer: 0, index: 0, field: "cw", old: "KC_VOLU", new: "KC_VOLD", oldDescription: "Vol+", newDescription: "Vol−" }),
+      ],
+    );
+    const [group] = changeGroups(view);
+    expect(group!.chips.map((chip) => chip.text)).toEqual(["W ⇄ A"]);
+    expect(group!.rows.map((row) => row.text)).toEqual(["Knob 1 clockwise"]);
+    expect(group!.count).toBe("2 changes");
+    expect(changeCount(changeGroups(view))).toBe(2);
+  });
+
+  it("keeps the key and knob counts for a layer with no intent", () => {
+    const [group] = changeGroups(
+      makeView({
+        diff: [
+          layoutLine("r0c1", "KC_B", "KC_NO", "B", "No key"),
+          line({ section: "encoder", layer: 0, index: 0, field: "cw", old: "KC_VOLU", new: "KC_VOLD", oldDescription: "Vol+", newDescription: "Vol−" }),
+        ],
+      }),
+    );
+    expect(group!.count).toBe("1 key · 1 knob");
+  });
+
+  it("reads the story's rest and reference by default, and the view's diff without a story", () => {
+    const restLine = line({ section: "meta", field: "version", old: "1", new: "2" });
+    const story = withStory([], {
+      diff: [layoutLine("r0c1", "KC_B", "KC_NO", "B", "No key")],
+    }, [restLine]);
+    expect(changeGroups({ ...story, story: null } as ViewModel).length).toBe(1);
+    const withRest = changeGroups(story);
+    expect(withRest.map((group) => group.title)).toEqual(["File"]);
   });
 });
 

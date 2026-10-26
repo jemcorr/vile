@@ -973,6 +973,32 @@ describe("desktop editing workflow", () => {
     expect(ui.layer).toBe(0);
     expect(ui.selection).toEqual(["r0c1"]);
   });
+  it("shows a swap as one chip and selects both keys from it", async () => {
+    const swapped = { ...view(), dirty: true };
+    const [first, second] = swapped.layers[0]!;
+    swapped.layers[0] = [
+      { ...first!, label: "B", wire: "KC_B", code: 5, description: "B" },
+      { ...second!, label: "A", wire: "KC_A", code: 4, description: "A" },
+    ];
+    swapped.story = {
+      intents: [{ kind: "keysSwapped", a: { layer: 0, keyId: "r0c0" }, b: { layer: 0, keyId: "r0c1" } }],
+      rest: [],
+      reference: swapped.baseline,
+    };
+    fake.getView.mockResolvedValue(swapped);
+    app = mount(App, { target: document.body });
+    await settle();
+    document.querySelector<HTMLButtonElement>(".pending-button")!.click();
+    await settle();
+    const chips = document.querySelectorAll<HTMLButtonElement>(".change-chip");
+    expect(chips.length).toBe(1);
+    expect(chips[0]!.textContent).toBe("B ⇄ A");
+    expect(document.querySelector(".pending-button .count-wide")?.textContent).toBe("1 change");
+    chips[0]!.click();
+    await settle();
+    expect(ui.layer).toBe(0);
+    expect(ui.selection).toEqual(["r0c0", "r0c1"]);
+  });
   it("switches the comparison from the sheet", async () => {
     fake.setDiffBase.mockRejectedValueOnce(
       "cannot read the git HEAD version: git failed: fatal: not a git repository",

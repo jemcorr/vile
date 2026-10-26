@@ -1,6 +1,6 @@
 // Groups the changes against the comparison point in plain language. Rust sends the facts
 // (diff lines, baseline values); this module only words and orders them.
-import type { BaselineDto, DiffLineDto, KeyCellDto, ViewModel } from "./types";
+import type { BaselineDto, DiffLineDto, IntentDto, KeyAtDto, KeyCellDto, ViewModel } from "./types";
 import type { Panel } from "./modes";
 import {
   ALT_REPEAT_OPTION_BITS,
@@ -147,10 +147,15 @@ export function changeCount(groups: ChangeGroup[]): number {
 }
 
 /**
- * Groups the diff lines by where the change lives. `lines` defaults to the view's diff and
- * `reference` to its baseline values. Stories (Phase 3) pass their own rest lines and reference.
+ * Groups the changes by where they live. `lines` defaults to the story's rest (or the view's diff)
+ * and `reference` to the story's reference (or the view's baseline). Each intent of the story is
+ * one row or chip placed in front of the diff rows of its group.
  */
-export function changeGroups(view: ViewModel, lines: DiffLineDto[] = view.diff, reference: BaselineDto = view.baseline): ChangeGroup[] {
+export function changeGroups(
+  view: ViewModel,
+  lines: DiffLineDto[] = view.story?.rest ?? view.diff,
+  reference: BaselineDto = view.story?.reference ?? view.baseline,
+): ChangeGroup[] {
   const input = withRetryLine(lines, view);
   const keys = view.board?.keys ?? [];
   const layerName = (layer: number) => view.names.layers[layer];
@@ -160,7 +165,7 @@ export function changeGroups(view: ViewModel, lines: DiffLineDto[] = view.diff, 
   const names: ChangeRow[] = [];
   const settings: ChangeRow[] = [];
   const file: ChangeRow[] = [];
-  const pushTo = <T>(map: Map<number, T[]>, key: number, value: T) => map.set(key, [...(map.get(key) ?? []), value]);
+  const pushTo = <K, T>(map: Map<K, T[]>, key: K, value: T) => map.set(key, [...(map.get(key) ?? []), value]);
 
   for (const line of input) {
     if (line.section === "layout" && line.layer !== null && line.keyId !== null) {
@@ -212,16 +217,30 @@ export function changeGroups(view: ViewModel, lines: DiffLineDto[] = view.diff, 
     }
   }
 
+  const intentChips = new Map<number, ChangeRow[]>();
+  const intentRows = new Map<number, ChangeRow[]>();
+  const intentSlotRows = new Map<SlotSection, ChangeRow[]>();
+  for (const [index, intent] of (view.story?.intents ?? []).entries()) {
+    const placed = intentChange(view, intent, index);
+    if (!placed) continue;
+    if ("section" in placed.place) pushTo(intentSlotRows, placed.place.section, placed.row);
+    else if (placed.chip) pushTo(intentChips, placed.place.layer, placed.row);
+    else pushTo(intentRows, placed.place.layer, placed.row);
+  }
+
   const groups: ChangeGroup[] = [];
-  const layers = [...new Set([...layerChips.keys(), ...layerKnobs.keys()])].sort((a, b) => a - b);
+  const layers = [...new Set([...layerChips.keys(), ...layerKnobs.keys(), ...intentChips.keys(), ...intentRows.keys()])].sort((a, b) => a - b);
   for (const layer of layers) {
-    const chips = layerChips.get(layer) ?? [];
-    const rows = layerKnobs.get(layer) ?? [];
+    const chips = [...(intentChips.get(layer) ?? []), ...(layerChips.get(layer) ?? [])];
+    const rows = [...(intentRows.get(layer) ?? []), ...(layerKnobs.get(layer) ?? [])];
     const name = layerName(layer);
-    const counts = [
-      chips.length ? plural(chips.length, ["key", "keys"]) : "",
-      rows.length ? plural(rows.length, ["knob", "knobs"]) : "",
-    ].filter(Boolean);
+    const holdsIntent = (intentChips.get(layer)?.length ?? 0) + (intentRows.get(layer)?.length ?? 0) > 0;
+    const counts = holdsIntent
+      ? [plural(chips.length + rows.length, ["change", "changes"])]
+      : [
+          chips.length ? plural(chips.length, ["key", "keys"]) : "",
+          rows.length ? plural(rows.length, ["knob", "knobs"]) : "",
+        ].filter(Boolean);
     groups.push({
       id: `layer-${layer}`,
       rank: layer,
@@ -235,11 +254,15 @@ export function changeGroups(view: ViewModel, lines: DiffLineDto[] = view.diff, 
 
   for (const section of SLOT_SECTIONS) {
     const bySlot = slotLines.get(section);
-    if (!bySlot) continue;
+    const intentRowsHere = intentSlotRows.get(section) ?? [];
+    if (!bySlot && !intentRowsHere.length) continue;
     const table = SLOT_TABLE[section];
-    const rows = [...bySlot.keys()]
-      .sort((a, b) => a - b)
-      .map((index) => slotRow(section, index, bySlot.get(index) ?? [], view, reference));
+    const rows = [
+      ...intentRowsHere,
+      ...[...(bySlot?.keys() ?? [])]
+        .sort((a, b) => a - b)
+        .map((index) => slotRow(section, index, bySlot?.get(index) ?? [], view, reference)),
+    ];
     groups.push({
       id: `slot-${section}`,
       rank: table.rank,
@@ -269,6 +292,98 @@ export function changeGroups(view: ViewModel, lines: DiffLineDto[] = view.diff, 
     groups.push({ id: "file", rank: 1007, title: "File", count: plural(file.length, ["change", "changes"]), jump: null, chips: [], rows: file });
   }
   return groups.sort((a, b) => a.rank - b.rank);
+}
+
+/** Feature names of the story (`IntentDto.feature`) to slot sections. */
+const FEATURE_SECTIONS: Record<string, SlotSection> = {
+  combo: "combo",
+  macro: "macro",
+  tapDance: "tapDance",
+  keyOverride: "keyOverride",
+  altRepeat: "altRepeatKey",
+};
+
+/** The current cell of a key, from its board key id. */
+function cellOf(view: ViewModel, key: KeyAtDto): KeyCellDto | undefined {
+  const index = view.board?.keys.findIndex((board) => board.id === key.keyId) ?? -1;
+  return index < 0 ? undefined : view.layers[key.layer]?.[index];
+}
+
+/** The key's name when it has one, else its id ("r0c2"). */
+function keyName(view: ViewModel, key: KeyAtDto): string {
+  return view.board?.keys.find((board) => board.id === key.keyId)?.name || key.keyId;
+}
+
+/** The current label of a key, for "W ⇄ L" style text. */
+function keyLabel(view: ViewModel, key: KeyAtDto): string {
+  return shortLabel(cellOf(view, key)) || key.keyId;
+}
+
+/** Where an intent is shown, and how. A chip sits among the key chips of its layer. */
+type IntentPlace = { layer: number } | { section: SlotSection };
+
+/** One intent as a chip or row. Null for an intent the sheet cannot name. */
+function intentChange(view: ViewModel, intent: IntentDto, index: number): { place: IntentPlace; chip: boolean; row: ChangeRow } | null {
+  const id = `intent-${intent.kind}-${index}`;
+  switch (intent.kind) {
+    case "layerFilled": {
+      const detail = plural(intent.keys, ["key", "keys"]);
+      const text =
+        intent.value === "KC_NO"
+          ? "Cleared all keys"
+          : intent.value === "KC_TRNS"
+            ? "Made all keys transparent"
+            : `Set all keys to ${intent.value}`;
+      return { place: { layer: intent.layer }, chip: false, row: { id, text, detail, title: `${text}: ${detail}`, jump: { kind: "layer", layer: intent.layer } } };
+    }
+    case "layerCopied": {
+      const name = view.names.layers[intent.from];
+      const text = `Copied from layer ${intent.from}${name ? ` · ${name}` : ""}`;
+      const detail = plural(intent.keys, ["key", "keys"]);
+      return { place: { layer: intent.to }, chip: false, row: { id, text, detail, title: `${text}: ${detail}`, jump: { kind: "layer", layer: intent.to } } };
+    }
+    case "keysSwapped": {
+      const { a, b } = intent;
+      const sameLayer = a.layer === b.layer;
+      const text = `${keyLabel(view, a)} ⇄ ${keyLabel(view, b)}${sameLayer ? "" : ` (layer ${b.layer})`}`;
+      const title = `Swapped ${keyName(view, a)} and ${keyName(view, b)}${sameLayer ? "" : `, on layers ${a.layer} and ${b.layer}`}`;
+      return {
+        place: { layer: a.layer },
+        chip: true,
+        row: { id, text, detail: "", title, jump: { kind: "keys", layer: a.layer, keyIds: sameLayer ? [a.keyId, b.keyId] : [a.keyId] } },
+      };
+    }
+    case "keyMoved": {
+      const { from, to } = intent;
+      const cell = cellOf(view, to);
+      const replaced = cell ? view.baseline.keycodes[cell.path] : undefined;
+      const replacedText = replaced && replaced.code !== 0 ? ` It replaced ${shortLabel(replaced)}.` : "";
+      const text = `Moved ${keyLabel(view, to)}`;
+      const title = `${text} from ${keyName(view, from)} to ${keyName(view, to)}. ${keyName(view, from)} is now empty.${replacedText}`;
+      return { place: { layer: to.layer }, chip: true, row: { id, text, detail: "", title, jump: { kind: "keys", layer: to.layer, keyIds: [to.keyId] } } };
+    }
+    case "keysFilled": {
+      const n = intent.keys.length;
+      const text =
+        intent.value === "KC_NO"
+          ? `Cleared ${n} keys`
+          : intent.value === "KC_TRNS"
+            ? `Made ${n} keys transparent`
+            : `Set ${n} keys to ${intent.value}`;
+      return { place: { layer: intent.layer }, chip: false, row: { id, text, detail: "", title: text, jump: { kind: "keys", layer: intent.layer, keyIds: intent.keys } } };
+    }
+    case "slotsSwapped":
+    case "slotCopied": {
+      const section = FEATURE_SECTIONS[intent.feature];
+      if (!section) return null;
+      const table = SLOT_TABLE[section];
+      const word = table.title.toLowerCase();
+      const swapped = intent.kind === "slotsSwapped";
+      const text = swapped ? `Swapped ${word} ${intent.a} and ${word} ${intent.b}` : `Copied ${word} ${intent.from} to ${word} ${intent.to}`;
+      const index = swapped ? intent.a : intent.to;
+      return { place: { section }, chip: false, row: { id, text, detail: "", title: text, jump: { kind: "slot", panel: table.panel, index } } };
+    }
+  }
 }
 
 function nameRow(line: DiffLineDto): ChangeRow {
