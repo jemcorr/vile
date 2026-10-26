@@ -474,6 +474,7 @@
     const cell = cells.find((cell) => cell.id === id);
     if (!cell) return;
     if (ui.comboEditing !== null && activeCombo) {
+      if (draftBlocks("Apply or revert the macro draft before assigning keys")) return;
       const codes = activeCombo.keys.map(
         (_, i) => ui.view?.keycodes[`combo[${activeCombo.index}][${i}]`]?.code ?? 0,
       );
@@ -501,6 +502,7 @@
     ui.inspectorPaths = [];
     ui.baseTarget = false;
     if (ui.swapMark) {
+      if (draftBlocks()) return;
       const a = ui.swapMark;
       ui.swapMark = null;
       void apply({ type: "swapKeys", a, b: [{ layer: ui.layer, key: id }] });
@@ -516,6 +518,7 @@
       : [...ui.selection, id];
   }
   function editKey(id: string): void {
+    if (draftBlocks("Apply or revert the macro draft before assigning keys")) return;
     onkeyclick(id, false);
     ui.mode = "insert";
   }
@@ -523,11 +526,14 @@
     if (!ui.selection.includes(id)) onkeyclick(id, false);
     menu = { kind: "keys", x, y };
   }
+  /** Board edits wait while a macro draft is open, as picker assignment and inspector edits do. */
+  function draftBlocks(message = "Apply or revert the macro draft first"): boolean {
+    if (!drafts) return false;
+    notify(message);
+    return true;
+  }
   function assign(key: KeycodeView): void {
-    if (drafts) {
-      notify("Apply or revert the macro draft before assigning keys");
-      return;
-    }
+    if (draftBlocks("Apply or revert the macro draft before assigning keys")) return;
     if (ui.comboEditing !== null && activeFeaturePath[0] !== `combo[${ui.comboEditing}][4]`) {
       notify("Select this combo's output field before assigning from the picker");
       return;
@@ -545,10 +551,7 @@
     } else void apply({ type: "replaceFields", paths: selectedPaths, keycode: key.wire });
   }
   function patch(patch: KeyPartsPatch): void {
-    if (drafts) {
-      notify("Apply or revert the macro draft first");
-      return;
-    }
+    if (draftBlocks()) return;
     void apply({ type: "patchFields", paths: selectedPaths, patch });
   }
   async function open(discard = false): Promise<void> {
@@ -661,9 +664,27 @@
     if (ui.view?.dirty || drafts) unsaved = "close";
     else await api.closeWindow();
   }
+  /** Commands that change the keymap or its layers. They wait while a macro draft is open. */
+  const BOARD_EDITS = new Set([
+    "editKey",
+    "clearKeys",
+    "transparentKeys",
+    "cutKeys",
+    "pasteKeys",
+    "swapKeys",
+    "clearLayer",
+    "transparentLayer",
+    "pasteLayer",
+    "swapLayer",
+    "moveLayer",
+    "mirrorLeftToRight",
+    "mirrorRightToLeft",
+    "mirrorSwap",
+  ]);
   async function command(id: string, arg: number | null = null): Promise<void> {
     menu = null;
     if (reason(id)) return;
+    if (BOARD_EDITS.has(id) && draftBlocks()) return;
     if (id === "open") {
       if (drafts || ui.view?.dirty) unsaved = "open";
       else await open();
@@ -691,10 +712,7 @@
       return;
     }
     if (id === "undo" || id === "redo") {
-      if (drafts) {
-        notify("Apply or revert the macro draft first");
-        return;
-      }
+      if (draftBlocks()) return;
       await change(() => (id === "undo" ? api.undo() : api.redo()));
       ui.inspectorPaths = [];
       return;
@@ -1043,6 +1061,7 @@
             }}
             onblankclick={() => dismissInteraction(true)}
             ondragkey={(from, to, copy) => {
+              if (draftBlocks()) return;
               if (copy) {
                 const source = cells.find((cell) => cell.id === from);
                 if (source)
@@ -1054,8 +1073,10 @@
                   b: [{ layer: ui.layer, key: to }],
                 });
             }}
-            onassign={(id, wire) =>
-              void apply({ type: "setKeys", layer: ui.layer, keys: [id], keycode: wire })}
+            onassign={(id, wire) => {
+              if (draftBlocks("Apply or revert the macro draft before assigning keys")) return;
+              void apply({ type: "setKeys", layer: ui.layer, keys: [id], keycode: wire });
+            }}
             onedit={editKey}
             onmenu={menuKey}
             overlays={ui.showCombos && boardView === "keyboard" ? comboOverlays(ui.view.combos, cells, ui.view.board.keys) : []}
@@ -1167,7 +1188,7 @@
           initial={inspected.length === 1 ? inspected[0]!.wire : ""}
           onsubmit={(wire) => {
             ui.mode = "normal";
-            if (selectedPaths.length)
+            if (selectedPaths.length && !draftBlocks("Apply or revert the macro draft before assigning keys"))
               void apply({ type: "replaceFields", paths: selectedPaths, keycode: wire });
           }}
           oncancel={() => (ui.mode = "normal")}

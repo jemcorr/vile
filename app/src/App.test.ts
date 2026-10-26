@@ -1164,3 +1164,139 @@ function typeName(input: HTMLInputElement, value: string): void {
   input.value = value;
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
+
+describe("board edits during a macro draft", () => {
+  function shortcut(key: string, init: KeyboardEventInit = {}): void {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...init }));
+  }
+  // Mounts the app with an unapplied macro draft, then returns to the Keymap board.
+  async function mountWithMacroDraft(): Promise<void> {
+    const withMacro = view();
+    withMacro.macros = [{ index: 0, actions: [{ kind: "text", keys: [], text: "a", delay: 0 }] }];
+    withMacro.macroBytes = 2;
+    fake.getView.mockResolvedValue(withMacro);
+    app = mount(App, { target: document.body });
+    await settle();
+    button("Macros").click();
+    await settle();
+    const input = document.querySelector<HTMLInputElement>('.action input:not([type="number"])')!;
+    input.value = "longer";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+    button("Keymap").click();
+    await settle();
+    expect(ui.drafts.macros).toBe(true);
+    ui.selection = ["r0c0"];
+  }
+  // Identity geometry: client pixels map to board units of 60 px, so r0c0 spans x 0-60 and r0c1 spans x 60-120.
+  function boardWithGeometry(): SVGSVGElement {
+    const svg = document.querySelector<SVGSVGElement>("svg.keyboard")!;
+    Object.assign(svg, {
+      getScreenCTM: () => ({ inverse: () => ({}) }),
+      setPointerCapture: vi.fn(),
+      releasePointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+    });
+    Object.defineProperty(globalThis, "DOMPoint", {
+      configurable: true,
+      value: class {
+        constructor(
+          public x: number,
+          public y: number,
+        ) {}
+        matrixTransform() {
+          return this;
+        }
+      },
+    });
+    return svg;
+  }
+  function drop(svg: SVGSVGElement, wire: string): void {
+    svg.dispatchEvent(
+      new CustomEvent("vile-pointer-drop", {
+        bubbles: true,
+        detail: { payload: { kind: "keycode", wire, code: 5 }, clientX: 30, clientY: 30 },
+      }),
+    );
+  }
+  it("holds Delete, paste, cut, the context menu, layer and swap commands", async () => {
+    await mountWithMacroDraft();
+    shortcut("Delete");
+    shortcut("v", { ctrlKey: true });
+    shortcut("x", { ctrlKey: true });
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.message).toBe("Apply or revert the macro draft first");
+    expect(ui.selection).toEqual(["r0c0"]);
+
+    document
+      .querySelector('[data-key-id="r0c0"]')!
+      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await settle();
+    button("Clear keys").click();
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+
+    await runCommand("Layer: clear to KC_NO");
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    await runCommand("Swap selected keys with");
+    expect(ui.swapMark).toBeNull();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.drafts.macros).toBe(true);
+  });
+  it("holds picker drops and key drags until the draft is applied", async () => {
+    await mountWithMacroDraft();
+    const svg = boardWithGeometry();
+    drop(svg, "KC_B");
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.message).toBe("Apply or revert the macro draft before assigning keys");
+    pointer(svg, "pointerdown", 30, 30);
+    pointer(svg, "pointermove", 90, 30);
+    pointer(svg, "pointerup", 90, 30);
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.message).toBe("Apply or revert the macro draft first");
+  });
+  it("holds the keycode dialog, its submit, and combo trigger clicks", async () => {
+    await mountWithMacroDraft();
+    document
+      .querySelector('[data-key-id="r0c0"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await settle();
+    expect(ui.mode).toBe("normal");
+    expect(ui.message).toBe("Apply or revert the macro draft before assigning keys");
+
+    // A dialog opened before the draft still refuses its submit.
+    ui.drafts.macros = false;
+    document
+      .querySelector('[data-key-id="r0c0"]')!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await settle();
+    expect(ui.mode).toBe("insert");
+    ui.drafts.macros = true;
+    fake.resolveKeycode.mockResolvedValue("KC_B");
+    const input = document.querySelector<HTMLInputElement>('[aria-label="Type keycode"] input')!;
+    input.value = "KC_B";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await settle();
+    expect(ui.mode).toBe("normal");
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.message).toBe("Apply or revert the macro draft before assigning keys");
+
+    // A swap armed before the draft still refuses its second click.
+    ui.swapMark = [{ layer: 0, key: "r0c1" }];
+    document.querySelector<SVGGElement>('[data-key-id="r0c0"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.swapMark).toEqual([{ layer: 0, key: "r0c1" }]);
+
+    ui.swapMark = null;
+    ui.comboEditing = 0;
+    document.querySelector<SVGGElement>('[data-key-id="r0c0"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+    expect(ui.message).toBe("Apply or revert the macro draft before assigning keys");
+  });
+});
