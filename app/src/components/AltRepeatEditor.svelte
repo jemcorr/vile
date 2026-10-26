@@ -42,18 +42,6 @@
   function altModLabel(name: string): string {
     return MOD_LABELS[name] ?? name;
   }
-  function slotKeys(e: KeyboardEvent, perColumn: number, pick: (index: number) => void): void {
-    const row = selected % perColumn, column = Math.floor(selected / perColumn);
-    const next = e.key === "ArrowUp" && row > 0 ? selected - 1
-      : e.key === "ArrowDown" && row < perColumn - 1 ? selected + 1
-      : e.key === "ArrowLeft" && column > 0 ? selected - perColumn
-      : e.key === "ArrowRight" && column < 1 ? selected + perColumn
-      : -1;
-    if (next < 0) return;
-    e.preventDefault();
-    pick(next);
-    if (selected === next) (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-slot-index="' + next + '"]')?.focus();
-  }
 </script>
 
 <section class="slot-editor" data-slot-editor="altRepeat"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="altRepeat" label="Alt repeat" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={altRepeatKeys.map((slot) => ({ index: slot.index, set: altRepeatSet(slot), text: altRepeatText(slot, currentLabels(ui.view)), changed: changed.has(slot.index) }))} /><div class="slot-form">{#each altRepeatKeys as ar (ar.index)}{#if ar.index === selected}<article class="slot-edit-panel" aria-label={`Editing alternate repeat AR${ar.index}`}><div class="slot-edit-title"><span class="slot-kicker">Alt repeat {ar.index}</span></div><div class="keycap-row"><Field path={`alt_repeat_key[${ar.index}].keycode`} label="Key" /><span class="keycap-arrow" aria-hidden="true">→</span><Field path={`alt_repeat_key[${ar.index}].alt_keycode`} label="Alternate" /></div><div class="override-body alt-body">{#each masks as mask, index}<fieldset class={index === 0 ? "modifier-toggles" : "override-options"}><legend>{mask.name}</legend>{#each mask.bits as bit}<label title={index === 0 ? undefined : altOptionTitle(bit.name)}><input type="checkbox" checked={hasBit(index === 0 ? ar.allowedMods : ar.options, bit.bit)} onchange={() => onsave({ ...ar, ...(index === 0 ? { allowedMods: toggleBit(ar.allowedMods, bit.bit) } : { options: toggleBit(ar.options, bit.bit) }) })} />{index === 0 ? altModLabel(bit.name) : altOptionLabel(bit.name)}</label>{/each}</fieldset>{/each}</div></article>{/if}{/each}</div></section>

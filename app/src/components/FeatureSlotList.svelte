@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import {
     pointerDrag,
     pointerDrop,
@@ -32,6 +33,20 @@
   } = $props();
   const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
   let menu = $state<{ index: number; x: number; y: number } | null>(null);
+  /** Slots picked with Shift or Command, besides the active one. Empty means only the active slot. */
+  let picked = $state<number[]>([]);
+  /** Where Shift+arrow started, when it is not the active slot. */
+  let anchor = $state<number | null>(null);
+
+  // The active slot moved without a click here (a reveal, a clamp): forget the picked set.
+  $effect(() => {
+    if (picked.length > 0 && !picked.includes(selected)) {
+      untrack(() => {
+        picked = [];
+        anchor = null;
+      });
+    }
+  });
 
   function guarded(): boolean {
     if (kind === "macro" && dirty) {
@@ -74,6 +89,75 @@
   async function copyTo(from: number, to: number): Promise<void> {
     await onoperation({ type: "copyFeatureSlotsTo", kind, from: [from], to: [to] });
   }
+  function clicked(e: MouseEvent, index: number): void {
+    if (suppressDragClick()) return;
+    if (!(e.shiftKey || e.metaKey || e.ctrlKey)) {
+      picked = [];
+      anchor = index;
+      onselect(index);
+      return;
+    }
+    if (!guarded()) return;
+    toggle(index);
+  }
+  function toggle(index: number): void {
+    const seeded = picked.length > 0 ? picked : [selected];
+    if (seeded.includes(index)) {
+      const remaining = seeded.filter((i) => i !== index);
+      picked = remaining;
+      const last = remaining.at(-1);
+      if (index === selected && last !== undefined) onselect(last);
+      return;
+    }
+    picked = [...seeded, index];
+    anchor = index;
+    onselect(index);
+  }
+  /** The slot an arrow key reaches from the active one: two columns, a column per `perColumn`. */
+  function neighbour(key: string): number | null {
+    const row = selected % perColumn;
+    const column = Math.floor(selected / perColumn);
+    const next =
+      key === "ArrowUp" && row > 0
+        ? selected - 1
+        : key === "ArrowDown" && row < perColumn - 1
+          ? selected + 1
+          : key === "ArrowLeft" && column > 0
+            ? selected - perColumn
+            : key === "ArrowRight" && column < 1
+              ? selected + perColumn
+              : -1;
+    return next >= 0 && next < items.length ? next : null;
+  }
+  /** Moves with an arrow key; Shift extends the picked set from the anchor. Returns false when the key is not ours. */
+  function arrow(e: KeyboardEvent): boolean {
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return false;
+    if (e.target instanceof Element && e.target.closest("input,textarea,select,[contenteditable=true]"))
+      return false;
+    const next = neighbour(e.key);
+    if (next === null) return false;
+    e.preventDefault();
+    if (e.shiftKey) {
+      if (!guarded()) return true;
+      anchor = anchor ?? selected;
+      const from = Math.min(anchor, next);
+      const to = Math.max(anchor, next);
+      picked = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+    } else {
+      picked = [];
+      anchor = next;
+    }
+    onselect(next);
+    (e.currentTarget as HTMLElement)
+      .querySelector<HTMLElement>(`[data-slot-index="${next}"]`)
+      ?.focus();
+    return true;
+  }
+  function onkey(e: KeyboardEvent): void {
+    if (arrow(e)) return;
+    keydown(e, selected);
+  }
   function keydown(e: KeyboardEvent, index: number): void {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
     if (
@@ -110,7 +194,7 @@
   role="group"
   style="--per-column:{perColumn}"
   aria-label={label}
-  onkeydown={(e) => keydown(e, selected)}
+  onkeydown={onkey}
 >
   {#each items as item (item.index)}
     <button
@@ -121,13 +205,14 @@
       data-feature-slot-ready={kind !== "macro" || !dirty}
       data-state={item.set ? "set" : "empty"}
       class:active={selected === item.index}
+      class:picked={picked.includes(item.index)}
       class:drag-source={pointerDrag.current?.payload.kind === "featureSlot" && pointerDrag.current.payload.feature === kind && pointerDrag.current.payload.index === item.index}
       class:drop-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index}
       class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
       aria-label={slotAriaLabel(item.index)}
       title={`${item.title ?? (item.text || "Empty")}${item.changed ? "\nChanged" : ""}\nDrag to swap · Alt-drag to copy`}
-      onclick={() => { if (!suppressDragClick()) onselect(item.index); }}
+      onclick={(e) => clicked(e, item.index)}
       oncontextmenu={(e) => menuAt(e, item.index)}
       onpointerdown={(e) =>
         startPointerDrag(

@@ -252,3 +252,97 @@ describe("feature slot actions", () => {
     expect(paste.defaultPrevented).toBe(false);
   });
 });
+
+function mountList(count: number, perColumn: number, start = 0) {
+  // The active slot is read through a getter, so each key sees the slot the last one selected.
+  let current = start;
+  const onselect = vi.fn((index: number) => {
+    current = index;
+  });
+  mounted = mount(FeatureSlotList, {
+    target: document.body,
+    props: {
+      kind: "combo",
+      label: "Combo",
+      perColumn,
+      get selected() {
+        return current;
+      },
+      onselect,
+      onoperation: vi.fn(async () => true),
+      items: Array.from({ length: count }, (_, index) => ({ index, set: true, text: `c${index}` })),
+    },
+  });
+  return onselect;
+}
+// A drop arms a zero-delay timer that ends click suppression; let it run before clicking.
+async function clickCell(index: number, modifiers: MouseEventInit = {}) {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  document
+    .querySelector<HTMLButtonElement>(`[data-slot-index="${index}"]`)!
+    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...modifiers }));
+}
+function pressOn(index: number, key: string, shiftKey = false) {
+  document
+    .querySelector<HTMLButtonElement>(`[data-slot-index="${index}"]`)!
+    .dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true }));
+}
+function pickedIndices(): number[] {
+  return [...document.querySelectorAll<HTMLElement>(".slot-cell.picked")].map((cell) =>
+    Number(cell.dataset.slotIndex),
+  );
+}
+
+describe("feature slot selection", () => {
+  it("toggles a picked set with Shift and Command clicks, seeded with the active slot", async () => {
+    mountList(8, 4, 0);
+    await settle();
+    await clickCell(2, { shiftKey: true });
+    await settle();
+    await clickCell(3, { metaKey: true });
+    await settle();
+    expect(pickedIndices()).toEqual([0, 2, 3]);
+    await clickCell(2, { metaKey: true });
+    await settle();
+    expect(pickedIndices()).toEqual([0, 3]);
+  });
+
+  it("moves with arrows within a column and jumps between the two columns", async () => {
+    const onselect = mountList(32, 16, 0);
+    await settle();
+    pressOn(0, "ArrowDown");
+    expect(onselect).toHaveBeenLastCalledWith(1);
+    pressOn(1, "ArrowRight");
+    expect(onselect).toHaveBeenLastCalledWith(17);
+    expect(pickedIndices()).toEqual([]);
+  });
+
+  it("extends the picked range with Shift+arrows from the anchor", async () => {
+    const onselect = mountList(32, 16, 1);
+    await settle();
+    pressOn(1, "ArrowDown", true);
+    await settle();
+    pressOn(2, "ArrowDown", true);
+    await settle();
+    expect(onselect.mock.calls.map(([index]) => index)).toEqual([2, 3]);
+    expect(pickedIndices()).toEqual([1, 2, 3]);
+  });
+
+  it("leaves arrow keys alone inside a text field", async () => {
+    const onselect = mountList(4, 2, 0);
+    await settle();
+    const input = document.createElement("input");
+    document.querySelector(".slot-list")!.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(onselect).not.toHaveBeenCalled();
+  });
+
+  it("refuses Shift-clicks while a macro draft is unapplied", async () => {
+    render("macro", true);
+    await settle();
+    await clickCell(1, { shiftKey: true });
+    await settle();
+    expect(mocks.notify).toHaveBeenCalledWith("Apply or revert the macro draft first");
+    expect(pickedIndices()).toEqual([]);
+  });
+});

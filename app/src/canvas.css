@@ -1747,6 +1747,9 @@ kbd {
   outline: 2px solid var(--cursor);
   outline-offset: 1px;
 }
+.canvas-feature-editor .slot-cell.picked {
+  border-color: var(--cursor);
+}
 .canvas-feature-editor .slot-cell.drag-source {
   opacity: 0.38;
 }

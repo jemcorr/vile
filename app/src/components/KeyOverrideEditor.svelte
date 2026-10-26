@@ -42,18 +42,6 @@
     }
   });
 
-  function slotKeys(e: KeyboardEvent, perColumn: number, pick: (index: number) => void): void {
-    const row = selected % perColumn, column = Math.floor(selected / perColumn);
-    const next = e.key === "ArrowUp" && row > 0 ? selected - 1
-      : e.key === "ArrowDown" && row < perColumn - 1 ? selected + 1
-      : e.key === "ArrowLeft" && column > 0 ? selected - perColumn
-      : e.key === "ArrowRight" && column < 1 ? selected + perColumn
-      : -1;
-    if (next < 0) return;
-    e.preventDefault();
-    pick(next);
-    if (selected === next) (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-slot-index="' + next + '"]')?.focus();
-  }
 </script>
 
 <section class="slot-editor" data-slot-editor="keyOverride"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="keyOverride" label="Key override" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={keyOverrides.map((slot) => ({ index: slot.index, set: keyOverrideSet(slot), text: keyOverrideText(slot, currentLabels(ui.view)), changed: changed.has(slot.index) }))} /><div class="slot-form">{#each keyOverrides as ko (ko.index)}{#if ko.index === selected}<article class="slot-edit-panel override-card" aria-label={`Editing key override KO${ko.index}`}><div class="slot-edit-title"><span class="slot-kicker">Key override {ko.index}</span></div><div class="override-body"><div class="keycap-row"><Field path={`key_override[${ko.index}].trigger`} label="Trigger" /><span class="keycap-arrow" aria-hidden="true">→</span><Field path={`key_override[${ko.index}].replacement`} label="Replace" /></div><fieldset class="layer-toggles"><legend>Layers</legend>{#each Array.from({ length: Math.min(layerCount, 16) }, (_, i) => i) as i}<label><input type="checkbox" checked={hasBit(ko.layers, i)} onchange={() => onsave({ ...ko, layers: toggleBit(ko.layers, i) })} />L{i}</label>{/each}</fieldset>{#each modFields as [name, field]}<fieldset class="modifier-toggles"><legend>{name}</legend>{#each MOD_BITS as bit}<label><input type="checkbox" checked={hasBit(ko[field as "triggerMods"], bit.bit)} onchange={() => onsave({ ...ko, [field]: toggleBit(ko[field as "triggerMods"], bit.bit) })} />{canvasBitLabel(bit.name)}</label>{/each}</fieldset>{/each}<fieldset class="override-options"><legend>Options</legend>{#each KEY_OVERRIDE_OPTION_BITS as bit}<label title={canvasBitTitle(bit.name)}><input type="checkbox" checked={hasBit(ko.options, bit.bit)} onchange={() => onsave({ ...ko, options: toggleBit(ko.options, bit.bit) })} />{canvasBitLabel(bit.name)}</label>{/each}</fieldset></div></article>{/if}{/each}</div></section>
