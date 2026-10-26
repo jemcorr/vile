@@ -93,14 +93,14 @@ describe("feature slot actions", () => {
     const first = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
     first.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
     await settle();
-    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlot", kind: "combo", index: 0 });
+    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] });
     first.dispatchEvent(
       new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }),
     );
     await settle();
     document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click();
     await settle();
-    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlot", kind: "combo", index: 0 });
+    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] });
   });
 
   it("opens the slot menu without a backdrop and closes it on outside click or Escape", async () => {
@@ -140,8 +140,7 @@ describe("feature slot actions", () => {
     await settle();
     expect(operation.mock.calls).toEqual([
       [{ type: "swapFeatureSlots", kind: "combo", a: 0, b: 1 }],
-      [{ type: "copyFeatureSlot", kind: "combo", index: 0 }],
-      [{ type: "pasteFeatureSlot", kind: "combo", index: 1 }],
+      [{ type: "copyFeatureSlotsTo", kind: "combo", from: [0], to: [1] }],
     ]);
   });
 

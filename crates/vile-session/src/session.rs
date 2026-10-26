@@ -5,16 +5,17 @@ use std::path::Path;
 
 use vile_core::intent::{self, Intent};
 use vile_core::ops;
+use vile_core::slots::{self, Place, SlotField};
 use vile_core::{
     AltRepeatKey, Board, Catalog, CatalogContext, Combo, Editor, FeatureSlotKind, KeyOverride,
     KeyRef, KeycodeKind, Macro, MacroAction, MirrorMode, Pos, Slot, TapDance,
 };
-use vile_core::{DiffBase, DiffEntry, Document, Keycode};
+use vile_core::{Clipboard, DiffBase, DiffEntry, Document, Keycode};
 
 use crate::dto::{
-    AltRepeatDto, BaselineDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, IntentDto, KeyAtDto,
-    KeyCellDto, KeyOverrideDto, KeyRefDto, MacroActionDto, MacroDto, OpDto, SearchHitDto, StoryDto,
-    TapDanceDto, ViewModel,
+    AltRepeatDto, BaselineDto, BoardDto, BoardKeyDto, ClipboardDto, ComboDto, DiffLineDto,
+    IntentDto, KeyAtDto, KeyCellDto, KeyOverrideDto, KeyRefDto, MacroActionDto, MacroDto, OpDto,
+    PlaceDto, SearchHitDto, SlotUseDto, StoryDto, TapDanceDto, ViewModel,
 };
 
 /// At most one open document. Every method returns user-facing error text.
@@ -497,6 +498,8 @@ fn build_view(
         tap_dances: tap_dance_dtos(doc, &catalog),
         key_overrides: key_override_dtos(doc, &catalog),
         alt_repeat_keys: alt_repeat_dtos(doc, &catalog),
+        slot_uses: slot_use_dtos(doc, board),
+        clipboard: clipboard_dto(editor.clipboard()),
     }
 }
 
@@ -898,10 +901,17 @@ fn intent_dto(item: &Intent, board: &Board, catalog: &Catalog) -> Option<IntentD
             value: catalog.wire_name(*value),
             keys: positions.iter().map(key_id).collect::<Option<Vec<_>>>()?,
         },
-        Intent::SlotsSwapped { kind, a, b, .. } => IntentDto::SlotsSwapped {
+        Intent::SlotsSwapped {
+            kind,
+            a,
+            b,
+            renumbered,
+            ..
+        } => IntentDto::SlotsSwapped {
             feature: feature_kind_name(*kind).into(),
             a: *a,
             b: *b,
+            renumbered: *renumbered,
         },
         Intent::SlotCopied { kind, from, to } => IntentDto::SlotCopied {
             feature: feature_kind_name(*kind).into(),
@@ -1122,14 +1132,30 @@ fn apply_to(
             Ok(Vec::new())
         }
         OpDto::PasteLayer { layer } => editor.paste_layer(layer).map_err(err),
-        OpDto::CopyFeatureSlot { kind, index } => {
+        OpDto::CopyFeatureSlots { kind, indices } => {
             editor
-                .copy_feature_slots(feature_kind(&kind)?, &[index])
+                .copy_feature_slots(feature_kind(&kind)?, &indices)
                 .map_err(err)?;
             Ok(Vec::new())
         }
-        OpDto::PasteFeatureSlot { kind, index } => editor
-            .paste_feature_slots(feature_kind(&kind)?, &[index])
+        OpDto::CutFeatureSlots { kind, indices } => editor
+            .cut_feature_slots(feature_kind(&kind)?, &indices)
+            .map_err(err),
+        OpDto::PasteFeatureSlots { kind, indices } => editor
+            .paste_feature_slots(feature_kind(&kind)?, &indices)
+            .map_err(err),
+        OpDto::CopyFeatureSlotsTo { kind, from, to } => editor
+            .copy_feature_slots_to(feature_kind(&kind)?, &from, &to)
+            .map_err(err),
+        OpDto::ClearFeatureSlots { kind, indices } => editor
+            .clear_feature_slots(feature_kind(&kind)?, &indices)
+            .map_err(err),
+        OpDto::SetFeatureSlotsEnabled {
+            kind,
+            indices,
+            enabled,
+        } => editor
+            .set_feature_slots_enabled(feature_kind(&kind)?, &indices, enabled)
             .map_err(err),
         OpDto::SwapFeatureSlots { kind, a, b } => editor
             .swap_feature_slots(feature_kind(&kind)?, a, b)
@@ -1279,4 +1305,78 @@ fn feature_kind(value: &str) -> Result<FeatureSlotKind, String> {
         "altRepeat" => Ok(FeatureSlotKind::AltRepeat),
         other => Err(format!("unknown feature slot kind \"{other}\"")),
     }
+}
+
+fn slot_use_dtos(doc: &Document, board: Option<&Board>) -> Vec<SlotUseDto> {
+    slots::uses(doc)
+        .into_iter()
+        .map(|slot_use| SlotUseDto {
+            feature: feature_kind_name(slot_use.kind).into(),
+            index: slot_use.index,
+            path: slot_use.path,
+            place: place_dto(&slot_use.place, board),
+        })
+        .collect()
+}
+
+fn place_dto(place: &Place, board: Option<&Board>) -> PlaceDto {
+    match *place {
+        Place::Key { layer, row, col } => PlaceDto::Key {
+            layer,
+            key_id: board
+                .and_then(|board| board.key_at(row, col))
+                .map(|key| key.id.clone())
+                .unwrap_or_else(|| format!("r{row}c{col}")),
+        },
+        Place::Knob {
+            layer,
+            knob,
+            clockwise,
+        } => PlaceDto::Knob {
+            layer,
+            knob,
+            clockwise,
+        },
+        Place::Slot { kind, index, field } => PlaceDto::Slot {
+            feature: feature_kind_name(kind).into(),
+            index,
+            field: slot_field_name(field),
+        },
+    }
+}
+
+fn slot_field_name(field: SlotField) -> String {
+    match field {
+        SlotField::ComboKey(key) => format!("trigger{}", key + 1),
+        SlotField::ComboOutput => "output".into(),
+        SlotField::MacroKey { action, .. } => format!("action{}", action + 1),
+        SlotField::TapDance(0) => "tap".into(),
+        SlotField::TapDance(1) => "hold".into(),
+        SlotField::TapDance(2) => "doubleTap".into(),
+        SlotField::TapDance(_) => "tapHold".into(),
+        SlotField::OverrideTrigger => "trigger".into(),
+        SlotField::OverrideReplacement => "replacement".into(),
+        SlotField::AltKey => "key".into(),
+        SlotField::AltAlternate => "alternate".into(),
+    }
+}
+
+fn clipboard_dto(clipboard: Option<&Clipboard>) -> Option<ClipboardDto> {
+    Some(match clipboard? {
+        Clipboard::Keys { values, .. } => ClipboardDto {
+            kind: "keys".into(),
+            feature: None,
+            count: values.len(),
+        },
+        Clipboard::Layer { .. } => ClipboardDto {
+            kind: "layer".into(),
+            feature: None,
+            count: 1,
+        },
+        Clipboard::Features { kind, entries } => ClipboardDto {
+            kind: "feature".into(),
+            feature: Some(feature_kind_name(*kind).into()),
+            count: entries.len(),
+        },
+    })
 }

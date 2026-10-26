@@ -55,12 +55,12 @@
   }
   async function copy(index: number): Promise<void> {
     if (!guarded()) return;
-    await onoperation({ type: "copyFeatureSlot", kind, index });
+    await onoperation({ type: "copyFeatureSlots", kind, indices: [index] });
     menu = null;
   }
   async function paste(index: number): Promise<void> {
     if (!guarded()) return;
-    await onoperation({ type: "pasteFeatureSlot", kind, index });
+    await onoperation({ type: "pasteFeatureSlots", kind, indices: [index] });
     menu = null;
   }
   function drop(event: import("../lib/pointer-drag.svelte").PointerDrop, target: number): boolean {
@@ -72,8 +72,7 @@
     return true;
   }
   async function copyTo(from: number, to: number): Promise<void> {
-    if (await onoperation({ type: "copyFeatureSlot", kind, index: from }))
-      await onoperation({ type: "pasteFeatureSlot", kind, index: to });
+    await onoperation({ type: "copyFeatureSlotsTo", kind, from: [from], to: [to] });
   }
   function keydown(e: KeyboardEvent, index: number): void {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;

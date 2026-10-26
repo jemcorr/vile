@@ -104,6 +104,8 @@ function view(): ViewModel {
       names: { layers: {}, macros: {}, combos: {} },
     },
     story: null,
+    slotUses: [],
+    clipboard: null,
     warnings: [],
     combos: [
       {

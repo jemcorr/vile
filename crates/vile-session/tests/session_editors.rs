@@ -159,21 +159,21 @@ fn feature_clipboard_is_typed_and_paste_undoes_content_and_name_together() {
     })
     .unwrap();
     let before = s.view().unwrap();
-    s.apply_op(OpDto::CopyFeatureSlot {
+    s.apply_op(OpDto::CopyFeatureSlots {
         kind: "combo".into(),
-        index: 0,
+        indices: vec![0],
     })
     .unwrap();
     assert!(
-        s.apply_op(OpDto::PasteFeatureSlot {
+        s.apply_op(OpDto::PasteFeatureSlots {
             kind: "macro".into(),
-            index: 1
+            indices: vec![1],
         })
         .is_err()
     );
-    s.apply_op(OpDto::PasteFeatureSlot {
+    s.apply_op(OpDto::PasteFeatureSlots {
         kind: "combo".into(),
-        index: 1,
+        indices: vec![1],
     })
     .unwrap();
     let pasted = s.view().unwrap();
@@ -249,14 +249,14 @@ fn feature_slot_operations_support_all_fixed_index_families() {
     let (_dir, mut s) = open("corne_v32.vil");
     for kind in ["tapDance", "keyOverride", "altRepeat"] {
         let before = s.view().unwrap();
-        s.apply_op(OpDto::CopyFeatureSlot {
+        s.apply_op(OpDto::CopyFeatureSlots {
             kind: kind.into(),
-            index: 0,
+            indices: vec![0],
         })
         .unwrap();
-        s.apply_op(OpDto::PasteFeatureSlot {
+        s.apply_op(OpDto::PasteFeatureSlots {
             kind: kind.into(),
-            index: 1,
+            indices: vec![1],
         })
         .unwrap();
         let after = s.view().unwrap();
@@ -292,4 +292,60 @@ fn feature_slot_operations_support_all_fixed_index_families() {
         }
         s.undo().unwrap();
     }
+}
+
+#[test]
+fn slot_operations_round_trip() {
+    let (_dir, mut s) = open("corne.vil");
+    let before = s.view().unwrap();
+    s.apply_op(OpDto::ClearFeatureSlots {
+        kind: "combo".into(),
+        indices: vec![0, 1],
+    })
+    .unwrap();
+    let cleared = s.view().unwrap();
+    assert_eq!(cleared.combos[0].keys, vec!["KC_NO"; 4]);
+    assert_eq!(cleared.combos[0].output, "KC_NO");
+    assert!(!cleared.names.combos.contains_key(&0));
+    s.undo().unwrap();
+    assert_eq!(s.view().unwrap().combos[0], before.combos[0]);
+
+    s.apply_op(OpDto::CutFeatureSlots {
+        kind: "combo".into(),
+        indices: vec![0, 2],
+    })
+    .unwrap();
+    s.apply_op(OpDto::PasteFeatureSlots {
+        kind: "combo".into(),
+        indices: vec![10],
+    })
+    .unwrap();
+    let pasted = s.view().unwrap();
+    assert_eq!(pasted.combos[10].keys, before.combos[0].keys);
+    assert_eq!(pasted.combos[11].output, before.combos[2].output);
+
+    let clipboard = s.view().unwrap().clipboard;
+    s.apply_op(OpDto::CopyFeatureSlotsTo {
+        kind: "combo".into(),
+        from: vec![3],
+        to: vec![7],
+    })
+    .unwrap();
+    assert_eq!(s.view().unwrap().clipboard, clipboard);
+
+    s.apply_op(OpDto::SetFeatureSlotsEnabled {
+        kind: "keyOverride".into(),
+        indices: vec![0],
+        enabled: true,
+    })
+    .unwrap();
+    assert_eq!(s.view().unwrap().key_overrides[0].options, 135);
+    assert!(
+        s.apply_op(OpDto::SetFeatureSlotsEnabled {
+            kind: "combo".into(),
+            indices: vec![0],
+            enabled: true,
+        })
+        .is_err()
+    );
 }

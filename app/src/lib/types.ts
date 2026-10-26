@@ -172,6 +172,28 @@ export interface KeyAtDto {
 }
 
 /** One change as a user-level action. `value` is a keycode wire name; `feature` is a slot family. */
+export type SlotKind = "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat";
+
+/** Where a keycode sits. `key` names the board key; `slot` names a field of a feature slot. */
+export type PlaceDto =
+  | { kind: "key"; layer: number; keyId: string }
+  | { kind: "knob"; layer: number; knob: number; clockwise: boolean }
+  | { kind: "slot"; feature: SlotKind; index: number; field: string };
+
+export interface SlotUseDto {
+  feature: SlotKind;
+  index: number;
+  path: string;
+  place: PlaceDto;
+}
+
+/** What copy or cut last put on the clipboard. */
+export interface ClipboardDto {
+  kind: "keys" | "layer" | "feature";
+  feature: SlotKind | null;
+  count: number;
+}
+
 export type IntentDto =
   | { kind: "layersReordered"; order: number[]; renumbered: boolean }
   | { kind: "layerFilled"; layer: number; value: string; keys: number }
@@ -179,7 +201,7 @@ export type IntentDto =
   | { kind: "keysSwapped"; a: KeyAtDto; b: KeyAtDto }
   | { kind: "keyMoved"; from: KeyAtDto; to: KeyAtDto }
   | { kind: "keysFilled"; layer: number; value: string; keys: string[] }
-  | { kind: "slotsSwapped"; feature: string; a: number; b: number }
+  | { kind: "slotsSwapped"; feature: string; a: number; b: number; renumbered: boolean }
   | { kind: "slotCopied"; feature: string; from: number; to: number };
 
 /** The changes explained as intents, with what the intents leave unexplained. */
@@ -218,6 +240,9 @@ export interface ViewModel {
   tapDances: TapDanceDto[];
   keyOverrides: KeyOverrideDto[];
   altRepeatKeys: AltRepeatDto[];
+  /** Every keycode that plays an existing macro or tap dance. */
+  slotUses: SlotUseDto[];
+  clipboard: ClipboardDto | null;
 }
 
 export interface SearchHitDto {
@@ -255,9 +280,13 @@ export type OpDto =
   | { type: "clearLayer"; layer: number; transparent: boolean }
   | { type: "copyLayer"; layer: number }
   | { type: "pasteLayer"; layer: number }
-  | { type: "copyFeatureSlot"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; index: number }
-  | { type: "pasteFeatureSlot"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; index: number }
-  | { type: "swapFeatureSlots"; kind: "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat"; a: number; b: number }
+  | { type: "copyFeatureSlots"; kind: SlotKind; indices: number[] }
+  | { type: "cutFeatureSlots"; kind: SlotKind; indices: number[] }
+  | { type: "pasteFeatureSlots"; kind: SlotKind; indices: number[] }
+  | { type: "copyFeatureSlotsTo"; kind: SlotKind; from: number[]; to: number[] }
+  | { type: "clearFeatureSlots"; kind: SlotKind; indices: number[] }
+  | { type: "setFeatureSlotsEnabled"; kind: SlotKind; indices: number[]; enabled: boolean }
+  | { type: "swapFeatureSlots"; kind: SlotKind; a: number; b: number }
   | { type: "swapLayers"; a: number; b: number }
   | { type: "moveLayer"; from: number; to: number }
   | { type: "mirrorLayer"; layer: number; mode: MirrorModeDto }

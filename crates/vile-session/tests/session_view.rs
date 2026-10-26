@@ -258,3 +258,39 @@ fn swapped_layers_are_one_reorder_story() {
     assert_eq!(json["story"]["intents"][0]["kind"], "layersReordered");
     assert_eq!(json["story"]["intents"][0]["renumbered"], true);
 }
+
+#[test]
+fn slot_uses_and_clipboard_follow_the_view() {
+    let (_dir, path) = common::temp_copy("corne.vil");
+    let mut s = Session::new();
+    s.open_path(&path).unwrap();
+    let view = s.view().unwrap();
+    assert!(view.clipboard.is_none());
+    assert_eq!(view.slot_uses.len(), 3);
+    let macro2: Vec<_> = view
+        .slot_uses
+        .iter()
+        .filter(|u| u.feature == "macro" && u.index == 2)
+        .collect();
+    assert_eq!(macro2.len(), 1);
+    assert_eq!(
+        macro2[0].place,
+        vile_session::PlaceDto::Key {
+            layer: 7,
+            key_id: "r4c0".into()
+        }
+    );
+    s.apply_op(OpDto::CopyFeatureSlots {
+        kind: "combo".into(),
+        indices: vec![0, 1],
+    })
+    .unwrap();
+    assert_eq!(
+        s.view().unwrap().clipboard,
+        Some(vile_session::ClipboardDto {
+            kind: "feature".into(),
+            feature: Some("combo".into()),
+            count: 2,
+        })
+    );
+}

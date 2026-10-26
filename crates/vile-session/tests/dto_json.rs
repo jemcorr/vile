@@ -1,4 +1,6 @@
-use vile_session::{KeyRefDto, MacroActionDto, OpDto};
+mod common;
+
+use vile_session::{KeyRefDto, MacroActionDto, OpDto, Session};
 
 #[test]
 fn op_dto_reads_camel_case_json() {
@@ -83,4 +85,22 @@ fn op_dto_reads_camel_case_json() {
         }
     );
     assert!(serde_json::from_str::<OpDto>(r#"{"type":"bogus"}"#).is_err());
+}
+
+#[test]
+fn view_json_carries_slot_uses_and_renumbered_swaps() {
+    let (_dir, path) = common::temp_copy("corne.vil");
+    let mut s = Session::new();
+    s.open_path(&path).unwrap();
+    s.apply_op(OpDto::SwapFeatureSlots {
+        kind: "macro".into(),
+        a: 2,
+        b: 3,
+    })
+    .unwrap();
+    let json = serde_json::to_string(&s.view().unwrap()).unwrap();
+    assert!(json.contains("\"slotUses\""), "{json}");
+    assert!(json.contains("\"keyId\":\"r4c0\""), "{json}");
+    assert!(json.contains("\"kind\":\"key\""), "{json}");
+    assert!(json.contains("\"renumbered\":true"), "{json}");
 }

@@ -349,7 +349,7 @@ describe("intent rows", () => {
   it("words swapped and copied slots with the slot word and the first slot as jump", () => {
     const groups = changeGroups(
       withStory([
-        { kind: "slotsSwapped", feature: "combo", a: 1, b: 4 },
+        { kind: "slotsSwapped", feature: "combo", a: 1, b: 4, renumbered: false },
         { kind: "slotCopied", feature: "altRepeat", from: 0, to: 2 },
       ]),
     );

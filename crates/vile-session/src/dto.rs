@@ -149,6 +149,10 @@ pub struct ViewModel {
     pub tap_dances: Vec<TapDanceDto>,
     pub key_overrides: Vec<KeyOverrideDto>,
     pub alt_repeat_keys: Vec<AltRepeatDto>,
+    /// Every keycode that plays an existing macro or tap dance.
+    pub slot_uses: Vec<SlotUseDto>,
+    /// What copy and cut last put on the clipboard, when anything.
+    pub clipboard: Option<ClipboardDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -230,13 +234,32 @@ pub enum OpDto {
     PasteLayer {
         layer: usize,
     },
-    CopyFeatureSlot {
+    CopyFeatureSlots {
         kind: String,
-        index: usize,
+        indices: Vec<usize>,
     },
-    PasteFeatureSlot {
+    CutFeatureSlots {
         kind: String,
-        index: usize,
+        indices: Vec<usize>,
+    },
+    /// Pastes the clipboard into the selected slots (or consecutive slots from one of them).
+    PasteFeatureSlots {
+        kind: String,
+        indices: Vec<usize>,
+    },
+    CopyFeatureSlotsTo {
+        kind: String,
+        from: Vec<usize>,
+        to: Vec<usize>,
+    },
+    ClearFeatureSlots {
+        kind: String,
+        indices: Vec<usize>,
+    },
+    SetFeatureSlotsEnabled {
+        kind: String,
+        indices: Vec<usize>,
+        enabled: bool,
     },
     SwapFeatureSlots {
         kind: String,
@@ -367,6 +390,7 @@ pub enum IntentDto {
         feature: String,
         a: usize,
         b: usize,
+        renumbered: bool,
     },
     SlotCopied {
         feature: String,
@@ -391,4 +415,46 @@ pub struct StoryDto {
 pub struct MacroUsage {
     pub bytes: usize,
     pub action_bytes: Vec<usize>,
+}
+
+/// Where a keycode sits: a board key, a knob, or a field of a feature slot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum PlaceDto {
+    Key {
+        layer: usize,
+        key_id: String,
+    },
+    Knob {
+        layer: usize,
+        knob: usize,
+        clockwise: bool,
+    },
+    Slot {
+        feature: String,
+        index: usize,
+        field: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotUseDto {
+    pub feature: String,
+    pub index: usize,
+    pub path: String,
+    pub place: PlaceDto,
+}
+
+/// "keys", "layer" or "feature", with the feature family and the number of items held.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardDto {
+    pub kind: String,
+    pub feature: Option<String>,
+    pub count: usize,
 }
