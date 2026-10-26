@@ -77,8 +77,8 @@
     }
   }
   let panelSizes = $state(savedPanelSizes());
-  // The Keymap inspector is a floating card: 240 to 420 px, never wider than the window less 2 x 16 px.
-  const sideMax = $derived(Math.max(240, Math.min(420, viewportWidth - 32)));
+  // The Keymap inspector is a floating card: 240 to 360 px, never wider than the window less 2 x 16 px.
+  const sideMax = $derived(Math.max(240, Math.min(360, viewportWidth - 32)));
   const pickerMax = $derived(Math.max(120, viewportHeight - 240));
   const sideWidth = $derived(Math.min(panelSizes.side, sideMax));
   function readFlag(key: string): boolean {
