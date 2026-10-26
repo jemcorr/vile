@@ -336,6 +336,10 @@ pub struct KeyAtDto {
     rename_all_fields = "camelCase"
 )]
 pub enum IntentDto {
+    LayersReordered {
+        order: Vec<usize>,
+        renumbered: bool,
+    },
     LayerFilled {
         layer: usize,
         value: String,

@@ -400,6 +400,53 @@ describe("intent rows", () => {
   });
 });
 
+describe("layer order", () => {
+  const reorder = (order: number[], renumbered = true): IntentDto => ({ kind: "layersReordered", order, renumbered });
+  const savedNames = (layers: Record<number, string>) => ({
+    ...makeView().baseline,
+    names: { layers, macros: {}, combos: {} },
+  });
+
+  it("words a swap of two layers as one row in a group ahead of the layers", () => {
+    const view = withStory(
+      [reorder([0, 1, 2, 3, 4, 5, 6, 8, 7, 9]), { kind: "keysSwapped", a: at(0, "r0c0"), b: at(0, "r0c1") }],
+      { baseline: savedNames({ 7: "Symbols", 8: "Navigation" }), layers: [[cell("r0c0", "layout[0][0][0]", W), cell("r0c1", "layout[0][0][1]", A)]] },
+    );
+    const groups = changeGroups(view);
+    expect(groups.map((group) => group.id)).toEqual(["layer-order", "layer-0"]);
+    const [order] = groups;
+    expect(order).toMatchObject({ title: "Layer order", count: "1 change", jump: { kind: "layer", layer: 7 } });
+    expect(order!.rows[0]).toMatchObject({
+      text: "Swapped Symbols (7) and Navigation (8)",
+      detail: "Layer keys renumbered",
+      title: "Swapped Symbols (7) and Navigation (8). Layer 7 is now layer 8. Layer 8 is now layer 7.",
+    });
+    expect(changeCount(groups)).toBe(2);
+  });
+
+  it("words a single move as the layer moved and its new position", () => {
+    const view = withStory([reorder([0, 9, 1, 2, 3, 4, 5, 6, 7, 8])], {
+      baseline: savedNames({ 9: "Functions" }),
+    });
+    const [group] = changeGroups(view);
+    expect(group!.rows[0]).toMatchObject({
+      text: "Moved Functions (9) to position 1",
+      jump: { kind: "layer", layer: 1 },
+    });
+    expect(group!.rows[0]!.title).toContain("Layer 9 is now layer 1.");
+    expect(group!.rows[0]!.title).toContain("Layer 1 is now layer 2.");
+  });
+
+  it("counts the layers that moved for a general order and names unnamed layers by number", () => {
+    const view = withStory([reorder([0, 6, 2, 3, 4, 5, 1, 8, 7, 9], false)]);
+    const [group] = changeGroups(view);
+    expect(group!.rows[0]).toMatchObject({ text: "Reordered 4 layers", detail: "" });
+    expect(group!.rows[0]!.jump).toEqual({ kind: "layer", layer: 1 });
+    const swapped = withStory([reorder([0, 1, 2, 3, 4, 5, 6, 8, 7, 9])]);
+    expect(changeGroups(swapped)[0]!.rows[0]!.text).toBe("Swapped layer 7 and layer 8");
+  });
+});
+
 describe("helpers", () => {
   it("shortens labels to one line", () => {
     expect(shortLabel(null)).toBe("");

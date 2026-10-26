@@ -3,6 +3,7 @@ mod common;
 use std::time::Instant;
 
 use common::{board, kc};
+use vile_core::DiffSection;
 use vile_core::diff::diff;
 use vile_core::editor::FeatureSlotKind;
 use vile_core::intent::{Intent, Story, apply_intents, explain};
@@ -428,6 +429,220 @@ fn random_edits_stay_exact() {
         explained += story.intents.len();
     }
     assert!(explained > 0, "random edits should produce some stories");
+}
+
+#[test]
+fn swapped_layers_are_one_reorder_with_renumbered_references() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 7, 8).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: true,
+            names: false
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn moved_layer_is_a_move_not_a_greedy_order() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    ops::move_layer(&mut current, 9, 1).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 9, 1, 2, 3, 4, 5, 6, 7, 8],
+            renumbered: true,
+            names: false
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn two_swaps_give_a_general_order() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 7, 8).unwrap();
+    ops::swap_layers(&mut current, 1, 6).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 6, 2, 3, 4, 5, 1, 8, 7, 9],
+            renumbered: true,
+            names: false
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn reorder_with_an_edit_keeps_the_edit_in_the_rest() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 7, 8).unwrap();
+    ops::set_keys(&mut current, 7, &[pos(0, 1)], kc(&base, "KC_A")).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: true,
+            names: false
+        }]
+    );
+    assert_eq!(story.rest.len(), 1);
+    let entry = &story.rest[0];
+    assert_eq!(
+        (entry.layer, entry.row, entry.col),
+        (Some(7), Some(0), Some(1))
+    );
+    // Base layer 8 holds KC_PGUP at r0c1, so the reference after the reorder does too.
+    assert_eq!(entry.old, "KC_PGUP");
+    assert_eq!(entry.new, "KC_A");
+}
+
+#[test]
+fn layer_names_follow_a_reorder_only_when_they_moved_with_it() {
+    let base = common::load("corne.vil");
+    let mut base_names = Names::default();
+    base_names.layers.insert(7, "Symbols".into());
+    base_names.layers.insert(8, "Navigation".into());
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 7, 8).unwrap();
+
+    // swap_layers leaves the names where they were, so the reorder does not carry them.
+    let story = story_with_names(&base, &base_names, &current, &base_names);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: true,
+            names: false
+        }]
+    );
+    assert_eq!(story.applied_names, base_names);
+
+    // Names that moved with the layers are followed.
+    let mut moved_names = Names::default();
+    moved_names.layers.insert(8, "Symbols".into());
+    moved_names.layers.insert(7, "Navigation".into());
+    let story = story_with_names(&base, &base_names, &current, &moved_names);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: true,
+            names: true
+        }]
+    );
+    assert_eq!(story.applied_names, moved_names);
+}
+
+#[test]
+fn swapping_identical_layers_is_no_story() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 2, 3).unwrap();
+    let story = story_for(&base, &current);
+    assert!(story.intents.is_empty());
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn contents_moved_without_renumbering_are_not_renumbered() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    let layer7 = ops::layer_contents(&base, 7).unwrap();
+    let layer8 = ops::layer_contents(&base, 8).unwrap();
+    ops::set_layer_contents(&mut current, 7, &layer8).unwrap();
+    ops::set_layer_contents(&mut current, 8, &layer7).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: false,
+            names: false
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn key_override_layer_masks_follow_a_reorder() {
+    let mut base = common::load("corne.vil");
+    base.key_override.as_mut().unwrap()[0].layers = 1 << 7;
+    let mut current = base.clone();
+    ops::swap_layers(&mut current, 7, 8).unwrap();
+    assert_eq!(current.key_override.as_ref().unwrap()[0].layers, 1 << 8);
+    let story = story_for(&base, &current);
+    assert!(
+        story.intents.iter().any(|intent| matches!(
+            intent,
+            Intent::LayersReordered {
+                renumbered: true,
+                ..
+            }
+        )),
+        "{:?}",
+        story.intents
+    );
+    assert!(
+        story
+            .rest
+            .iter()
+            .all(|entry| entry.section != DiffSection::KeyOverride),
+        "{:?}",
+        story.rest
+    );
+}
+
+#[test]
+fn reorder_search_over_all_layers_is_quick_and_exact() {
+    // A random renumbered permutation of all 10 layers plus one edit: the gate passes and the
+    // search tries every swap, move and the greedy matching.
+    let base = common::load("corne.vil");
+    let mut rng = Rng(0x0123_4567_89ab_cdef);
+    let mut perm: Vec<usize> = (0..base.layer_count()).collect();
+    for i in (1..perm.len()).rev() {
+        perm.swap(i, rng.below(i + 1));
+    }
+    let mut current = base.clone();
+    ops::permute_layers(&mut current, &perm).unwrap();
+    ops::set_keys(&mut current, 4, &[pos(0, 1)], kc(&base, "KC_A")).unwrap();
+    let started = Instant::now();
+    let story = story_for(&base, &current);
+    let elapsed = started.elapsed();
+    eprintln!(
+        "reorder search over 10 layers: {elapsed:?}, intents {:?}",
+        story.intents
+    );
+    assert!(elapsed.as_secs() < 10, "took {elapsed:?}");
+    assert!(
+        story.intents.iter().any(|intent| matches!(
+            intent,
+            Intent::LayersReordered {
+                renumbered: true,
+                ..
+            }
+        )),
+        "{:?}",
+        story.intents
+    );
+    assert_eq!(
+        story.rest.len(),
+        1,
+        "only the edit remains: {:?}",
+        story.rest
+    );
 }
 
 #[test]

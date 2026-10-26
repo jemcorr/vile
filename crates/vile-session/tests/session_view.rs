@@ -239,3 +239,22 @@ fn one_cleared_key_has_no_story_and_a_cleared_layer_is_one_story() {
     let json = serde_json::to_value(&view).unwrap();
     assert_eq!(json["story"]["intents"][0]["kind"], "layerFilled");
 }
+
+#[test]
+fn swapped_layers_are_one_reorder_story() {
+    let mut s = Session::new();
+    s.open_path(&common::fixture("corne.vil")).unwrap();
+    let view = s.apply_op(OpDto::SwapLayers { a: 7, b: 8 }).unwrap();
+    let story = view.story.as_ref().expect("a layer swap is one story");
+    assert_eq!(
+        story.intents,
+        vec![IntentDto::LayersReordered {
+            order: vec![0, 1, 2, 3, 4, 5, 6, 8, 7, 9],
+            renumbered: true,
+        }]
+    );
+    assert!(story.rest.is_empty());
+    let json = serde_json::to_value(&view).unwrap();
+    assert_eq!(json["story"]["intents"][0]["kind"], "layersReordered");
+    assert_eq!(json["story"]["intents"][0]["renumbered"], true);
+}

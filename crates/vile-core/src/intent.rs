@@ -14,10 +14,16 @@ use crate::document::{Document, Slot};
 use crate::editor::{FeatureSlotKind, FeatureSlotValue};
 use crate::keycode::Keycode;
 use crate::metadata::Names;
-use crate::ops::{KeyRef, Pos};
+use crate::ops::{self, KeyRef, Pos};
 
 /// A layer needs this many changed keys before a layer-wide story is considered.
 const MIN_LAYER_KEYS: usize = 4;
+
+/// Two layers count as similar when this share of their keys is equal (after `norm`).
+const SIMILAR: f64 = 0.8;
+
+/// A reorder is told only when it removes at least this many changed positions.
+const GAIN: usize = 4;
 
 /// The feature families with fixed slot indices, in the order the story checks them.
 const SLOT_KINDS: [FeatureSlotKind; 5] = [
@@ -30,6 +36,13 @@ const SLOT_KINDS: [FeatureSlotKind; 5] = [
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intent {
+    /// The layers are in another order: `order[new] = old`. `renumbered` says the layer
+    /// references followed their layers. `names` says the layer names followed too.
+    LayersReordered {
+        order: Vec<usize>,
+        renumbered: bool,
+        names: bool,
+    },
     /// Every key on `layer` now holds `value` (KC_NO or KC_TRNS).
     LayerFilled {
         layer: usize,
@@ -96,6 +109,7 @@ pub fn explain(
         intents: Vec::new(),
     };
     if layout_matches {
+        explainer.reorder();
         explainer.layer_intents();
         explainer.swap_keys();
         explainer.move_keys();
@@ -151,6 +165,46 @@ impl Explainer<'_> {
 
     fn layers(&self) -> usize {
         self.current.layer_count()
+    }
+
+    /// Step 1: the current layers are the base layers in another order. Accepted only when the
+    /// best order removes at least GAIN changed positions.
+    fn reorder(&mut self) {
+        let base = &self.doc;
+        if !reorder_gate(base, self.current, &self.positions) {
+            return;
+        }
+        let raw = differing(base, self.current, &self.positions);
+        let candidates = reorder_candidates(base, self.current, &self.positions);
+        // Renumbered first, then the candidate order: a tie keeps the earlier one.
+        let mut best: Option<(usize, Vec<usize>, bool)> = None;
+        for renumbered in [true, false] {
+            for order in &candidates {
+                let mut doc = base.clone();
+                if !reorder_layers(&mut doc, order, renumbered) {
+                    continue;
+                }
+                let score = differing(&doc, self.current, &self.positions);
+                if best.as_ref().is_none_or(|(known, _, _)| score < *known) {
+                    best = Some((score, order.clone(), renumbered));
+                }
+            }
+        }
+        let Some((score, order, renumbered)) = best else {
+            return;
+        };
+        if score + GAIN > raw {
+            return;
+        }
+        let mut remapped = self.names.clone();
+        remapped.remap_layers(&inverse(&order));
+        let names = layer_name_differences(&remapped, self.current_names)
+            < layer_name_differences(&self.names, self.current_names);
+        self.push(Intent::LayersReordered {
+            order,
+            renumbered,
+            names,
+        });
     }
 
     /// True when the keycodes differ and both slots hold a keycode.
@@ -391,6 +445,160 @@ fn slot(doc: &Document, layer: usize, pos: Pos) -> Option<Slot> {
     doc.get(layer, pos.row, pos.col)
 }
 
+/// A keycode with its layer number erased, so a layer reference compares by kind alone.
+fn norm(kc: Keycode) -> Keycode {
+    match kc.layer_ref() {
+        Some(_) => kc.with_layer(0).unwrap_or(kc),
+        None => kc,
+    }
+}
+
+fn norm_slot(doc: &Document, layer: usize, pos: Pos) -> Option<Slot> {
+    slot(doc, layer, pos).map(|cell| match cell {
+        Slot::Key(kc) => Slot::Key(norm(kc)),
+        Slot::Absent => Slot::Absent,
+    })
+}
+
+/// Positions whose slots differ, summed over all layers.
+fn differing(a: &Document, b: &Document, positions: &[Pos]) -> usize {
+    (0..a.layer_count())
+        .map(|layer| {
+            positions
+                .iter()
+                .filter(|&&pos| slot(a, layer, pos) != slot(b, layer, pos))
+                .count()
+        })
+        .sum()
+}
+
+/// A layer with fewer than MIN_LAYER_KEYS keys that are neither KC_NO nor KC_TRNS.
+fn is_trivial(doc: &Document, layer: usize, positions: &[Pos]) -> bool {
+    let real = positions
+        .iter()
+        .filter_map(|&pos| keycode(doc, KeyRef { layer, pos }))
+        .filter(|&kc| kc != Keycode::NO && kc != Keycode::TRNS)
+        .count();
+    real < MIN_LAYER_KEYS
+}
+
+/// Gate: a current layer differs from the base layer of its number, and a non-trivial base layer
+/// of another number is SIMILAR to it.
+fn reorder_gate(base: &Document, current: &Document, positions: &[Pos]) -> bool {
+    let n = base.layer_count();
+    let total = positions.len() as f64;
+    (0..n).any(|j| {
+        let same_as_base = positions
+            .iter()
+            .all(|&pos| norm_slot(base, j, pos) == norm_slot(current, j, pos));
+        !same_as_base
+            && (0..n).any(|i| {
+                i != j
+                    && !is_trivial(base, i, positions)
+                    && positions
+                        .iter()
+                        .filter(|&&pos| norm_slot(base, i, pos) == norm_slot(current, j, pos))
+                        .count() as f64
+                        >= SIMILAR * total
+            })
+    })
+}
+
+/// Every single swap, every single move, then the greedy matching by similarity. Each entry is
+/// `order[new] = old`.
+fn reorder_candidates(base: &Document, current: &Document, positions: &[Pos]) -> Vec<Vec<usize>> {
+    let n = base.layer_count();
+    let identity: Vec<usize> = (0..n).collect();
+    let mut out = Vec::new();
+    for a in 0..n {
+        for b in a + 1..n {
+            let mut order = identity.clone();
+            order.swap(a, b);
+            out.push(order);
+        }
+    }
+    for from in 0..n {
+        for to in 0..n {
+            if from != to {
+                let mut order = identity.clone();
+                let moved = order.remove(from);
+                order.insert(to, moved);
+                out.push(order);
+            }
+        }
+    }
+    let similarity = |old: usize, new: usize| {
+        positions
+            .iter()
+            .filter(|&&pos| norm_slot(base, old, pos) == norm_slot(current, new, pos))
+            .count()
+    };
+    let mut pairs: Vec<(usize, usize, usize)> = (0..n)
+        .flat_map(|old| (0..n).map(move |new| (old, new)))
+        .map(|(old, new)| (similarity(old, new), old, new))
+        .collect();
+    pairs.sort_by(|x, y| {
+        y.0.cmp(&x.0)
+            .then(x.1.abs_diff(x.2).cmp(&y.1.abs_diff(y.2)))
+            .then((x.1, x.2).cmp(&(y.1, y.2)))
+    });
+    let mut order = vec![usize::MAX; n];
+    let mut taken = vec![false; n];
+    for (_, old, new) in pairs {
+        if !taken[old] && order[new] == usize::MAX {
+            order[new] = old;
+            taken[old] = true;
+        }
+    }
+    out.push(order);
+    out
+}
+
+/// `perm[old] = new` for `order[new] = old`.
+fn inverse(order: &[usize]) -> Vec<usize> {
+    let mut perm = vec![0; order.len()];
+    for (new, &old) in order.iter().enumerate() {
+        perm[old] = new;
+    }
+    perm
+}
+
+/// Puts the layers in `order`. Renumbered: references follow their layers, as
+/// `ops::permute_layers` does. Otherwise only the contents move. False when the order is refused.
+fn reorder_layers(doc: &mut Document, order: &[usize], renumbered: bool) -> bool {
+    if order.len() != doc.layer_count() {
+        return false;
+    }
+    if renumbered {
+        let mut next = doc.clone();
+        if ops::permute_layers(&mut next, &inverse(order)).is_err() {
+            return false;
+        }
+        *doc = next;
+        return true;
+    }
+    let layout = doc.layout.clone();
+    for (new, &old) in order.iter().enumerate() {
+        doc.layout[new] = layout[old].clone();
+    }
+    if let Some(encoders) = doc.encoder_layout.clone()
+        && encoders.len() == order.len()
+    {
+        doc.encoder_layout = Some(order.iter().map(|&old| encoders[old].clone()).collect());
+    }
+    true
+}
+
+/// Number of layer indices whose names differ.
+fn layer_name_differences(a: &Names, b: &Names) -> usize {
+    let indices: std::collections::BTreeSet<usize> =
+        a.layers.keys().chain(b.layers.keys()).copied().collect();
+    indices
+        .into_iter()
+        .filter(|index| a.layers.get(index) != b.layers.get(index))
+        .count()
+}
+
 fn keycode(doc: &Document, key: KeyRef) -> Option<Keycode> {
     match slot(doc, key.layer, key.pos)? {
         Slot::Key(kc) => Some(kc),
@@ -419,6 +627,15 @@ fn proximity(a: KeyRef, b: KeyRef) -> (bool, usize, usize, Pos) {
 
 fn apply_one(doc: &mut Document, names: &mut Names, board: Option<&Board>, intent: &Intent) {
     match intent {
+        Intent::LayersReordered {
+            order,
+            renumbered,
+            names: remap,
+        } => {
+            if reorder_layers(doc, order, *renumbered) && *remap {
+                names.remap_layers(&inverse(order));
+            }
+        }
         Intent::LayerFilled { layer, value, .. } => {
             for pos in positions_of(doc, board) {
                 set_keycode(doc, KeyRef { layer: *layer, pos }, *value);

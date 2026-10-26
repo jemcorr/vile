@@ -173,6 +173,7 @@ export interface KeyAtDto {
 
 /** One change as a user-level action. `value` is a keycode wire name; `feature` is a slot family. */
 export type IntentDto =
+  | { kind: "layersReordered"; order: number[]; renumbered: boolean }
   | { kind: "layerFilled"; layer: number; value: string; keys: number }
   | { kind: "layerCopied"; from: number; to: number; keys: number }
   | { kind: "keysSwapped"; a: KeyAtDto; b: KeyAtDto }

@@ -871,6 +871,12 @@ fn intent_dto(item: &Intent, board: &Board, catalog: &Catalog) -> Option<IntentD
     };
     let key_id = |pos: &Pos| Some(board.key_at(pos.row, pos.col)?.id.clone());
     Some(match item {
+        Intent::LayersReordered {
+            order, renumbered, ..
+        } => IntentDto::LayersReordered {
+            order: order.clone(),
+            renumbered: *renumbered,
+        },
         Intent::LayerFilled { layer, value, keys } => IntentDto::LayerFilled {
             layer: *layer,
             value: catalog.wire_name(*value),

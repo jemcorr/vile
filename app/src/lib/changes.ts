@@ -291,7 +291,54 @@ export function changeGroups(
   if (file.length) {
     groups.push({ id: "file", rank: 1007, title: "File", count: plural(file.length, ["change", "changes"]), jump: null, chips: [], rows: file });
   }
+  const reorder = view.story?.intents.find((intent) => intent.kind === "layersReordered");
+  if (reorder?.kind === "layersReordered") groups.push(layerOrderGroup(view, reorder.order, reorder.renumbered));
   return groups.sort((a, b) => a.rank - b.rank);
+}
+
+/**
+ * The layers in another order, as one row: a swap, a move, or a count of the layers that moved.
+ * `order[now] = old`. Layer names come from the saved names, by the original layer number.
+ */
+function layerOrderGroup(view: ViewModel, order: number[], renumbered: boolean): ChangeGroup {
+  const name = (layer: number) => {
+    const saved = view.baseline.names.layers[layer];
+    return saved ? `${saved} (${layer})` : `layer ${layer}`;
+  };
+  const moved = order.flatMap((old, now) => (old === now ? [] : [now]));
+  const swapped = moved.length === 2 && order[moved[0]!] === moved[1] && order[moved[1]!] === moved[0];
+  const single = swapped ? undefined : singleMove(order);
+  const text = swapped
+    ? `Swapped ${name(moved[0]!)} and ${name(moved[1]!)}`
+    : single
+      ? `Moved ${name(single.from)} to position ${single.to}`
+      : `Reordered ${moved.length} layers`;
+  const lines = moved
+    .map((now) => order[now]!)
+    .sort((a, b) => a - b)
+    .map((old) => `Layer ${old} is now layer ${order.indexOf(old)}.`);
+  const row: ChangeRow = {
+    id: "layer-order-row",
+    text,
+    detail: renumbered ? "Layer keys renumbered" : "",
+    title: `${text}. ${lines.join(" ")}`,
+    jump: { kind: "layer", layer: moved[0]! },
+  };
+  return { id: "layer-order", rank: -1, title: "Layer order", count: plural(1, ["change", "changes"]), jump: row.jump, chips: [], rows: [row] };
+}
+
+/** The one move that gives `order`, as `from` (old layer) and `to` (new position), or null. */
+function singleMove(order: number[]): { from: number; to: number } | null {
+  const n = order.length;
+  for (let from = 0; from < n; from++) {
+    for (let to = 0; to < n; to++) {
+      if (from === to) continue;
+      const moved = [...order.keys()].filter((i) => i !== from);
+      moved.splice(to, 0, from);
+      if (moved.every((old, now) => old === order[now])) return { from, to };
+    }
+  }
+  return null;
 }
 
 /** Feature names of the story (`IntentDto.feature`) to slot sections. */
@@ -326,6 +373,9 @@ type IntentPlace = { layer: number } | { section: SlotSection };
 function intentChange(view: ViewModel, intent: IntentDto, index: number): { place: IntentPlace; chip: boolean; row: ChangeRow } | null {
   const id = `intent-${intent.kind}-${index}`;
   switch (intent.kind) {
+    case "layersReordered":
+      // Shown as the layer-order group, not as a row of a layer.
+      return null;
     case "layerFilled": {
       const detail = plural(intent.keys, ["key", "keys"]);
       const text =
