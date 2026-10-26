@@ -754,6 +754,11 @@ kbd {
   padding: 2px var(--space-2);
   font-size: 11px;
 }
+.canvas-app .toast-action {
+  padding: 2px var(--space-2);
+  font-size: 11px;
+  color: var(--cursor);
+}
 .canvas-app .dialog {
   background: var(--chrome);
   border-color: var(--edge);

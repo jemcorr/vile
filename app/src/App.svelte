@@ -208,9 +208,21 @@
     }
     toastVisible = true;
     if (ui.messageError) return;
-    const timer = setTimeout(() => (toastVisible = false), 3000);
+    const timer = setTimeout(() => (toastVisible = false), ui.messageAction ? 6000 : 3000);
     return () => clearTimeout(timer);
   });
+  $effect(() => {
+    const target = ui.jump;
+    if (!target) return;
+    ui.jump = null;
+    untrack(() => jump(target));
+  });
+  function runToastAction(): void {
+    const action = ui.messageAction;
+    if (!action) return;
+    ui.jump = action.jump;
+    toastVisible = false;
+  }
   let definitionStatus = $state("");
   async function refreshGeometry(): Promise<void> {
     try {
@@ -1190,7 +1202,7 @@
       </div>
     </div>{/if}
   <div class="toast" class:shown={toastVisible || busyShown} role="status" aria-live="polite">
-    <span>{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span>{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
+    <span>{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span>{#if ui.messageAction}<button class="toast-action" onclick={runToastAction}>{ui.messageAction.label}</button>{/if}{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
   </div>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
       {ui.view.warnings.join(" · ")}

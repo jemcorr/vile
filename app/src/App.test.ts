@@ -458,6 +458,22 @@ describe("desktop editing workflow", () => {
       vi.useRealTimers();
     }
   });
+  it("offers a toast action that jumps to what the message names", async () => {
+    app = mount(App, { target: document.body });
+    await settle();
+    notify("Cleared macro 2", false, { label: "Show", jump: { kind: "keys", layer: 7, keyIds: ["r4c0"] } });
+    await tick();
+    expect(document.querySelector(".toast")!.textContent).toContain("Cleared macro 2");
+    button("Show").click();
+    await tick();
+    await tick();
+    expect(ui.layer).toBe(7);
+    expect(ui.selection).toEqual(["r4c0"]);
+    notify("Plain");
+    await tick();
+    expect(document.querySelector(".toast-action")).toBeNull();
+  });
+
   it("does not swap a key when the pointer lands in its visible gutter", async () => {
     app = mount(App, { target: document.body });
     await settle();

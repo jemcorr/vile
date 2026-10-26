@@ -2,6 +2,7 @@
 // the latest view model plus purely visual state such as cursor and selection.
 import type { KeyRefDto, ViewModel } from "./types";
 import type { Mode, Panel } from "./modes";
+import type { ChangeJump } from "./changes";
 
 export const ui = $state({
   view: null as ViewModel | null,
@@ -17,6 +18,10 @@ export const ui = $state({
   message: "",
   messageError: false,
   messageSeq: 0,
+  /** A button on the toast that jumps to what the message names. */
+  messageAction: null as { label: string; jump: ChangeJump } | null,
+  /** A jump a toast action asked for; the app performs it once and clears it. */
+  jump: null as ChangeJump | null,
   panel: "combos" as Panel,
   /** A slot a feature editor selects once, then clears (jumps from the changes sheet). */
   revealSlot: null as { panel: Panel; index: number } | null,
@@ -34,9 +39,14 @@ export const ui = $state({
 });
 
 /** Show a status message. Failures pass error=true and stay until dismissed. */
-export function notify(text: string, error = false): void {
+export function notify(
+  text: string,
+  error = false,
+  action: { label: string; jump: ChangeJump } | null = null,
+): void {
   ui.message = text;
   ui.messageError = error;
+  ui.messageAction = action;
   ui.messageSeq += 1;
 }
 
