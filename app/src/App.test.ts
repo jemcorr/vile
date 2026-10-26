@@ -103,6 +103,7 @@ function view(): ViewModel {
       altRepeatKeys: [],
       names: { layers: {}, macros: {}, combos: {} },
     },
+    story: null,
     warnings: [],
     combos: [
       {

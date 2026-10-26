@@ -3,17 +3,18 @@
 
 use std::path::Path;
 
+use vile_core::intent::{self, Intent};
 use vile_core::ops;
 use vile_core::{
     AltRepeatKey, Board, Catalog, CatalogContext, Combo, Editor, FeatureSlotKind, KeyOverride,
     KeyRef, KeycodeKind, Macro, MacroAction, MirrorMode, Pos, Slot, TapDance,
 };
-use vile_core::{DiffBase, Document, Keycode};
+use vile_core::{DiffBase, DiffEntry, Document, Keycode};
 
 use crate::dto::{
-    AltRepeatDto, BaselineDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, KeyCellDto,
-    KeyOverrideDto, KeyRefDto, MacroActionDto, MacroDto, OpDto, SearchHitDto, TapDanceDto,
-    ViewModel,
+    AltRepeatDto, BaselineDto, BoardDto, BoardKeyDto, ComboDto, DiffLineDto, IntentDto, KeyAtDto,
+    KeyCellDto, KeyOverrideDto, KeyRefDto, MacroActionDto, MacroDto, OpDto, SearchHitDto, StoryDto,
+    TapDanceDto, ViewModel,
 };
 
 /// At most one open document. Every method returns user-facing error text.
@@ -491,6 +492,7 @@ fn build_view(
             DiffBase::GitHead => "git".to_string(),
         },
         baseline: baseline_dto(editor.base_doc(), editor.disk_names(), doc, editor.names()),
+        story: story_dto(editor),
         warnings: warnings
             .iter()
             .chain(editor.metadata_warnings())
@@ -738,40 +740,71 @@ fn diff_lines(editor: &Editor, pending: bool) -> Vec<DiffLineDto> {
     } else {
         editor.diff()
     };
+    let old_doc = if pending {
+        editor.disk_doc()
+    } else {
+        editor.base_doc()
+    };
+    let old_names = if !pending && editor.diff_base() == DiffBase::GitHead {
+        None
+    } else {
+        Some(editor.disk_names())
+    };
     let mut lines: Vec<_> = entries
         .into_iter()
-        .map(|d| {
-            let old_doc = if pending {
-                editor.disk_doc()
-            } else {
-                editor.base_doc()
-            };
-            let old_names = if !pending && editor.diff_base() == DiffBase::GitHead {
-                None
-            } else {
-                Some(editor.disk_names())
-            };
-            let old_description = describe_diff_value(old_doc, old_names, &d, &d.old);
-            let new_description =
-                describe_diff_value(editor.doc(), Some(editor.names()), &d, &d.new);
-            DiffLineDto {
-                section: d.section.as_str().into(),
-                line: d.line,
-                layer: d.layer,
-                key_id: d.key_id,
-                index: d.index,
-                field: d.field,
-                old: d.old,
-                new: d.new,
-                old_description,
-                new_description,
-            }
-        })
+        .map(|d| line_dto(d, old_doc, old_names, editor))
         .collect();
+    lines.extend(name_lines(editor.disk_names(), editor.names()));
+    if pending && editor.names_pending() && lines.iter().all(|line| line.section != "names") {
+        lines.push(DiffLineDto {
+            section: "names".into(),
+            line: "Names sidecar still needs saving".into(),
+            layer: None,
+            key_id: None,
+            index: None,
+            field: None,
+            old: "unsaved".into(),
+            new: "retry save".into(),
+            old_description: "Names sidecar not saved".into(),
+            new_description: "Retry saving names".into(),
+        });
+    }
+    lines
+}
+
+/// One diff entry, with its old side read from `old_doc` and `old_names`.
+fn line_dto(
+    d: DiffEntry,
+    old_doc: &Document,
+    old_names: Option<&vile_core::metadata::Names>,
+    editor: &Editor,
+) -> DiffLineDto {
+    let old_description = describe_diff_value(old_doc, old_names, &d, &d.old);
+    let new_description = describe_diff_value(editor.doc(), Some(editor.names()), &d, &d.new);
+    DiffLineDto {
+        section: d.section.as_str().into(),
+        line: d.line,
+        layer: d.layer,
+        key_id: d.key_id,
+        index: d.index,
+        field: d.field,
+        old: d.old,
+        new: d.new,
+        old_description,
+        new_description,
+    }
+}
+
+/// One line per layer, macro or combo name that differs between `old` and `new`.
+fn name_lines(
+    old: &vile_core::metadata::Names,
+    new: &vile_core::metadata::Names,
+) -> Vec<DiffLineDto> {
+    let mut lines = Vec::new();
     for (kind, old, new) in [
-        ("layer", &editor.disk_names().layers, &editor.names().layers),
-        ("macro", &editor.disk_names().macros, &editor.names().macros),
-        ("combo", &editor.disk_names().combos, &editor.names().combos),
+        ("layer", &old.layers, &new.layers),
+        ("macro", &old.macros, &new.macros),
+        ("combo", &old.combos, &new.combos),
     ] {
         let indices: std::collections::BTreeSet<_> =
             old.keys().chain(new.keys()).copied().collect();
@@ -794,21 +827,88 @@ fn diff_lines(editor: &Editor, pending: bool) -> Vec<DiffLineDto> {
             }
         }
     }
-    if pending && editor.names_pending() && lines.iter().all(|line| line.section != "names") {
-        lines.push(DiffLineDto {
-            section: "names".into(),
-            line: "Names sidecar still needs saving".into(),
-            layer: None,
-            key_id: None,
-            index: None,
-            field: None,
-            old: "unsaved".into(),
-            new: "retry save".into(),
-            old_description: "Names sidecar not saved".into(),
-            new_description: "Retry saving names".into(),
-        });
-    }
     lines
+}
+
+/// The changes as intents, when the board matches both documents and every intent names keys
+/// the board has. `None` when there is no intent to show.
+fn story_dto(editor: &Editor) -> Option<StoryDto> {
+    let base = editor.base_doc();
+    let doc = editor.doc();
+    let board = editor
+        .board()
+        .filter(|board| board.matches(base) && board.matches(doc))?;
+    let story = intent::explain(base, editor.disk_names(), doc, editor.names(), Some(board));
+    if story.intents.is_empty() {
+        return None;
+    }
+    let catalog = doc.catalog();
+    let intents = story
+        .intents
+        .iter()
+        .map(|item| intent_dto(item, board, &catalog))
+        .collect::<Option<Vec<_>>>()?;
+    let mut rest: Vec<DiffLineDto> = story
+        .rest
+        .into_iter()
+        .map(|d| line_dto(d, &story.applied, Some(&story.applied_names), editor))
+        .collect();
+    rest.extend(name_lines(&story.applied_names, editor.names()));
+    let reference = baseline_dto(&story.applied, &story.applied_names, doc, editor.names());
+    Some(StoryDto {
+        intents,
+        rest,
+        reference,
+    })
+}
+
+fn intent_dto(item: &Intent, board: &Board, catalog: &Catalog) -> Option<IntentDto> {
+    let at = |key: &KeyRef| {
+        Some(KeyAtDto {
+            layer: key.layer,
+            key_id: board.key_at(key.pos.row, key.pos.col)?.id.clone(),
+        })
+    };
+    let key_id = |pos: &Pos| Some(board.key_at(pos.row, pos.col)?.id.clone());
+    Some(match item {
+        Intent::LayerFilled { layer, value, keys } => IntentDto::LayerFilled {
+            layer: *layer,
+            value: catalog.wire_name(*value),
+            keys: *keys,
+        },
+        Intent::LayerCopied { from, to, keys } => IntentDto::LayerCopied {
+            from: *from,
+            to: *to,
+            keys: *keys,
+        },
+        Intent::KeysSwapped { a, b } => IntentDto::KeysSwapped {
+            a: at(a)?,
+            b: at(b)?,
+        },
+        Intent::KeyMoved { from, to } => IntentDto::KeyMoved {
+            from: at(from)?,
+            to: at(to)?,
+        },
+        Intent::KeysFilled {
+            layer,
+            value,
+            positions,
+        } => IntentDto::KeysFilled {
+            layer: *layer,
+            value: catalog.wire_name(*value),
+            keys: positions.iter().map(key_id).collect::<Option<Vec<_>>>()?,
+        },
+        Intent::SlotsSwapped { kind, a, b, .. } => IntentDto::SlotsSwapped {
+            feature: feature_kind_name(*kind).into(),
+            a: *a,
+            b: *b,
+        },
+        Intent::SlotCopied { kind, from, to } => IntentDto::SlotCopied {
+            feature: feature_kind_name(*kind).into(),
+            from: *from,
+            to: *to,
+        },
+    })
 }
 
 fn macro_to_dto(catalog: &Catalog, index: usize, m: &Macro) -> MacroDto {
@@ -1156,6 +1256,17 @@ fn apply_to(
                 .apply(|doc| ops::set_alt_repeat_key(doc, index, ar))
                 .map_err(err)
         }
+    }
+}
+
+/// The wire name of a slot family, as `feature_kind` reads it.
+fn feature_kind_name(kind: FeatureSlotKind) -> &'static str {
+    match kind {
+        FeatureSlotKind::Combo => "combo",
+        FeatureSlotKind::Macro => "macro",
+        FeatureSlotKind::TapDance => "tapDance",
+        FeatureSlotKind::KeyOverride => "keyOverride",
+        FeatureSlotKind::AltRepeat => "altRepeat",
     }
 }
 

@@ -2,7 +2,7 @@ mod common;
 
 use serde_json::json;
 use vile_core::geometry::from_vial_definition;
-use vile_session::{OpDto, Session};
+use vile_session::{IntentDto, KeyAtDto, KeyRefDto, OpDto, Session};
 
 #[test]
 fn no_file_means_no_view_and_clear_errors() {
@@ -165,4 +165,77 @@ fn baseline_lists_changed_fields_and_the_old_slots() {
     assert!(json["baseline"]["keycodes"]["layout[0][0][1]"]["wire"].is_string());
     assert!(json["baseline"]["tapDances"].is_array());
     assert!(json["baseline"]["altRepeatKeys"].is_array());
+}
+
+#[test]
+fn swapped_keys_are_one_story_with_key_ids() {
+    let mut s = Session::new();
+    s.open_path(&common::fixture("corne.vil")).unwrap();
+    let view = s
+        .apply_op(OpDto::SwapKeys {
+            a: vec![KeyRefDto {
+                layer: 0,
+                key: "r0c2".to_string(),
+            }],
+            b: vec![KeyRefDto {
+                layer: 0,
+                key: "r2c4".to_string(),
+            }],
+        })
+        .unwrap();
+    let story = view.story.as_ref().expect("a swap is one story");
+    assert_eq!(
+        story.intents,
+        vec![IntentDto::KeysSwapped {
+            a: KeyAtDto {
+                layer: 0,
+                key_id: "r0c2".to_string()
+            },
+            b: KeyAtDto {
+                layer: 0,
+                key_id: "r2c4".to_string()
+            },
+        }]
+    );
+    assert!(story.rest.is_empty());
+    let json = serde_json::to_value(&view).unwrap();
+    assert_eq!(json["story"]["intents"][0]["kind"], "keysSwapped");
+    assert_eq!(json["story"]["intents"][0]["a"]["keyId"], "r0c2");
+    assert_eq!(json["story"]["intents"][0]["b"]["layer"], 0);
+}
+
+#[test]
+fn one_cleared_key_has_no_story_and_a_cleared_layer_is_one_story() {
+    let mut s = Session::new();
+    s.open_path(&common::fixture("corne.vil")).unwrap();
+    let view = s.view().unwrap();
+    assert!(view.story.is_none());
+
+    let view = s
+        .apply_op(OpDto::ClearKeys {
+            layer: 0,
+            keys: vec!["r0c3".to_string()],
+        })
+        .unwrap();
+    assert!(view.story.is_none());
+    assert_eq!(view.diff.len(), 1);
+
+    let view = s
+        .apply_op(OpDto::ClearLayer {
+            layer: 0,
+            transparent: false,
+        })
+        .unwrap();
+    let story = view.story.as_ref().expect("a cleared layer is one story");
+    assert_eq!(
+        story.intents,
+        vec![IntentDto::LayerFilled {
+            layer: 0,
+            value: "KC_NO".to_string(),
+            keys: 41,
+        }]
+    );
+    assert!(story.rest.is_empty());
+    let json = serde_json::to_value(&view).unwrap();
+    assert_eq!(json["story"]["intents"][0]["kind"], "layerFilled");
 }

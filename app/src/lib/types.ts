@@ -165,6 +165,31 @@ export interface BaselineDto {
   /** Names as last saved; names are always compared with the last save. */
   names: Names;
 }
+/** One key position: its layer and board key id. */
+export interface KeyAtDto {
+  layer: number;
+  keyId: string;
+}
+
+/** One change as a user-level action. `value` is a keycode wire name; `feature` is a slot family. */
+export type IntentDto =
+  | { kind: "layerFilled"; layer: number; value: string; keys: number }
+  | { kind: "layerCopied"; from: number; to: number; keys: number }
+  | { kind: "keysSwapped"; a: KeyAtDto; b: KeyAtDto }
+  | { kind: "keyMoved"; from: KeyAtDto; to: KeyAtDto }
+  | { kind: "keysFilled"; layer: number; value: string; keys: string[] }
+  | { kind: "slotsSwapped"; feature: string; a: number; b: number }
+  | { kind: "slotCopied"; feature: string; from: number; to: number };
+
+/** The changes explained as intents, with what the intents leave unexplained. */
+export interface StoryDto {
+  intents: IntentDto[];
+  /** Changes the intents do not explain, compared with the reference after the intents. */
+  rest: DiffLineDto[];
+  /** Baseline values of that reference, for the rest rows. */
+  reference: BaselineDto;
+}
+
 export interface ViewModel {
   revision: number;
   names: Names;
@@ -184,6 +209,8 @@ export interface ViewModel {
   diff: DiffLineDto[];
   diffBase: DiffBase;
   baseline: BaselineDto;
+  /** The changes as intents, or null when there is none. */
+  story: StoryDto | null;
   warnings: string[];
   combos: ComboDto[];
   macros: MacroDto[];

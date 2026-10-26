@@ -141,6 +141,8 @@ pub struct ViewModel {
     pub diff: Vec<DiffLineDto>,
     pub diff_base: String,
     pub baseline: BaselineDto,
+    /// The changes as user-level actions, when there is at least one (`None` otherwise).
+    pub story: Option<StoryDto>,
     pub warnings: Vec<String>,
     pub combos: Vec<ComboDto>,
     pub macros: Vec<MacroDto>,
@@ -315,6 +317,69 @@ pub struct BaselineDto {
     pub alt_repeat_keys: Vec<AltRepeatDto>,
     /// Names as last saved. Names are always compared with the last save.
     pub names: Names,
+}
+
+/// One key position, by layer and board key id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyAtDto {
+    pub layer: usize,
+    pub key_id: String,
+}
+
+/// One change as a user-level action. `value` is the keycode's wire name, `feature` is
+/// "combo", "macro", "tapDance", "keyOverride" or "altRepeat".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum IntentDto {
+    LayerFilled {
+        layer: usize,
+        value: String,
+        keys: usize,
+    },
+    LayerCopied {
+        from: usize,
+        to: usize,
+        keys: usize,
+    },
+    KeysSwapped {
+        a: KeyAtDto,
+        b: KeyAtDto,
+    },
+    KeyMoved {
+        from: KeyAtDto,
+        to: KeyAtDto,
+    },
+    KeysFilled {
+        layer: usize,
+        value: String,
+        keys: Vec<String>,
+    },
+    SlotsSwapped {
+        feature: String,
+        a: usize,
+        b: usize,
+    },
+    SlotCopied {
+        feature: String,
+        from: usize,
+        to: usize,
+    },
+}
+
+/// The changes explained as intents, with what the intents leave unexplained.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryDto {
+    pub intents: Vec<IntentDto>,
+    /// Changes the intents do not explain, compared with the reference after the intents.
+    pub rest: Vec<DiffLineDto>,
+    /// Baseline values of that reference, for the rest rows.
+    pub reference: BaselineDto,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
