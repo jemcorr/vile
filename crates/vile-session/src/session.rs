@@ -146,20 +146,14 @@ impl Session {
                         .filter(|c| c.is_alphanumeric())
                         .flat_map(char::to_lowercase)
                         .collect();
-                    let mut wanted = needle.chars().peekable();
-                    for c in text.chars() {
-                        if wanted.peek() == Some(&c) {
-                            wanted.next();
-                        }
-                    }
-                    if wanted.peek().is_none() {
+                    if text.contains(&needle) {
                         named.push(hit);
                     }
                 }
             }
+            // Keys whose user names contain the query follow the catalog's own matches.
             named.retain(|hit| !hits.iter().any(|existing| existing.name == hit.name));
-            named.extend(hits);
-            hits = named;
+            hits.extend(named);
             hits.truncate(limit);
         }
         hits.into_iter()
