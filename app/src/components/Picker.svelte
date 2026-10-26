@@ -156,7 +156,7 @@
     };
   });
   const visible = $derived(
-    hits.filter((hit) => hit.complete && (floatingSearching || query.trim() || hit.category === category)),
+    hits.filter((hit) => hit.complete && (floatingSearching || hit.category === category)),
   );
   // Search preserves the core's relevance order. Group only category browsing.
   const sections = $derived.by(() => {
@@ -251,8 +251,8 @@
   </nav>
   {#if floatingOpen}
   <section id="floating-keycodes" class="picker floating-popup" style:width={floatingWidth + 'px'} style:left={floatingLeft + 'px'} style:bottom={floatingBottom + 'px'} style:--popup-max-height={floatingHeight + 'px'} aria-label="Keycode picker">
-    <div class="picker-head"><h2>{floatingSearching || query ? 'All keycodes' : category}</h2><button class="popup-close" aria-label="Close key picker" title="Close key picker · Esc" onclick={() => hidePicker(true)}>×</button></div>
-    <input bind:this={searchInput} type="search" aria-label="Search keycodes" placeholder="Search all keycodes" oninput={() => floatingSearching = true} bind:value={query}/>
+    <div class="picker-head"><h2>{floatingSearching ? 'All keycodes' : category}</h2><button class="popup-close" aria-label="Close key picker" title="Close key picker · Esc" onclick={() => hidePicker(true)}>×</button></div>
+    <input bind:this={searchInput} type="search" aria-label="Search keycodes" placeholder={floatingSearching ? 'Search all keycodes' : `Search ${category}`} bind:value={query}/>
     <p class="floating-target">{builderBase ? 'Choose a builder tap key' : choosingBase ? 'Choose the tap action. The hold behavior stays.' : target.startsWith('No picker') ? 'Drag a tile onto a key, or select a key first.' : 'Click to assign. Drag to assign another key.'}</p>
     <div class="floating-body">
   {#if building}
@@ -317,10 +317,10 @@
   <p class="search-count" role="status">
     {searching
       ? "Searching…"
-      : `${visible.length} results${query.trim() ? ` for “${query.trim()}”` : ` in ${floatingSearching ? "all keycodes" : category}`}`}
+      : `${visible.length} results${query.trim() ? ` for “${query.trim()}”` : ""}${floatingSearching ? (query.trim() ? "" : " in all keycodes") : ` in ${category}`}`}
   </p>
   {#if !searching && !error && visible.length === 0}<p>
-      No matching keycodes. Try a name, alias, or wire code.
+      {#if floatingSearching}No matching keycodes. Try a name, alias, or wire code.{:else}No matches in {category}. <button type="button" class="search-all" onclick={() => (floatingSearching = true)}>Search all keycodes</button>{/if}
     </p>{/if}
   <div class="results">
     {#each sections as section (section.name)}
