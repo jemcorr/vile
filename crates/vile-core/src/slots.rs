@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use crate::document::{AltRepeatKey, Combo, Document, KeyOverride, Macro, TapDance};
-use crate::keycode::Keycode;
+use crate::keycode::{Keycode, KeycodeKind, QK_MACRO, QK_TAP_DANCE};
 use crate::metadata::Names;
 use crate::ops::{self, OpError, OpResult};
 
@@ -228,4 +228,166 @@ pub fn swap_values(doc: &mut Document, kind: FeatureSlotKind, a: usize, b: usize
     let bv = get(doc, kind, b)?;
     set(doc, kind, a, bv)?;
     set(doc, kind, b, av)
+}
+
+/// The slot a keycode plays: M(n) → (Macro, n), TD(n) → (TapDance, n). Nothing else references a
+/// slot.
+pub fn referenced_slot(kc: Keycode) -> Option<(FeatureSlotKind, usize)> {
+    match kc.kind() {
+        KeycodeKind::Macro { index } => Some((FeatureSlotKind::Macro, usize::from(index))),
+        KeycodeKind::TapDance { index } => Some((FeatureSlotKind::TapDance, usize::from(index))),
+        _ => None,
+    }
+}
+
+/// The keycode of `kind` that plays slot `index`. None for combos, overrides, alt repeat keys
+/// and indices above 255.
+pub fn slot_keycode(kind: FeatureSlotKind, index: usize) -> Option<Keycode> {
+    let index = u16::try_from(index).ok().filter(|&n| n <= 0xFF)?;
+    match kind {
+        FeatureSlotKind::Macro => Some(Keycode(QK_MACRO + index)),
+        FeatureSlotKind::TapDance => Some(Keycode(QK_TAP_DANCE + index)),
+        _ => None,
+    }
+}
+
+/// True for the families that keycodes can reference.
+pub fn has_references(kind: FeatureSlotKind) -> bool {
+    matches!(kind, FeatureSlotKind::Macro | FeatureSlotKind::TapDance)
+}
+
+/// The field of a slot that holds a keycode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlotField {
+    ComboKey(usize),
+    ComboOutput,
+    MacroKey { action: usize, key: usize },
+    TapDance(usize),
+    OverrideTrigger,
+    OverrideReplacement,
+    AltKey,
+    AltAlternate,
+}
+
+/// Where a keycode sits in the document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Place {
+    Key {
+        layer: usize,
+        row: usize,
+        col: usize,
+    },
+    Knob {
+        layer: usize,
+        knob: usize,
+        clockwise: bool,
+    },
+    Slot {
+        kind: FeatureSlotKind,
+        index: usize,
+        field: SlotField,
+    },
+}
+
+/// Parses a path of `Document::keycodes`, for example "layout[1][0][0]", "macro[2][0][1]" or
+/// "key_override[3].trigger". None for any other path.
+pub fn place_of(path: &str) -> Option<Place> {
+    let (name, numbers, tail) = split_path(path)?;
+    let place = match (name, numbers.as_slice(), tail) {
+        ("layout", &[layer, row, col], "") => Place::Key { layer, row, col },
+        ("encoder_layout", &[layer, knob, side], "") if side <= 1 => Place::Knob {
+            layer,
+            knob,
+            clockwise: side == 0,
+        },
+        ("macro", &[index, action, key], "") if key >= 1 => Place::Slot {
+            kind: FeatureSlotKind::Macro,
+            index,
+            field: SlotField::MacroKey {
+                action,
+                key: key - 1,
+            },
+        },
+        ("tap_dance", &[index, field], "") if field < 4 => Place::Slot {
+            kind: FeatureSlotKind::TapDance,
+            index,
+            field: SlotField::TapDance(field),
+        },
+        ("combo", &[index, key], "") if key < 4 => Place::Slot {
+            kind: FeatureSlotKind::Combo,
+            index,
+            field: SlotField::ComboKey(key),
+        },
+        ("combo", &[index, 4], "") => Place::Slot {
+            kind: FeatureSlotKind::Combo,
+            index,
+            field: SlotField::ComboOutput,
+        },
+        ("key_override", &[index], ".trigger") => Place::Slot {
+            kind: FeatureSlotKind::KeyOverride,
+            index,
+            field: SlotField::OverrideTrigger,
+        },
+        ("key_override", &[index], ".replacement") => Place::Slot {
+            kind: FeatureSlotKind::KeyOverride,
+            index,
+            field: SlotField::OverrideReplacement,
+        },
+        ("alt_repeat_key", &[index], ".keycode") => Place::Slot {
+            kind: FeatureSlotKind::AltRepeat,
+            index,
+            field: SlotField::AltKey,
+        },
+        ("alt_repeat_key", &[index], ".alt_keycode") => Place::Slot {
+            kind: FeatureSlotKind::AltRepeat,
+            index,
+            field: SlotField::AltAlternate,
+        },
+        _ => return None,
+    };
+    Some(place)
+}
+
+/// Splits "name[1][2].tail" into ("name", [1, 2], ".tail").
+fn split_path(path: &str) -> Option<(&str, Vec<usize>, &str)> {
+    let open = path.find('[')?;
+    let name = &path[..open];
+    let mut rest = &path[open..];
+    let mut numbers = Vec::new();
+    while let Some(after) = rest.strip_prefix('[') {
+        let close = after.find(']')?;
+        numbers.push(after[..close].parse().ok()?);
+        rest = &after[close + 1..];
+    }
+    Some((name, numbers, rest))
+}
+
+/// One keycode that plays a slot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SlotUse {
+    pub kind: FeatureSlotKind,
+    pub index: usize,
+    pub path: String,
+    pub place: Place,
+}
+
+/// Every keycode that plays an existing macro or tap dance, in `Document::keycodes` order.
+/// References past the slot count are skipped.
+pub fn uses(doc: &Document) -> Vec<SlotUse> {
+    doc.keycodes()
+        .into_iter()
+        .filter_map(|(path, kc)| {
+            let (kind, index) = referenced_slot(kc)?;
+            if index >= count(doc, kind) {
+                return None;
+            }
+            let place = place_of(&path)?;
+            Some(SlotUse {
+                kind,
+                index,
+                path,
+                place,
+            })
+        })
+        .collect()
 }
