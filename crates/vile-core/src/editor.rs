@@ -21,10 +21,10 @@ pub enum Clipboard {
     Layer {
         contents: Vec<Vec<Slot>>,
     },
-    Feature {
+    /// Slots of one family, in index order, each with its name.
+    Features {
         kind: FeatureSlotKind,
-        value: FeatureSlotValue,
-        name: Option<String>,
+        entries: Vec<(FeatureSlotValue, Option<String>)>,
     },
 }
 
@@ -268,13 +268,13 @@ impl Editor {
             None => return Err(OpError::EmptyClipboard),
             Some(Clipboard::Layer { .. }) => {
                 return Err(OpError::WrongClipboard {
-                    held: "a layer",
+                    held: "a layer".into(),
                     wanted: "keys",
                 });
             }
-            Some(Clipboard::Feature { kind, .. }) => {
+            Some(Clipboard::Features { kind, entries }) => {
                 return Err(OpError::WrongClipboard {
-                    held: slots::article_name(*kind),
+                    held: slots::count_phrase(*kind, entries.len()),
                     wanted: "keys",
                 });
             }
@@ -295,13 +295,13 @@ impl Editor {
             None => return Err(OpError::EmptyClipboard),
             Some(Clipboard::Keys { .. }) => {
                 return Err(OpError::WrongClipboard {
-                    held: "keys",
+                    held: "keys".into(),
                     wanted: "a layer",
                 });
             }
-            Some(Clipboard::Feature { kind, .. }) => {
+            Some(Clipboard::Features { kind, entries }) => {
                 return Err(OpError::WrongClipboard {
-                    held: slots::article_name(*kind),
+                    held: slots::count_phrase(*kind, entries.len()),
                     wanted: "a layer",
                 });
             }
@@ -310,41 +310,156 @@ impl Editor {
         self.apply(|doc| crate::ops::set_layer_contents(doc, layer, &contents))
     }
 
-    pub fn copy_feature_slot(
+    /// Copies the slots into the clipboard, in index order. Duplicate indices are ignored.
+    pub fn copy_feature_slots(
         &mut self,
         kind: FeatureSlotKind,
-        index: usize,
+        indices: &[usize],
     ) -> Result<(), OpError> {
-        let value = slots::get(&self.doc, kind, index)?;
-        let name = match kind {
-            FeatureSlotKind::Combo => self.names.combos.get(&index),
-            FeatureSlotKind::Macro => self.names.macros.get(&index),
-            _ => None,
-        }
-        .cloned();
-        self.clipboard = Some(Clipboard::Feature { kind, value, name });
+        let indices = sorted_indices(indices)?;
+        let entries = self.feature_entries(kind, &indices)?;
+        self.clipboard = Some(Clipboard::Features { kind, entries });
         Ok(())
     }
 
-    pub fn paste_feature_slot(&mut self, kind: FeatureSlotKind, index: usize) -> OpResult {
-        let (held, value, name) = match &self.clipboard {
+    /// Copies the slots into the clipboard, then clears them in one undo step. The clipboard
+    /// changes only when the clear succeeds.
+    pub fn cut_feature_slots(&mut self, kind: FeatureSlotKind, indices: &[usize]) -> OpResult {
+        let indices = sorted_indices(indices)?;
+        let entries = self.feature_entries(kind, &indices)?;
+        let warnings = self.clear_feature_slots(kind, &indices)?;
+        self.clipboard = Some(Clipboard::Features { kind, entries });
+        Ok(warnings)
+    }
+
+    /// Writes the clipboard into the selected slots when the counts match, else into consecutive
+    /// slots from the one selected slot. Names move with their slots. One undo step.
+    pub fn paste_feature_slots(&mut self, kind: FeatureSlotKind, selection: &[usize]) -> OpResult {
+        let (held, entries) = match &self.clipboard {
             None => return Err(OpError::EmptyClipboard),
-            Some(Clipboard::Feature {
+            Some(Clipboard::Features {
                 kind: held,
-                value,
-                name,
-            }) => (*held, value.clone(), name.clone()),
-            Some(Clipboard::Keys { .. }) => return Err(wrong_feature_clipboard("keys", kind)),
-            Some(Clipboard::Layer { .. }) => return Err(wrong_feature_clipboard("a layer", kind)),
+                entries,
+            }) => (*held, entries.clone()),
+            Some(Clipboard::Keys { .. }) => {
+                return Err(OpError::WrongClipboard {
+                    held: "keys".into(),
+                    wanted: slots::article_name(kind),
+                });
+            }
+            Some(Clipboard::Layer { .. }) => {
+                return Err(OpError::WrongClipboard {
+                    held: "a layer".into(),
+                    wanted: slots::article_name(kind),
+                });
+            }
         };
         if held != kind {
-            return Err(wrong_feature_clipboard(slots::article_name(held), kind));
+            return Err(OpError::WrongClipboard {
+                held: slots::count_phrase(held, entries.len()),
+                wanted: slots::article_name(kind),
+            });
         }
+        let count = slots::count(&self.doc, kind);
+        let targets = slots::paste_targets(entries.len(), selection, count)?;
         self.apply_named(|doc, names| {
-            slots::set(doc, kind, index, value)?;
-            slots::set_name(names, kind, index, name);
+            for (&target, (value, name)) in targets.iter().zip(entries) {
+                slots::set(doc, kind, target, value)?;
+                slots::set_name(names, kind, target, name);
+            }
             Ok(Vec::new())
         })
+    }
+
+    /// Copies the slots at `from` onto the slots at `to`, pairwise. All values are read before any
+    /// is written, so overlapping lists work. The clipboard is unchanged.
+    pub fn copy_feature_slots_to(
+        &mut self,
+        kind: FeatureSlotKind,
+        from: &[usize],
+        to: &[usize],
+    ) -> OpResult {
+        if from.is_empty() {
+            return Err(OpError::Invalid("no slot selected".into()));
+        }
+        if from.len() != to.len() {
+            return Err(OpError::SizeMismatch {
+                expected: from.len(),
+                actual: to.len(),
+            });
+        }
+        let mut distinct = to.to_vec();
+        distinct.sort_unstable();
+        distinct.dedup();
+        if distinct.len() != to.len() {
+            return Err(OpError::Invalid(
+                "a slot appears twice as a copy target".into(),
+            ));
+        }
+        let entries = self.feature_entries(kind, from)?;
+        self.apply_named(|doc, names| {
+            for (&target, (value, name)) in to.iter().zip(entries) {
+                slots::set(doc, kind, target, value)?;
+                slots::set_name(names, kind, target, name);
+            }
+            Ok(Vec::new())
+        })
+    }
+
+    /// Empties the slots and removes their names. Keycodes that play a macro or tap dance keep
+    /// their number.
+    pub fn clear_feature_slots(&mut self, kind: FeatureSlotKind, indices: &[usize]) -> OpResult {
+        let indices = sorted_indices(indices)?;
+        self.apply_named(|doc, names| {
+            for &index in &indices {
+                slots::set(doc, kind, index, slots::empty(kind))?;
+                slots::set_name(names, kind, index, None);
+            }
+            Ok(Vec::new())
+        })
+    }
+
+    /// Turns the Enabled switch of key overrides or alt repeat keys on or off.
+    pub fn set_feature_slots_enabled(
+        &mut self,
+        kind: FeatureSlotKind,
+        indices: &[usize],
+        on: bool,
+    ) -> OpResult {
+        let no_switch = || {
+            OpError::Invalid(format!(
+                "{} has no Enabled switch",
+                slots::article_name(kind)
+            ))
+        };
+        if slots::enabled(&slots::empty(kind)).is_none() {
+            return Err(no_switch());
+        }
+        let indices = sorted_indices(indices)?;
+        self.apply(|doc| {
+            for &index in &indices {
+                let value = slots::get(doc, kind, index)?;
+                let updated = slots::with_enabled(value, on).ok_or_else(no_switch)?;
+                slots::set(doc, kind, index, updated)?;
+            }
+            Ok(Vec::new())
+        })
+    }
+
+    fn feature_entries(
+        &self,
+        kind: FeatureSlotKind,
+        indices: &[usize],
+    ) -> Result<Vec<(FeatureSlotValue, Option<String>)>, OpError> {
+        indices
+            .iter()
+            .map(|&index| {
+                Ok((
+                    slots::get(&self.doc, kind, index)?,
+                    slots::name_of(&self.names, kind, index),
+                ))
+            })
+            .collect()
     }
 
     /// Swaps two slots with their names and renumbers every keycode that plays either one.
@@ -499,11 +614,15 @@ impl Editor {
     }
 }
 
-fn wrong_feature_clipboard(held: &'static str, wanted: FeatureSlotKind) -> OpError {
-    OpError::WrongClipboard {
-        held,
-        wanted: slots::article_name(wanted),
+/// The distinct indices in ascending order. An empty selection is an error.
+fn sorted_indices(indices: &[usize]) -> Result<Vec<usize>, OpError> {
+    let mut sorted = indices.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    if sorted.is_empty() {
+        return Err(OpError::Invalid("no slot selected".into()));
     }
+    Ok(sorted)
 }
 
 #[cfg(test)]

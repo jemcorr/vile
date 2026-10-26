@@ -45,10 +45,7 @@ pub enum OpError {
     #[error("clipboard is empty")]
     EmptyClipboard,
     #[error("clipboard holds {held}, not {wanted}")]
-    WrongClipboard {
-        held: &'static str,
-        wanted: &'static str,
-    },
+    WrongClipboard { held: String, wanted: &'static str },
     #[error("the board does not match this file")]
     BoardMismatch,
     #[error("{section} slot {index} does not exist (the file has {count})")]

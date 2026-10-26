@@ -466,3 +466,133 @@ fn is_referenced(doc: &Document, kind: FeatureSlotKind, index: usize) -> bool {
         .iter()
         .any(|(_, kc)| referenced_slot(*kc) == Some((kind, index)))
 }
+
+/// Bit 7 of a key override's options is its Enabled switch (bits.ts).
+pub const KEY_OVERRIDE_ENABLED: u8 = 0x80;
+/// Bit 3 of an alt repeat key's options is its Enabled switch (bits.ts).
+pub const ALT_REPEAT_ENABLED: u8 = 0x08;
+
+/// Vial's value for a slot that was never set (decision D3).
+pub fn empty(kind: FeatureSlotKind) -> FeatureSlotValue {
+    match kind {
+        FeatureSlotKind::Combo => FeatureSlotValue::Combo(Combo {
+            keys: [Keycode::NO; 4],
+            output: Keycode::NO,
+        }),
+        FeatureSlotKind::Macro => FeatureSlotValue::Macro(Macro::default()),
+        FeatureSlotKind::TapDance => FeatureSlotValue::TapDance(TapDance {
+            on_tap: Keycode::NO,
+            on_hold: Keycode::NO,
+            on_double_tap: Keycode::NO,
+            on_tap_hold: Keycode::NO,
+            tapping_term: 200,
+        }),
+        FeatureSlotKind::KeyOverride => FeatureSlotValue::KeyOverride(KeyOverride {
+            trigger: Keycode::NO,
+            replacement: Keycode::NO,
+            layers: 0xFFFF,
+            trigger_mods: 0,
+            negative_mod_mask: 0,
+            suppressed_mods: 0,
+            options: 7,
+        }),
+        FeatureSlotKind::AltRepeat => FeatureSlotValue::AltRepeat(AltRepeatKey {
+            keycode: Keycode::NO,
+            alt_keycode: Keycode::NO,
+            allowed_mods: 0,
+            options: 0,
+        }),
+    }
+}
+
+/// Some(on) for key overrides and alt repeat keys, None for the other families.
+pub fn enabled(value: &FeatureSlotValue) -> Option<bool> {
+    match value {
+        FeatureSlotValue::KeyOverride(ko) => Some(ko.options & KEY_OVERRIDE_ENABLED != 0),
+        FeatureSlotValue::AltRepeat(ar) => Some(ar.options & ALT_REPEAT_ENABLED != 0),
+        _ => None,
+    }
+}
+
+/// The value with its Enabled switch set; None for the families without one.
+pub fn with_enabled(value: FeatureSlotValue, on: bool) -> Option<FeatureSlotValue> {
+    match value {
+        FeatureSlotValue::KeyOverride(mut ko) => {
+            ko.options = set_bit(ko.options, KEY_OVERRIDE_ENABLED, on);
+            Some(FeatureSlotValue::KeyOverride(ko))
+        }
+        FeatureSlotValue::AltRepeat(mut ar) => {
+            ar.options = set_bit(ar.options, ALT_REPEAT_ENABLED, on);
+            Some(FeatureSlotValue::AltRepeat(ar))
+        }
+        _ => None,
+    }
+}
+
+fn set_bit(options: u8, bit: u8, on: bool) -> u8 {
+    if on { options | bit } else { options & !bit }
+}
+
+/// Where `n` copied slots land: the selection when it holds `n` slots, otherwise `n` consecutive
+/// slots from the single selected slot. Errors: an empty selection, a selection of another size
+/// (`SizeMismatch`), or targets past `count`.
+pub fn paste_targets(n: usize, selection: &[usize], count: usize) -> Result<Vec<usize>, OpError> {
+    let mut selected = selection.to_vec();
+    selected.sort_unstable();
+    selected.dedup();
+    let Some(&first) = selected.first() else {
+        return Err(OpError::Invalid("no slot selected".into()));
+    };
+    let targets: Vec<usize> = if selected.len() == n {
+        selected
+    } else if selected.len() == 1 {
+        let left = count.saturating_sub(first);
+        if n > left {
+            return Err(OpError::Invalid(format!(
+                "{n} slots from {first} need {n}; only {left} remain"
+            )));
+        }
+        (first..first + n).collect()
+    } else {
+        return Err(OpError::SizeMismatch {
+            expected: n,
+            actual: selected.len(),
+        });
+    };
+    if let Some(&bad) = targets.iter().find(|&&t| t >= count) {
+        return Err(OpError::Invalid(format!(
+            "slot {bad} does not exist (the file has {count})"
+        )));
+    }
+    Ok(targets)
+}
+
+/// The name of slot `index`, when the family has names and the slot has one.
+pub fn name_of(names: &Names, kind: FeatureSlotKind, index: usize) -> Option<String> {
+    match kind {
+        FeatureSlotKind::Combo => names.combos.get(&index).cloned(),
+        FeatureSlotKind::Macro => names.macros.get(&index).cloned(),
+        _ => None,
+    }
+}
+
+/// "a macro" for one slot, "2 macros" for more. Used in clipboard messages.
+pub fn count_phrase(kind: FeatureSlotKind, count: usize) -> String {
+    let (singular, plural) = match kind {
+        FeatureSlotKind::Combo => ("combo", "combos"),
+        FeatureSlotKind::Macro => ("macro", "macros"),
+        FeatureSlotKind::TapDance => ("tap dance", "tap dances"),
+        FeatureSlotKind::KeyOverride => ("key override", "key overrides"),
+        FeatureSlotKind::AltRepeat => ("alt repeat key", "alt repeat keys"),
+    };
+    if count == 1 {
+        let article = if singular.starts_with(['a', 'e', 'i', 'o', 'u']) {
+            "an"
+        } else {
+            "a"
+        };
+        format!("{article} {singular}")
+    } else {
+        format!("{count} {plural}")
+    }
+}

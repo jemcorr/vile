@@ -1124,12 +1124,12 @@ fn apply_to(
         OpDto::PasteLayer { layer } => editor.paste_layer(layer).map_err(err),
         OpDto::CopyFeatureSlot { kind, index } => {
             editor
-                .copy_feature_slot(feature_kind(&kind)?, index)
+                .copy_feature_slots(feature_kind(&kind)?, &[index])
                 .map_err(err)?;
             Ok(Vec::new())
         }
         OpDto::PasteFeatureSlot { kind, index } => editor
-            .paste_feature_slot(feature_kind(&kind)?, index)
+            .paste_feature_slots(feature_kind(&kind)?, &[index])
             .map_err(err),
         OpDto::SwapFeatureSlots { kind, a, b } => editor
             .swap_feature_slots(feature_kind(&kind)?, a, b)
