@@ -61,3 +61,35 @@ fn generated_names_follow_the_context() {
 fn search_is_deterministic() {
     assert_eq!(cat().search("s", 20), cat().search("s", 20));
 }
+
+#[test]
+fn exact_names_do_not_drag_in_letter_matches_from_prose() {
+    let names = |q: &str| {
+        cat()
+            .search(q, 4096)
+            .into_iter()
+            .map(|h| h.name)
+            .collect::<Vec<_>>()
+    };
+    let trns = names("kc_trns");
+    assert_eq!(trns.first().map(String::as_str), Some("KC_TRNS"));
+    assert!(
+        trns.len() <= 3,
+        "kc_trns matched {} keycodes: {trns:?}",
+        trns.len()
+    );
+    let reboot = names("qk_reboot");
+    assert_eq!(reboot.first().map(String::as_str), Some("QK_REBOOT"));
+    assert!(!reboot.iter().any(|n| n == "KC_EQUAL"), "{reboot:?}");
+    assert!(
+        reboot.len() <= 3,
+        "qk_reboot matched {} keycodes: {reboot:?}",
+        reboot.len()
+    );
+}
+
+#[test]
+fn letter_matches_remain_a_fallback_for_names() {
+    let hits = cat().search("bspce", 4096);
+    assert!(hits.iter().any(|h| h.name == "KC_BSPACE"), "{hits:?}");
+}

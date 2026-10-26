@@ -29,6 +29,8 @@ struct Candidate {
     label: String,
     group: &'static str,
     keys: Vec<String>,
+    /// Descriptions and tooltips: matched whole or as a substring, never letter by letter.
+    prose: Vec<String>,
 }
 
 /// Uppercase ASCII letters and digits only.
@@ -61,17 +63,18 @@ fn is_subsequence(q: &str, x: &str) -> bool {
     wanted.peek().is_none()
 }
 
-/// The score of one normalized string against the normalized query.
-fn score_of(x: &str, q: &str) -> Option<i32> {
+/// The score of one normalized string against the normalized query, and
+/// whether it matched only letter by letter.
+fn score_of(x: &str, q: &str, fuzzy: bool) -> Option<(i32, bool)> {
     let extra = x.len() as i32 - q.len() as i32;
     if x == q {
-        Some(1000)
+        Some((1000, false))
     } else if x.starts_with(q) {
-        Some(800 - extra)
+        Some((800 - extra, false))
     } else if let Some(i) = x.find(q) {
-        Some(600 - i as i32)
-    } else if is_subsequence(q, x) {
-        Some(400 - extra)
+        Some((600 - i as i32, false))
+    } else if fuzzy && is_subsequence(q, x) {
+        Some((400 - extra, true))
     } else {
         None
     }
@@ -97,18 +100,22 @@ impl Catalog {
                 .collect();
         }
         let mut scored: Vec<(i32, usize, SearchHit)> = Vec::new();
+        let mut fuzzy_only = Vec::new();
         for (index, c) in candidates.into_iter().enumerate() {
-            let mut best: Option<(i32, &str)> = None;
-            for key in &c.keys {
+            let mut best: Option<(i32, bool, &str)> = None;
+            let names = c.keys.iter().map(|key| (key, true));
+            let prose = c.prose.iter().map(|text| (text, false));
+            for (key, fuzzy) in names.chain(prose) {
                 for x in variants(key) {
-                    if let Some(score) = score_of(&x, &q)
-                        && best.is_none_or(|(b, _)| score > b)
+                    if let Some((score, letters)) = score_of(&x, &q, fuzzy)
+                        && best.is_none_or(|(b, _, _)| score > b)
                     {
-                        best = Some((score, key.as_str()));
+                        best = Some((score, letters, key.as_str()));
                     }
                 }
             }
-            if let Some((score, key)) = best {
+            if let Some((score, letters, key)) = best {
+                fuzzy_only.push(letters);
                 scored.push((
                     score,
                     index,
@@ -123,6 +130,11 @@ impl Catalog {
                     },
                 ));
             }
+        }
+        // Letter-by-letter matches are a fallback for typos: drop them once anything matches properly.
+        if fuzzy_only.iter().any(|letters| !letters) {
+            let mut letters = fuzzy_only.into_iter();
+            scored.retain(|_| !letters.next().unwrap_or(false));
         }
         scored.sort_by(|a, b| {
             b.0.cmp(&a.0)
@@ -148,11 +160,13 @@ impl Catalog {
             }
             let mut keys = vec![name.clone(), entry.name.to_string()];
             keys.extend(entry.aliases.iter().map(|alias| alias.to_string()));
-            keys.push(self.description(Keycode(entry.code)));
-            keys.push(self.tooltip(Keycode(entry.code)));
             let picker = self.picker(Keycode(entry.code));
             keys.push(picker.label);
-            keys.push(picker.summary);
+            let prose = vec![
+                self.description(Keycode(entry.code)),
+                self.tooltip(Keycode(entry.code)),
+                picker.summary,
+            ];
             out.push(Candidate {
                 insert: name.clone(),
                 label: self.label(Keycode(entry.code)),
@@ -160,12 +174,14 @@ impl Catalog {
                 complete: true,
                 group: entry.group.as_str(),
                 keys,
+                prose,
             });
         }
         let generated = |name: String, code: u16, group: &'static str| Candidate {
             insert: name.clone(),
             label: self.label(Keycode(code)),
             keys: vec![name.clone()],
+            prose: Vec::new(),
             name,
             complete: true,
             group,
@@ -202,6 +218,7 @@ impl Catalog {
                 complete: false,
                 group: entry.group.as_str(),
                 keys,
+                prose: Vec::new(),
             });
         }
         for n in 0..u16::from(ctx.layers.min(16)) {
@@ -210,6 +227,7 @@ impl Catalog {
                 insert: format!("LT{n}("),
                 label: String::new(),
                 keys: vec![name.clone()],
+                prose: Vec::new(),
                 name,
                 complete: false,
                 group: "layer_tap",
