@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { usesOf } from "../lib/slots";
   import type { TapDanceDto } from "../lib/types";
   import Field from "./Field.svelte";
   import FeatureSlotList from "./FeatureSlotList.svelte";
@@ -27,6 +28,6 @@
 
 </script>
 
-<section class="slot-editor" data-slot-editor="tapDance"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="tapDance" label="Tap dance" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={tapDances.map((slot) => ({ index: slot.index, set: tapDanceSet(slot), text: tapDanceText(slot, currentLabels(ui.view)), changed: changed.has(slot.index) }))} /><div class="slot-form">{#each tapDances as td (td.index)}{#if td.index === selected}<article class="slot-edit-panel" aria-label={`Editing tap dance TD${td.index}`}><div class="slot-edit-title"><span class="slot-kicker">Tap dance {td.index}</span></div><div class="keycap-row">{#each ["Tap", "Hold", "Double tap", "Tap and hold"] as name, i}<Field path={`tap_dance[${td.index}][${i}]`} label={name} />{/each}</div><label class="slot-number">Tapping term <input type="number" min="0" max="65535" value={td.tappingTerm} onchange={(e) => onsave({ ...td, tappingTerm: Number(e.currentTarget.value) })} /> ms</label></article>{/if}{/each}</div></section>
+<section class="slot-editor" data-slot-editor="tapDance"><!-- svelte-ignore a11y_no_noninteractive_element_interactions --><FeatureSlotList kind="tapDance" label="Tap dance" perColumn={16} selected={selected} onselect={pickSlot} onoperation={onoperation} items={tapDances.map((slot) => ({ index: slot.index, set: tapDanceSet(slot), text: tapDanceText(slot, currentLabels(ui.view)), changed: changed.has(slot.index), uses: usesOf(ui.view, "tapDance", slot.index).length }))} /><div class="slot-form">{#each tapDances as td (td.index)}{#if td.index === selected}<article class="slot-edit-panel" aria-label={`Editing tap dance TD${td.index}`}><div class="slot-edit-title"><span class="slot-kicker">Tap dance {td.index}</span></div><div class="keycap-row">{#each ["Tap", "Hold", "Double tap", "Tap and hold"] as name, i}<Field path={`tap_dance[${td.index}][${i}]`} label={name} />{/each}</div><label class="slot-number">Tapping term <input type="number" min="0" max="65535" value={td.tappingTerm} onchange={(e) => onsave({ ...td, tappingTerm: Number(e.currentTarget.value) })} /> ms</label></article>{/if}{/each}</div></section>
 
 

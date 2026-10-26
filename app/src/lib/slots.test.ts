@@ -1,3 +1,4 @@
+import { enabledOf, firstUseJump, usesPhrase, usesOf } from "./slots";
 import { describe, expect, it } from "vitest";
 import {
   altRepeatSet,
@@ -137,5 +138,32 @@ describe("label sources", () => {
 
   it("flattens keycap line breaks", () => {
     expect(flat("Esc\nL8")).toBe("Esc L8");
+  });
+});
+
+describe("slot uses, jumps and switches", () => {
+  const key = (layer: number, keyId: string) => ({ feature: "macro" as const, index: 2, path: "", place: { kind: "key" as const, layer, keyId } });
+  it("counts uses for one slot and phrases them", () => {
+    const view = { slotUses: [key(7, "r4c0"), { ...key(7, "r5c0"), index: 3 }] } as unknown as Parameters<typeof usesOf>[0];
+    expect(usesOf(view, "macro", 2)).toHaveLength(1);
+    expect(usesPhrase(usesOf(view, "macro", 2))).toBe("1 key");
+    expect(usesPhrase([key(7, "r4c0"), key(7, "r5c0")])).toBe("2 keys");
+    const slot = { feature: "combo" as const, index: 0, path: "", place: { kind: "slot" as const, feature: "combo" as const, index: 5, field: "output" } };
+    expect(usesPhrase([slot, slot, slot])).toBe("3 places");
+  });
+  it("jumps to the keys on the first use's layer, or to the slot that holds the reference", () => {
+    expect(firstUseJump([key(7, "r4c0"), key(7, "r5c0"), key(0, "r6c1")])).toEqual({
+      kind: "keys",
+      layer: 7,
+      keyIds: ["r4c0", "r5c0"],
+    });
+    const slot = { feature: "tapDance" as const, index: 0, path: "", place: { kind: "slot" as const, feature: "combo" as const, index: 5, field: "output" } };
+    expect(firstUseJump([slot])).toEqual({ kind: "slot", panel: "combos", index: 5 });
+  });
+  it("reads the Enabled switch from the option bits", () => {
+    expect(enabledOf("keyOverride", { options: 7 | 0x80 })).toBe(true);
+    expect(enabledOf("keyOverride", { options: 7 })).toBe(false);
+    expect(enabledOf("altRepeat", { options: 8 })).toBe(true);
+    expect(enabledOf("combo", { options: 8 })).toBeUndefined();
   });
 });

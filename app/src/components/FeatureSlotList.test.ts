@@ -6,7 +6,7 @@ import DragPreview from "./DragPreview.svelte";
 import { pointerDrag } from "../lib/pointer-drag.svelte";
 
 const mocks = vi.hoisted(() => ({ notify: vi.fn() }));
-vi.mock("../lib/state.svelte", () => ({ notify: mocks.notify }));
+vi.mock("../lib/state.svelte", () => ({ notify: mocks.notify, ui: { view: null } }));
 
 let mounted: ReturnType<typeof mount> | undefined;
 let previewMounted: ReturnType<typeof mount> | undefined;
@@ -93,14 +93,16 @@ describe("feature slot actions", () => {
     const first = document.querySelector<HTMLButtonElement>('[data-slot-index="0"]')!;
     first.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
     await settle();
-    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] });
+    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] }, "Copied combo 0");
     first.dispatchEvent(
       new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }),
     );
     await settle();
-    document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find((button) => button.textContent!.includes("Copy"))!
+      .click();
     await settle();
-    expect(operation).toHaveBeenCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] });
+    expect(operation).toHaveBeenLastCalledWith({ type: "copyFeatureSlots", kind: "combo", indices: [0] }, "Copied combo 0");
   });
 
   it("opens the slot menu without a backdrop and closes it on outside click or Escape", async () => {
@@ -139,8 +141,8 @@ describe("feature slot actions", () => {
     drag(source, target, true);
     await settle();
     expect(operation.mock.calls).toEqual([
-      [{ type: "swapFeatureSlots", kind: "combo", a: 0, b: 1 }],
-      [{ type: "copyFeatureSlotsTo", kind: "combo", from: [0], to: [1] }],
+      [{ type: "swapFeatureSlots", kind: "combo", a: 0, b: 1 }, "Swapped combo 0 and combo 1"],
+      [{ type: "copyFeatureSlotsTo", kind: "combo", from: [0], to: [1] }, "Copied combo 0 to combo 1"],
     ]);
   });
 
@@ -344,5 +346,86 @@ describe("feature slot selection", () => {
     await settle();
     expect(mocks.notify).toHaveBeenCalledWith("Apply or revert the macro draft first");
     expect(pickedIndices()).toEqual([]);
+  });
+});
+
+function mountSlots(items: { index: number; set: boolean; text: string }[], selected = 0) {
+  const operation = vi.fn(async () => true);
+  const onselect = vi.fn();
+  mounted = mount(FeatureSlotList, {
+    target: document.body,
+    props: { kind: "combo", label: "Combo", perColumn: 8, selected, onselect, onoperation: operation, items },
+  });
+  return { operation, onselect };
+}
+function commandKey(index: number, key: string) {
+  document
+    .querySelector<HTMLButtonElement>(`[data-slot-index="${index}"]`)!
+    .dispatchEvent(new KeyboardEvent("keydown", { key, metaKey: true, bubbles: true, cancelable: true }));
+}
+
+describe("feature slot menu", () => {
+  it("clears the picked slots with Delete and Backspace", async () => {
+    const { operation } = mountSlots(Array.from({ length: 4 }, (_, index) => ({ index, set: true, text: `c${index}` })));
+    await settle();
+    await clickCell(2, { shiftKey: true });
+    await settle();
+    pressOn(0, "Delete");
+    await settle();
+    expect(operation).toHaveBeenLastCalledWith(
+      { type: "clearFeatureSlots", kind: "combo", indices: [0, 2] },
+      "Cleared 2 combos",
+    );
+    pressOn(0, "Backspace");
+    await settle();
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+
+  it("duplicates into the next empty slot with Command-D and cuts with Command-X", async () => {
+    const { operation } = mountSlots([
+      { index: 0, set: true, text: "a" },
+      { index: 1, set: true, text: "b" },
+      { index: 2, set: false, text: "" },
+      { index: 3, set: false, text: "" },
+    ]);
+    await settle();
+    commandKey(0, "d");
+    await settle();
+    expect(operation).toHaveBeenLastCalledWith(
+      { type: "copyFeatureSlotsTo", kind: "combo", from: [0], to: [2] },
+      "Duplicated combo 0 to combo 2",
+    );
+    commandKey(0, "x");
+    await settle();
+    expect(operation).toHaveBeenLastCalledWith(
+      { type: "cutFeatureSlots", kind: "combo", indices: [0] },
+      "Cut combo 0",
+    );
+  });
+
+  it("says why paste is off and runs nothing when the clipboard is empty", async () => {
+    const { operation } = mountSlots([{ index: 0, set: true, text: "a" }]);
+    await settle();
+    commandKey(0, "v");
+    await settle();
+    expect(mocks.notify).toHaveBeenCalledWith("Clipboard is empty");
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("opens a menu of the family's items with their reasons", async () => {
+    mountSlots([{ index: 0, set: true, text: "a" }]);
+    await settle();
+    document
+      .querySelector<HTMLButtonElement>('[data-slot-index="0"]')!
+      .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }));
+    await settle();
+    const menu = document.querySelector<HTMLElement>(".feature-slot-menu")!;
+    expect(menu.classList.contains("menu")).toBe(true);
+    const paste = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((button) =>
+      button.textContent!.includes("Paste"),
+    )!;
+    expect(paste.disabled).toBe(true);
+    expect(paste.title).toBe("Clipboard is empty");
+    expect(paste.querySelector(".menu-reason")!.textContent).toBe("Clipboard is empty");
   });
 });

@@ -7,11 +7,31 @@
     suppressDragClick,
   } from "../lib/pointer-drag.svelte";
   import { focusScope } from "../lib/focus";
-  import { notify } from "../lib/state.svelte";
-  import type { OpDto } from "../lib/types";
+  import {
+    duplicateTargets,
+    NOUNS,
+    pasteTargets,
+    slotMenu,
+    type SlotCell,
+    type SlotMenuId,
+    type SlotMenuItem,
+  } from "../lib/slot-menu";
+  import { firstUseJump, usesOf, usesPhrase } from "../lib/slots";
+  import { notify, ui } from "../lib/state.svelte";
+  import type { OpDto, SlotKind, SlotUseDto } from "../lib/types";
 
-  type Kind = "combo" | "macro" | "tapDance" | "keyOverride" | "altRepeat";
-  type Item = { index: number; set: boolean; text: string; title?: string; changed?: boolean };
+  type Kind = SlotKind;
+  type Item = {
+    index: number;
+    set: boolean;
+    text: string;
+    title?: string;
+    changed?: boolean;
+    /** Key overrides and alt repeat keys: the Enabled switch. */
+    enabled?: boolean;
+    /** Macros and tap dances: how many keycodes play the slot. */
+    uses?: number;
+  };
   let {
     kind,
     items,
@@ -21,6 +41,7 @@
     dirty = false,
     onselect,
     onoperation,
+    onrename,
   }: {
     kind: Kind;
     items: Item[];
@@ -29,10 +50,15 @@
     label: string;
     dirty?: boolean;
     onselect: (index: number) => void;
-    onoperation: (op: OpDto) => Promise<boolean>;
+    /** Runs an operation; `done` is the toast text when it succeeds. */
+    onoperation: (op: OpDto, done?: string) => Promise<boolean>;
+    /** Opens the rename dialog for a combo or macro. */
+    onrename?: (index: number) => void;
   } = $props();
   const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
-  let menu = $state<{ index: number; x: number; y: number } | null>(null);
+  const KEY_ACTIONS: Record<string, SlotMenuId> = { x: "cut", c: "copy", v: "paste", d: "duplicate" };
+  /** The menu's position, or null when it is closed. */
+  let menu = $state<{ x: number; y: number } | null>(null);
   /** Slots picked with Shift or Command, besides the active one. Empty means only the active slot. */
   let picked = $state<number[]>([]);
   /** Where Shift+arrow started, when it is not the active slot. */
@@ -68,26 +94,122 @@
   function dragLabel(index: number, text: string): string {
     return `${slotAriaLabel(index).replace(" slot", "")} · ${text || "Empty"}`;
   }
-  async function copy(index: number): Promise<void> {
-    if (!guarded()) return;
-    await onoperation({ type: "copyFeatureSlots", kind, indices: [index] });
-    menu = null;
+  /** The slots the menu and the keys act on: the picked set, or the active slot alone. */
+  function targets(): number[] {
+    return picked.length > 0 ? [...picked].sort((a, b) => a - b) : [selected];
   }
-  async function paste(index: number): Promise<void> {
-    if (!guarded()) return;
-    await onoperation({ type: "pasteFeatureSlots", kind, indices: [index] });
+  function cells(): SlotCell[] {
+    return items.map((item) => ({ index: item.index, set: item.set, enabled: item.enabled }));
+  }
+  function isSet(index: number): boolean {
+    return items.some((item) => item.index === index && item.set);
+  }
+  function menuItems(): SlotMenuItem[] {
+    return slotMenu({
+      kind,
+      targets: targets(),
+      cells: cells(),
+      clipboard: ui.view?.clipboard ?? null,
+      draft: kind === "macro" && dirty,
+      modifier: shortcutModifier,
+    });
+  }
+  const menuList: SlotMenuItem[] = $derived(menu ? menuItems() : []);
+
+  /** Runs one menu item, or the key that names it. A disabled item says why instead. */
+  async function run(id: SlotMenuId): Promise<void> {
+    const entry = menuItems().find((candidate) => candidate.id === id);
+    if (!entry) return;
+    if (entry.reason) {
+      notify(entry.reason);
+      return;
+    }
     menu = null;
+    const indices = targets();
+    const word = NOUNS[kind][0];
+    const plural = NOUNS[kind][1];
+    const described = indices.length === 1 ? `${word} ${indices[0]}` : `${indices.length} ${plural}`;
+    const uses = indices.flatMap((index) => usesOf(ui.view, kind, index));
+    switch (id) {
+      case "clear": {
+        const done = `Cleared ${described}`;
+        if (await onoperation({ type: "clearFeatureSlots", kind, indices }, done)) followUses(done, uses);
+        return;
+      }
+      case "cut": {
+        const done = `Cut ${described}`;
+        if (await onoperation({ type: "cutFeatureSlots", kind, indices }, done)) followUses(done, uses);
+        return;
+      }
+      case "copy":
+        await onoperation({ type: "copyFeatureSlots", kind, indices }, `Copied ${described}`);
+        return;
+      case "paste": {
+        const clip = ui.view?.clipboard;
+        const landing = clip ? pasteTargets(clip.count, indices, items.length) : [];
+        const done =
+          clip?.count === 1 && Array.isArray(landing)
+            ? `Pasted into ${word} ${landing[0]}`
+            : `Pasted ${clip?.count ?? 0} ${plural}`;
+        await onoperation({ type: "pasteFeatureSlots", kind, indices }, done);
+        return;
+      }
+      case "duplicate": {
+        const sources = indices.filter(isSet);
+        const destinations = duplicateTargets(cells(), indices) ?? [];
+        const done =
+          sources.length === 1
+            ? `Duplicated ${word} ${sources[0]} to ${word} ${destinations[0]}`
+            : `Duplicated ${sources.length} ${plural}`;
+        if (await onoperation({ type: "copyFeatureSlotsTo", kind, from: sources, to: destinations }, done) && destinations[0] !== undefined)
+          onselect(destinations[0]);
+        return;
+      }
+      case "toggle": {
+        const sources = indices.filter(isSet);
+        const enable = !sources.every((index) => items.find((item) => item.index === index)?.enabled === true);
+        const sourceText = sources.length === 1 ? `${word} ${sources[0]}` : `${sources.length} ${plural}`;
+        await onoperation(
+          { type: "setFeatureSlotsEnabled", kind, indices: sources, enabled: enable },
+          `${enable ? "Enabled" : "Disabled"} ${sourceText}`,
+        );
+        return;
+      }
+      case "rename":
+        onrename?.(indices[0]!);
+        return;
+    }
+  }
+  /** Clearing or cutting a slot that keys still use says so, with a way to the first use. */
+  function followUses(done: string, uses: SlotUseDto[]): void {
+    if (uses.length === 0) return;
+    notify(`${done} · still used by ${usesPhrase(uses)}`, false, {
+      label: "Show",
+      jump: firstUseJump(uses),
+    });
   }
   function drop(event: import("../lib/pointer-drag.svelte").PointerDrop, target: number): boolean {
     const payload = event.payload;
     if (payload.kind !== "featureSlot" || payload.feature !== kind) return false;
     if (payload.index === target || !guarded()) return true;
     if (event.altKey) void copyTo(payload.index, target);
-    else void onoperation({ type: "swapFeatureSlots", kind, a: payload.index, b: target });
+    else void swapSlots(payload.index, target);
     return true;
   }
+  async function swapSlots(a: number, b: number): Promise<void> {
+    const word = NOUNS[kind][0];
+    const moved = !isSet(b);
+    const references = usesOf(ui.view, kind, a).length + usesOf(ui.view, kind, b).length;
+    const verb = moved ? `Moved ${word} ${a} to ${word} ${b}` : `Swapped ${word} ${a} and ${word} ${b}`;
+    const suffix = references > 0 ? ` · ${references} ${references === 1 ? "reference" : "references"} updated` : "";
+    await onoperation({ type: "swapFeatureSlots", kind, a, b }, verb + suffix);
+  }
   async function copyTo(from: number, to: number): Promise<void> {
-    await onoperation({ type: "copyFeatureSlotsTo", kind, from: [from], to: [to] });
+    const word = NOUNS[kind][0];
+    await onoperation(
+      { type: "copyFeatureSlotsTo", kind, from: [from], to: [to] },
+      `Copied ${word} ${from} to ${word} ${to}`,
+    );
   }
   function clicked(e: MouseEvent, index: number): void {
     if (suppressDragClick()) return;
@@ -156,28 +278,37 @@
   }
   function onkey(e: KeyboardEvent): void {
     if (arrow(e)) return;
-    keydown(e, selected);
+    keydown(e);
   }
-  function keydown(e: KeyboardEvent, index: number): void {
-    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+  function keydown(e: KeyboardEvent): void {
     if (
       e.target instanceof Element &&
       e.target.closest("input,textarea,select,[contenteditable=true]")
     )
       return;
-    const key = e.key.toLowerCase();
-    if (key !== "c" && key !== "v") return;
+    if ((e.key === "Delete" || e.key === "Backspace") && !(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey)) {
+      e.preventDefault();
+      void run("clear");
+      return;
+    }
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    const id = KEY_ACTIONS[e.key.toLowerCase()];
+    if (!id) return;
     e.preventDefault();
-    if (key === "c") void copy(index);
-    else void paste(index);
+    void run(id);
   }
   function menuAt(e: MouseEvent, index: number): void {
     e.preventDefault();
-    onselect(index);
+    // A right-click on a slot outside the picked set selects that slot alone first.
+    if (!targets().includes(index)) {
+      picked = [];
+      anchor = index;
+      onselect(index);
+    }
+    const height = menuItems().length * 30 + 24;
     menu = {
-      index,
-      x: Math.max(4, Math.min(e.clientX, window.innerWidth - 170)),
-      y: Math.max(4, Math.min(e.clientY, window.innerHeight - 76)),
+      x: Math.max(4, Math.min(e.clientX, window.innerWidth - 254)),
+      y: Math.max(4, Math.min(e.clientY, window.innerHeight - height)),
     };
   }
 </script>
@@ -211,7 +342,7 @@
       class:copy-target={pointerDrag.current?.featureTarget?.feature === kind && pointerDrag.current.featureTarget.index === item.index && pointerDrag.current.altKey}
       aria-pressed={selected === item.index}
       aria-label={slotAriaLabel(item.index)}
-      title={`${item.title ?? (item.text || "Empty")}${item.changed ? "\nChanged" : ""}\nDrag to swap · Alt-drag to copy`}
+      title={`${item.title ?? (item.text || "Empty")}${item.uses ? `\nUsed by ${item.uses}` : ""}${item.changed ? "\nChanged" : ""}\nDrag to swap · Alt-drag to copy`}
       onclick={(e) => clicked(e, item.index)}
       oncontextmenu={(e) => menuAt(e, item.index)}
       onpointerdown={(e) =>
@@ -228,19 +359,26 @@
 </div>
 {#if menu}
   <div
-    class="feature-slot-menu"
+    class="menu feature-slot-menu"
     role="menu"
     tabindex="-1"
     style:left="{menu.x}px"
     style:top="{menu.y}px"
     use:focusScope={() => (menu = null)}
   >
-    <button role="menuitem" onclick={() => void copy(menu!.index)}
-      >Copy <kbd>{shortcutModifier}C</kbd></button
-    >
-    <button role="menuitem" onclick={() => void paste(menu!.index)}
-      >Paste <kbd>{shortcutModifier}V</kbd></button
-    >
+    {#each menuList as entry (entry.id)}
+      <button
+        role="menuitem"
+        disabled={!!entry.reason}
+        title={entry.reason || entry.title}
+        data-menu-divider={entry.divider}
+        onclick={() => void run(entry.id)}
+      >
+        <span class="menu-label">{entry.label}</span>
+        {#if entry.reason}<small class="menu-reason">{entry.reason}</small>{/if}
+        <kbd>{entry.shortcut}</kbd>
+      </button>
+    {/each}
   </div>
 {/if}
 
@@ -248,33 +386,11 @@
   .feature-slot-list .slot-cell {
     touch-action: none;
   }
+  /* Out of the layout flow: a menu in the grid would stretch to the row's height. */
   .feature-slot-menu {
     position: fixed;
     z-index: 500;
-    display: grid;
-    min-width: 150px;
-    padding: 4px;
-    border: 1px solid var(--edge);
-    border-radius: 9px;
-    background: var(--panel);
-    box-shadow: 0 8px 24px #0006;
-  }
-  .feature-slot-menu button {
     display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 7px 9px;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: inherit;
-    text-align: left;
-  }
-  .feature-slot-menu button:hover,
-  .feature-slot-menu button:focus-visible {
-    background: var(--hover);
-  }
-  .feature-slot-menu kbd {
-    color: var(--muted);
+    flex-direction: column;
   }
 </style>

@@ -1,6 +1,8 @@
 // Feature slot summaries for the slot grids, the changes sheet and the Revert labels.
-import type { AltRepeatDto, ComboDto, KeyOverrideDto, MacroActionDto, MacroDto, TapDanceDto, ViewModel } from "./types";
-import { MOD_BITS, hasBit } from "./bits";
+import type { AltRepeatDto, ComboDto, KeyOverrideDto, MacroActionDto, MacroDto, SlotKind, SlotUseDto, TapDanceDto, ViewModel } from "./types";
+import type { ChangeJump } from "./changes";
+import { ALT_REPEAT_OPTION_BITS, KEY_OVERRIDE_OPTION_BITS, MOD_BITS, hasBit } from "./bits";
+import type { Panel } from "./modes";
 
 /** The keycap label at a keycode path ("combo[0][1]"), or undefined when there is none. */
 export type LabelOf = (path: string) => string | undefined;
@@ -99,4 +101,52 @@ export function altRepeatText(ar: AltRepeatDto, label: LabelOf): string {
   const key = ar.keycode === "KC_NO" ? "" : label(`alt_repeat_key[${ar.index}].keycode`) || ar.keycode;
   const alt = ar.altKeycode === "KC_NO" ? "" : label(`alt_repeat_key[${ar.index}].alt_keycode`) || ar.altKeycode;
   return (key || "…") + " → " + (alt || "…");
+}
+
+/** The panel that edits each family, for jumps. */
+export const PANEL_OF: Record<SlotKind, Panel> = {
+  combo: "combos",
+  macro: "macros",
+  tapDance: "tapDances",
+  keyOverride: "keyOverrides",
+  altRepeat: "altRepeat",
+};
+
+/** Every keycode that plays slot `index` of `feature`, from the view. */
+export function usesOf(view: ViewModel | null, feature: SlotKind, index: number): SlotUseDto[] {
+  return (view?.slotUses ?? []).filter((use) => use.feature === feature && use.index === index);
+}
+
+/** "1 key", "2 keys" when every place is a key or knob, else "3 places". */
+export function usesPhrase(uses: SlotUseDto[]): string {
+  if (uses.every((use) => use.place.kind !== "slot")) {
+    return uses.length === 1 ? "1 key" : `${uses.length} keys`;
+  }
+  return uses.length === 1 ? "1 place" : `${uses.length} places`;
+}
+
+/** The jump to the first of `uses`: the keys on that layer, the layer of a knob, or the slot. */
+export function firstUseJump(uses: SlotUseDto[]): ChangeJump {
+  const first = uses[0]!;
+  if (first.place.kind === "key") {
+    const layer = first.place.layer;
+    return {
+      kind: "keys",
+      layer,
+      keyIds: uses.flatMap((use) =>
+        use.place.kind === "key" && use.place.layer === layer ? [use.place.keyId] : [],
+      ),
+    };
+  }
+  if (first.place.kind === "knob") return { kind: "layer", layer: first.place.layer };
+  return { kind: "slot", panel: PANEL_OF[first.place.feature], index: first.place.index };
+}
+
+/** The Enabled switch of a key override or alt repeat key, from its option bits. */
+export function enabledOf(kind: SlotKind, dto: { options: number }): boolean | undefined {
+  const table =
+    kind === "keyOverride" ? KEY_OVERRIDE_OPTION_BITS : kind === "altRepeat" ? ALT_REPEAT_OPTION_BITS : null;
+  if (!table) return undefined;
+  const bit = table.find((entry) => entry.name === "enabled")?.bit;
+  return bit === undefined ? undefined : ((dto.options >> bit) & 1) === 1;
 }
