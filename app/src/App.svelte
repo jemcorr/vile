@@ -223,13 +223,11 @@
     ui.jump = action.jump;
     toastVisible = false;
   }
-  let definitionStatus = $state("");
   async function refreshGeometry(): Promise<void> {
     try {
       setView(await api.refreshDefinition());
-      definitionStatus = "Definition refreshed";
     } catch (e) {
-      definitionStatus = errorText(e);
+      notify("Keyboard definition not refreshed", true, null, errorText(e));
     }
   }
   let menu: { kind: "keys" | "layer"; x: number; y: number } | null = $state(null);
@@ -1196,7 +1194,7 @@
       </div>
     </div>{/if}
   <div class="toast" class:shown={toastVisible || busyShown} role="status" aria-live="polite">
-    <span>{busy ? "Working…" : ui.message === "Definition refreshed" ? "" : ui.message}</span>{#if ui.messageAction}<button class="toast-action" onclick={runToastAction}>{ui.messageAction.label}</button>{/if}{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
+    <span title={busy ? undefined : ui.messageDetail || undefined}>{busy ? "Working…" : ui.message}</span>{#if ui.messageAction}<button class="toast-action" onclick={runToastAction}>{ui.messageAction.label}</button>{/if}{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
   </div>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
       {ui.view.warnings.join(" · ")}

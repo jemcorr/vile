@@ -1300,3 +1300,29 @@ describe("board edits during a macro draft", () => {
     expect(ui.message).toBe("Apply or revert the macro draft before assigning keys");
   });
 });
+
+describe("definition refresh", () => {
+  it("reports a failed refresh in the toast, with the detail on hover", async () => {
+    fake.refreshDefinition.mockRejectedValueOnce("HID read timed out");
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(fake.refreshDefinition).toHaveBeenCalledTimes(1);
+    expect(ui.message).toBe("Keyboard definition not refreshed");
+    expect(ui.messageError).toBe(true);
+    const text = document.querySelector<HTMLElement>(".toast span")!;
+    expect(text.textContent).toBe("Keyboard definition not refreshed");
+    expect(text.title).toBe("HID read timed out");
+    expect(document.querySelector(".toast-dismiss")).not.toBeNull();
+  });
+  it("stays silent when the refresh succeeds", async () => {
+    ui.message = "";
+    ui.messageError = false;
+    fake.refreshDefinition.mockResolvedValueOnce(view());
+    app = mount(App, { target: document.body });
+    await settle();
+    expect(fake.refreshDefinition).toHaveBeenCalledTimes(1);
+    expect(ui.message).toBe("");
+    expect(ui.messageError).toBe(false);
+    expect(document.querySelector(".toast span")!.textContent).toBe("");
+  });
+});

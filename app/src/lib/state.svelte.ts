@@ -17,6 +17,8 @@ export const ui = $state({
   mode: "normal" as Mode,
   message: "",
   messageError: false,
+  /** Full text behind a short message, shown on hover. */
+  messageDetail: "",
   messageSeq: 0,
   /** A button on the toast that jumps to what the message names. */
   messageAction: null as { label: string; jump: ChangeJump } | null,
@@ -41,10 +43,12 @@ export function notify(
   text: string,
   error = false,
   action: { label: string; jump: ChangeJump } | null = null,
+  detail = "",
 ): void {
   ui.message = text;
   ui.messageError = error;
   ui.messageAction = action;
+  ui.messageDetail = detail;
   ui.messageSeq += 1;
 }
 
