@@ -8,9 +8,11 @@
 //! current document's value at a position that differs, so an intent can remove differences but
 //! never add one. Heuristics only choose a shorter story.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use crate::board::Board;
 use crate::diff::{DiffEntry, diff};
-use crate::document::{Document, Slot};
+use crate::document::{Document, Macro, MacroAction, Slot, TapDance};
 use crate::keycode::Keycode;
 use crate::metadata::Names;
 use crate::ops::{self, KeyRef, Pos};
@@ -53,11 +55,13 @@ pub enum Intent {
         positions: Vec<Pos>,
     },
     /// The two slots exchanged contents. `names` is true when their names exchanged too.
+    /// `renumbered` is true when the keycodes that play either slot exchanged too.
     SlotsSwapped {
         kind: FeatureSlotKind,
         a: usize,
         b: usize,
         names: bool,
+        renumbered: bool,
     },
     /// Slot `to` now equals the unchanged slot `from`. Names are not copied.
     SlotCopied {
@@ -101,6 +105,7 @@ pub fn explain(
     };
     if layout_matches {
         explainer.reorder();
+        explainer.renumbered_slot_swaps();
         explainer.layer_intents();
         explainer.swap_keys();
         explainer.move_keys();
@@ -361,7 +366,13 @@ impl Explainer<'_> {
                 });
                 if let Some(b) = partner {
                     let names = self.names_follow(kind, a, b);
-                    self.push(Intent::SlotsSwapped { kind, a, b, names });
+                    self.push(Intent::SlotsSwapped {
+                        kind,
+                        a,
+                        b,
+                        names,
+                        renumbered: false,
+                    });
                 }
             }
             for to in 0..count {
@@ -384,6 +395,67 @@ impl Explainer<'_> {
                 }
             }
         }
+    }
+
+    /// A pair of slots whose exchange also renumbered the keycodes that play them is told as one
+    /// intent, when that matches the current document better than a plain exchange of contents.
+    fn renumbered_slot_swaps(&mut self) {
+        for kind in [FeatureSlotKind::Macro, FeatureSlotKind::TapDance] {
+            let count = slots::count(&self.doc, kind);
+            if count != slots::count(self.current, kind) {
+                continue;
+            }
+            let mut claimed = vec![false; count];
+            for a in 0..count {
+                if claimed[a] || !self.slot_changed(kind, a) {
+                    continue;
+                }
+                for b in a + 1..count {
+                    if claimed[b]
+                        || !self.slot_changed(kind, b)
+                        || !self.renumbered_contents_match(kind, a, b)
+                        || !self.renumbering_wins(kind, a, b)
+                    {
+                        continue;
+                    }
+                    let names = self.names_follow(kind, a, b);
+                    self.push(Intent::SlotsSwapped {
+                        kind,
+                        a,
+                        b,
+                        names,
+                        renumbered: true,
+                    });
+                    claimed[a] = true;
+                    claimed[b] = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Cheap filter: each slot, with its references renumbered, equals the current slot it
+    /// would become.
+    fn renumbered_contents_match(&self, kind: FeatureSlotKind, a: usize, b: usize) -> bool {
+        let (Some(wa), Some(wb)) = (self.working_slot(kind, a), self.working_slot(kind, b)) else {
+            return false;
+        };
+        Some(renumber_value(&wa, kind, a, b)) == self.current_slot(kind, b)
+            && Some(renumber_value(&wb, kind, a, b)) == self.current_slot(kind, a)
+    }
+
+    /// True when exchanging the slots with their references is closer to the current document
+    /// than a plain exchange of contents.
+    fn renumbering_wins(&self, kind: FeatureSlotKind, a: usize, b: usize) -> bool {
+        let mut renumbered = self.doc.clone();
+        if slots::swap(&mut renumbered, kind, a, b).is_err() {
+            return false;
+        }
+        let mut plain = self.doc.clone();
+        if slots::swap_values(&mut plain, kind, a, b).is_err() {
+            return false;
+        }
+        differing_paths(&renumbered, self.current) < differing_paths(&plain, self.current)
     }
 
     fn slot_changed(&self, kind: FeatureSlotKind, index: usize) -> bool {
@@ -412,6 +484,64 @@ impl Explainer<'_> {
 
 /// The positions the story reads: the board keys when the board matches `doc`, else every
 /// matrix position. Sorted by (row, col).
+/// `value` with the keycodes that play slots `a` and `b` of `kind` exchanged, as `slots::swap`
+/// does inside a document.
+fn renumber_value(
+    value: &FeatureSlotValue,
+    kind: FeatureSlotKind,
+    a: usize,
+    b: usize,
+) -> FeatureSlotValue {
+    let map = |kc: Keycode| match slots::referenced_slot(kc) {
+        Some((family, index)) if family == kind && (index == a || index == b) => {
+            let other = if index == a { b } else { a };
+            slots::slot_keycode(kind, other).unwrap_or(kc)
+        }
+        _ => kc,
+    };
+    match value {
+        FeatureSlotValue::Macro(m) => FeatureSlotValue::Macro(Macro {
+            actions: m
+                .actions
+                .iter()
+                .map(|action| match action {
+                    MacroAction::Tap(keys) => {
+                        MacroAction::Tap(keys.iter().map(|&k| map(k)).collect())
+                    }
+                    MacroAction::Down(keys) => {
+                        MacroAction::Down(keys.iter().map(|&k| map(k)).collect())
+                    }
+                    MacroAction::Up(keys) => {
+                        MacroAction::Up(keys.iter().map(|&k| map(k)).collect())
+                    }
+                    MacroAction::Text(text) => MacroAction::Text(text.clone()),
+                    MacroAction::Delay(ms) => MacroAction::Delay(*ms),
+                })
+                .collect(),
+        }),
+        FeatureSlotValue::TapDance(td) => FeatureSlotValue::TapDance(TapDance {
+            on_tap: map(td.on_tap),
+            on_hold: map(td.on_hold),
+            on_double_tap: map(td.on_double_tap),
+            on_tap_hold: map(td.on_tap_hold),
+            tapping_term: td.tapping_term,
+        }),
+        other => other.clone(),
+    }
+}
+
+/// Keycode paths whose values differ between two documents. A path present on one side only
+/// counts once.
+fn differing_paths(a: &Document, b: &Document) -> usize {
+    let left: BTreeMap<String, Keycode> = a.keycodes().into_iter().collect();
+    let right: BTreeMap<String, Keycode> = b.keycodes().into_iter().collect();
+    let paths: BTreeSet<&String> = left.keys().chain(right.keys()).collect();
+    paths
+        .into_iter()
+        .filter(|path| left.get(*path) != right.get(*path))
+        .count()
+}
+
 fn positions_of(doc: &Document, board: Option<&Board>) -> Vec<Pos> {
     match board.filter(|b| b.matches(doc)) {
         Some(board) => {
@@ -665,12 +795,13 @@ fn apply_one(doc: &mut Document, names: &mut Names, board: Option<&Board>, inten
             a,
             b,
             names: follow,
+            renumbered,
         } => {
-            if let (Some(va), Some(vb)) =
-                (slots::value(doc, *kind, *a), slots::value(doc, *kind, *b))
-            {
-                slots::put(doc, *kind, *a, vb);
-                slots::put(doc, *kind, *b, va);
+            // A refused swap changes nothing, as the other arms ignore what they cannot apply.
+            if *renumbered {
+                let _ = slots::swap(doc, *kind, *a, *b);
+            } else {
+                let _ = slots::swap_values(doc, *kind, *a, *b);
             }
             if *follow {
                 slots::swap_names(names, *kind, *a, *b);

@@ -9,7 +9,8 @@ use vile_core::editor::FeatureSlotKind;
 use vile_core::intent::{Intent, Story, apply_intents, explain};
 use vile_core::metadata::Names;
 use vile_core::ops::{self, KeyRef, Pos};
-use vile_core::{Document, Keycode, Slot};
+use vile_core::slots;
+use vile_core::{Document, Keycode, Macro, MacroAction, Slot};
 
 fn pos(row: usize, col: usize) -> Pos {
     Pos { row, col }
@@ -260,7 +261,8 @@ fn swapped_and_copied_slots() {
             kind: FeatureSlotKind::Combo,
             a: 0,
             b: 1,
-            names: true
+            names: true,
+            renumbered: false,
         }]
     );
     assert!(story.rest.is_empty());
@@ -298,7 +300,8 @@ fn slot_names_follow_a_swap_only_when_exchanged() {
             kind: FeatureSlotKind::Combo,
             a: 0,
             b: 1,
-            names: false
+            names: false,
+            renumbered: false,
         }]
     );
     assert_eq!(story.applied_names, base_names);
@@ -313,7 +316,8 @@ fn slot_names_follow_a_swap_only_when_exchanged() {
             kind: FeatureSlotKind::Combo,
             a: 0,
             b: 1,
-            names: true
+            names: true,
+            renumbered: false,
         }]
     );
     assert_eq!(story.applied_names, moved_names);
@@ -404,7 +408,7 @@ fn random_edits_stay_exact() {
             let q = positions[rng.below(positions.len())];
             let value = kc(&base, values[rng.below(values.len())]);
             // Errors leave the document unchanged; the sequence just does less.
-            let _ = match rng.below(6) {
+            let _ = match rng.below(8) {
                 0 => ops::swap_keys(
                     &mut current,
                     &[KeyRef { layer, pos: p }],
@@ -417,11 +421,29 @@ fn random_edits_stay_exact() {
                 2 => ops::set_keys(&mut current, layer, &[p], value),
                 3 => ops::fill_layer(&mut current, layer, value),
                 4 => ops::copy_layer(&mut current, layer, other),
-                _ => {
+                5 => {
                     let (a, b) = (rng.below(8), rng.below(8));
                     let list = current.combo.clone().unwrap();
                     let _ = ops::set_combo(&mut current, a, list[b]);
                     ops::set_combo(&mut current, b, list[a])
+                }
+                6 => {
+                    // Plant a reference to a slot, then exchange two slots of its family.
+                    let kind = if rng.below(2) == 0 {
+                        FeatureSlotKind::Macro
+                    } else {
+                        FeatureSlotKind::TapDance
+                    };
+                    let count = slots::count(&current, kind);
+                    let (a, b) = (rng.below(count), rng.below(count));
+                    let code = slots::slot_keycode(kind, a).unwrap();
+                    let _ = ops::set_keys(&mut current, layer, &[p], code);
+                    slots::swap(&mut current, kind, a, b)
+                }
+                _ => {
+                    let kind = slots::KINDS[rng.below(slots::KINDS.len())];
+                    let index = rng.below(slots::count(&current, kind));
+                    slots::set(&mut current, kind, index, slots::empty(kind))
                 }
             };
         }
@@ -675,4 +697,158 @@ fn full_corne_with_all_layers_changed_is_explained_quickly() {
         story.rest.len()
     );
     assert!(elapsed.as_secs() < 10, "took {elapsed:?}");
+}
+
+#[test]
+fn renumbered_macro_swap_is_one_story() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::Macro, 2, 3).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 2,
+            b: 3,
+            names: true,
+            renumbered: true,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn move_to_an_empty_macro_is_renumbered() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::Macro, 3, 9).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 3,
+            b: 9,
+            names: true,
+            renumbered: true,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn swap_without_references_is_plain() {
+    let mut base = common::load("corne.vil");
+    let key = kc(&base, "KC_A");
+    base.macros[10] = Macro {
+        actions: vec![MacroAction::Tap(vec![key])],
+    };
+    base.macros[11] = Macro::default();
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::Macro, 10, 11).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 10,
+            b: 11,
+            names: true,
+            renumbered: false,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn self_referencing_macro_swap() {
+    let mut base = common::load("corne.vil");
+    let m3 = slots::slot_keycode(FeatureSlotKind::Macro, 3).unwrap();
+    base.macros[2] = Macro {
+        actions: vec![MacroAction::Tap(vec![m3])],
+    };
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::Macro, 2, 3).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 2,
+            b: 3,
+            names: true,
+            renumbered: true,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn contents_exchanged_without_renumbering_stay_plain() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    let two = slots::value(&base, FeatureSlotKind::Macro, 2).unwrap();
+    let three = slots::value(&base, FeatureSlotKind::Macro, 3).unwrap();
+    assert!(slots::put(&mut current, FeatureSlotKind::Macro, 2, three));
+    assert!(slots::put(&mut current, FeatureSlotKind::Macro, 3, two));
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 2,
+            b: 3,
+            names: true,
+            renumbered: false,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn tap_dance_swap_renumbers_other_features() {
+    let mut base = common::load("corne.vil");
+    let key = kc(&base, "KC_A");
+    let td1 = slots::slot_keycode(FeatureSlotKind::TapDance, 1).unwrap();
+    base.combo.as_mut().unwrap()[0].output = td1;
+    base.macros[0] = Macro {
+        actions: vec![MacroAction::Tap(vec![td1])],
+    };
+    base.tap_dance.as_mut().unwrap()[1].on_tap = key;
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::TapDance, 1, 4).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::TapDance,
+            a: 1,
+            b: 4,
+            names: true,
+            renumbered: true,
+        }]
+    );
+    assert!(story.rest.is_empty());
+}
+
+#[test]
+fn renumbered_swap_with_an_edit() {
+    let base = common::load("corne.vil");
+    let mut current = base.clone();
+    slots::swap(&mut current, FeatureSlotKind::Macro, 2, 3).unwrap();
+    let z = kc(&base, "KC_Z");
+    ops::set_keys(&mut current, 0, &[pos(0, 1)], z).unwrap();
+    let story = story_for(&base, &current);
+    assert_eq!(
+        story.intents,
+        vec![Intent::SlotsSwapped {
+            kind: FeatureSlotKind::Macro,
+            a: 2,
+            b: 3,
+            names: true,
+            renumbered: true,
+        }]
+    );
+    assert_eq!(story.rest.len(), 1);
 }
