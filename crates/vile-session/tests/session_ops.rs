@@ -257,6 +257,26 @@ fn detailed_behavior_reaches_board_fields_and_search_without_losing_user_names()
 }
 
 #[test]
+fn renaming_a_layer_is_one_undo_step() {
+    let (_dir, mut s) = open("corne.vil");
+    let v = s
+        .apply_op(OpDto::Rename {
+            kind: "layer".into(),
+            index: 1,
+            name: "Nav".into(),
+        })
+        .unwrap();
+    assert_eq!(v.names.layers.get(&1).unwrap(), "Nav");
+    assert!(v.dirty);
+    let v = s.undo().unwrap();
+    assert!(!v.names.layers.contains_key(&1));
+    assert!(!v.dirty);
+    assert!(v.can_redo);
+    let v = s.redo().unwrap();
+    assert_eq!(v.names.layers.get(&1).unwrap(), "Nav");
+}
+
+#[test]
 fn diff_base_switches_between_disk_and_git() {
     let (dir, path) = common::temp_copy("corne_v32.vil");
     common::git(dir.path(), &["init", "-q"]);

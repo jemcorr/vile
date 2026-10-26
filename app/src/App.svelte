@@ -53,7 +53,7 @@
   const canvasLedes: Record<string, string> = { combos: 'Press several keys together to send a different key.', macros: 'Send a sequence of keys or text from one key.', tapDances: 'Give one key different actions for tap, hold and double tap.', keyOverrides: "Replace a key when it's pressed with certain modifiers.", altRepeat: 'Choose what the Alt Repeat key sends after each key.' };
   onMount(() => { const useBoard = () => { canvasPanel = false; ui.sideVisible = true; }; const renameMacro = (event: CustomEvent<number>) => { const index = event.detail; rename = { kind: 'macro', index, name: ui.view?.names.macros[index] ?? '' }; }; window.addEventListener('canvas-board-triggers', useBoard); window.addEventListener('canvas-rename-macro', renameMacro as EventListener); return () => { window.removeEventListener('canvas-board-triggers', useBoard); window.removeEventListener('canvas-rename-macro', renameMacro as EventListener); }; });
   let canvasBoardMenu = $state(false);
-  const canvasMenuLabels: Record<string, string> = { clearKeys: 'Clear keys', transparentKeys: 'Make transparent', copyKeys: 'Copy', cutKeys: 'Cut', pasteKeys: 'Paste', swapKeys: 'Swap with…', editKey: 'Type keycode…', copyLayer: 'Copy layer', pasteLayer: 'Paste layer', clearLayer: 'Clear layer', transparentLayer: 'Make layer transparent', swapLayer: 'Swap layer with…', moveLayer: 'Move layer to…', mirrorLeftToRight: 'Mirror left to right', mirrorRightToLeft: 'Mirror right to left', mirrorSwap: 'Swap halves' };
+  const canvasMenuLabels: Record<string, string> = { clearKeys: 'Clear keys', transparentKeys: 'Make transparent', copyKeys: 'Copy', cutKeys: 'Cut', pasteKeys: 'Paste', swapKeys: 'Swap with…', editKey: 'Type keycode…', renameLayer: 'Rename…', copyLayer: 'Copy layer', pasteLayer: 'Paste layer', clearLayer: 'Clear layer', transparentLayer: 'Make layer transparent', swapLayer: 'Swap layer with…', moveLayer: 'Move layer to…', mirrorLeftToRight: 'Mirror left to right', mirrorRightToLeft: 'Mirror right to left', mirrorSwap: 'Swap halves' };
   let viewportWidth = $state(1280);
   let viewportHeight = $state(820);
   const INSPECTOR_WIDTH = 280;
@@ -239,6 +239,8 @@
   let afterSave: "open" | "close" | null = $state(null);
   let rename: { kind: "layer" | "macro" | "combo"; index: number; name: string } | null =
     $state(null);
+  // Whether the pointer went down on the rename scrim, so a drag out of the name field does not cancel.
+  let renamePress = false;
   let blankPress: { pointer: number; x: number; y: number; moved: boolean } | null = null;
   function blankTarget(e: PointerEvent): boolean {
     if (document.querySelector("[data-picker-open=true]") || (e.target instanceof Element && e.target.closest(".floating-picker"))) return false;
@@ -391,6 +393,7 @@
             "editKey",
           ].includes(command.id)
         : [
+            "renameLayer",
             "copyLayer",
             "pasteLayer",
             "clearLayer",
@@ -722,6 +725,10 @@
     if (id === "cutKeys") {
       if (await apply({ type: "copyKeys", layer: ui.layer, keys: ui.selection }))
         await apply({ type: "clearKeys", layer: ui.layer, keys: ui.selection });
+      return;
+    }
+    if (id === "renameLayer") {
+      rename = { kind: "layer", index: ui.layer, name: ui.view?.names.layers[ui.layer] ?? "" };
       return;
     }
     if (["copyLayer", "pasteLayer"].includes(id)) {
@@ -1180,7 +1187,7 @@
     use:focusScope={() => (menu = null)}
     tabindex="-1"
     style:left={`${Math.max(8, Math.min(menu.x, viewportWidth - 270))}px`}
-    style:top={`${Math.max(8, Math.min(menu.y, viewportHeight - 350))}px`}
+    style:top={`${Math.max(8, Math.min(menu.y, viewportHeight - 380))}px`}
     role="menu"
   >
     {#each menuCommands as c}<button
@@ -1188,7 +1195,7 @@
         disabled={!!reason(c.id)}
         title={reason(c.id)}
         onclick={() => void command(c.id)}
-         data-menu-divider={["copyKeys", "swapKeys", "copyLayer", "mirrorLeftToRight"].includes(c.id)}><span class="menu-label">{canvasMenuLabels[c.id] || c.title}</span>{#if reason(c.id)}<small class="menu-reason">{reason(c.id)}</small>{/if}<kbd>{c.shortcut}</kbd></button
+         data-menu-divider={["copyKeys", "swapKeys", "clearLayer", "copyLayer", "mirrorLeftToRight"].includes(c.id)}><span class="menu-label">{canvasMenuLabels[c.id] || c.title}</span>{#if reason(c.id)}<small class="menu-reason">{reason(c.id)}</small>{/if}<kbd>{c.shortcut}</kbd></button
       >{/each}<button role="menuitem" onclick={() => (menu = null)}>Cancel <kbd>Esc</kbd></button>
   </div>{/if}
 {#if layerAction}<div class="overlay">
@@ -1248,7 +1255,14 @@
       </div>
     </div>
   </div>{/if}
-{#if rename}<div class="overlay">
+{#if rename}<div
+    class="overlay"
+    role="presentation"
+    onpointerdown={(e) => (renamePress = e.target === e.currentTarget)}
+    onclick={(e) => {
+      if (renamePress && e.target === e.currentTarget) rename = null;
+    }}
+  >
     <div
       class="dialog"
       role="dialog"
@@ -1413,7 +1427,7 @@
     display: flex;
     flex-direction: column;
     width: min(260px, calc(100vw - 16px));
-    max-height: min(350px, calc(100vh - 16px));
+    max-height: min(380px, calc(100vh - 16px));
     overflow-y: auto;
     background: var(--bg);
     padding: 6px;

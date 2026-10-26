@@ -1078,4 +1078,89 @@ describe("desktop editing workflow", () => {
     await settle();
     expect(document.querySelectorAll(".tab-change")).toHaveLength(0);
   });
+  it("renames the layer whose tab menu was opened, and applies it as a rename op", async () => {
+    const layered = threeLayers();
+    fake.getView.mockResolvedValue(layered);
+    app = mount(App, { target: document.body });
+    await settle();
+    await openLayerMenu(1);
+    expect(document.querySelector('[role="menu"] [role="menuitem"]')?.textContent).toContain("Rename…");
+    button("Rename…").click();
+    await settle();
+    const input = nameInput();
+    expect(input.value).toBe("Nav");
+    expect(document.querySelector("[aria-label='Name item'] h2")?.textContent).toBe("Name layer 1");
+    fake.applyOp.mockResolvedValueOnce({ ...threeLayers(1, { 1: "Navigation" }), revision: 2 });
+    typeName(input, "Navigation");
+    button("Apply").click();
+    await settle();
+    expect(fake.applyOp).toHaveBeenCalledWith({ type: "rename", kind: "layer", index: 1, name: "Navigation" });
+    expect(document.querySelector("[aria-label='Name item']")).toBeNull();
+    expect(layerTab(1).textContent).toContain("Navigation");
+  });
+  it("cancels a layer rename with Escape, a scrim click, or Cancel, but not a drag out of the field", async () => {
+    fake.getView.mockResolvedValue(threeLayers());
+    app = mount(App, { target: document.body });
+    await settle();
+    await openLayerMenu(2);
+    button("Rename…").click();
+    await settle();
+    document.querySelector<HTMLElement>("[aria-label='Name item']")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await settle();
+    expect(document.querySelector("[aria-label='Name item']")).toBeNull();
+
+    await openLayerMenu(2);
+    button("Rename…").click();
+    await settle();
+    const scrim = () => nameInput().closest<HTMLElement>(".overlay")!;
+    nameInput().dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    scrim().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(document.querySelector("[aria-label='Name item']")).not.toBeNull();
+
+    pointer(scrim(), "pointerdown");
+    scrim().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await settle();
+    expect(document.querySelector("[aria-label='Name item']")).toBeNull();
+
+    await openLayerMenu(2);
+    button("Rename…").click();
+    await settle();
+    button("Cancel").click();
+    await settle();
+    expect(document.querySelector("[aria-label='Name item']")).toBeNull();
+    expect(fake.applyOp).not.toHaveBeenCalled();
+  });
+  it("renames the selected layer from the command palette", async () => {
+    fake.getView.mockResolvedValue(threeLayers());
+    app = mount(App, { target: document.body });
+    await settle();
+    layerTab(2).click();
+    await settle();
+    await runCommand("Layer: rename");
+    expect(document.querySelector("[aria-label='Name item'] h2")?.textContent).toBe("Name layer 2");
+    typeName(nameInput(), "Symbols");
+    button("Apply").click();
+    await settle();
+    expect(fake.applyOp).toHaveBeenCalledWith({ type: "rename", kind: "layer", index: 2, name: "Symbols" });
+  });
 });
+
+/** A three-layer view; `names` replaces the saved layer names. */
+function threeLayers(revision = 1, names: Record<string, string> = { 1: "Nav" }): ViewModel {
+  return { ...view(), revision, layerCount: 3, names: { layers: names, macros: {}, combos: {} } };
+}
+function layerTab(layer: number): HTMLButtonElement {
+  return document.querySelectorAll<HTMLButtonElement>(".canvas-layer-switcher .layers button")[layer]!;
+}
+async function openLayerMenu(layer: number): Promise<void> {
+  layerTab(layer).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+  await settle();
+}
+function nameInput(): HTMLInputElement {
+  return document.querySelector<HTMLInputElement>("[aria-label='Name item'] input[aria-label='Name']")!;
+}
+function typeName(input: HTMLInputElement, value: string): void {
+  input.value = value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}

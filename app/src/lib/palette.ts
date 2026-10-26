@@ -14,6 +14,7 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "exportPng", title: "Export PNG…", arg: "none" },
   { id: "undo", title: "Undo", arg: "none" },
   { id: "redo", title: "Redo", arg: "none" },
+  { id: "renameLayer", title: "Layer: rename…", arg: "none" },
   { id: "clearLayer", title: "Layer: clear to KC_NO", arg: "none" },
   { id: "transparentLayer", title: "Layer: make transparent", arg: "none" },
   { id: "copyLayer", title: "Layer: copy", arg: "none" },
