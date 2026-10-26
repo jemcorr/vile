@@ -1,4 +1,4 @@
-export type Mode = "normal" | "visual" | "insert" | "palette" | "editor";
+export type Mode = "normal" | "insert" | "palette" | "editor";
 
 export type Panel = "combos" | "macros" | "tapDances" | "keyOverrides" | "altRepeat";
 

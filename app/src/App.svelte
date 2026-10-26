@@ -239,8 +239,6 @@
   let afterSave: "open" | "close" | null = $state(null);
   let rename: { kind: "layer" | "macro" | "combo"; index: number; name: string } | null =
     $state(null);
-  let remapsText = $state("");
-  let settings = $state(false);
   let blankPress: { pointer: number; x: number; y: number; moved: boolean } | null = null;
   function blankTarget(e: PointerEvent): boolean {
     if (document.querySelector("[data-picker-open=true]") || (e.target instanceof Element && e.target.closest(".floating-picker"))) return false;
@@ -248,7 +246,6 @@
       review ||
       unsaved ||
       rename ||
-      settings ||
       layerAction ||
       ui.mode === "insert" ||
       ui.mode === "palette" ||
@@ -803,7 +800,7 @@
       void confirmSave();
       return;
     }
-    if (menu || review || unsaved || rename || settings) return;
+    if (menu || review || unsaved || rename) return;
     const target = e.target;
     if (target instanceof Element) {
       if (target.closest("[role=dialog],input,textarea,select,[contenteditable]")) return;
@@ -817,8 +814,8 @@
       )
         return;
     }
-    if (ui.mode !== "normal" && ui.mode !== "visual") return;
-    const action = actionFor(ui.mode, e, ui.vimKeys, ui.vimRemaps, navigator.platform);
+    if (ui.mode !== "normal") return;
+    const action = actionFor(ui.mode, e, navigator.platform);
     if (!action) return;
     e.preventDefault();
     if (action.kind === "zoomIn" || action.kind === "zoomOut" || action.kind === "zoomFit") {
@@ -854,14 +851,6 @@
       dismissInteraction(true);
       return;
     }
-    if (action.kind === "toggleSelect") {
-      onkeyclick(ui.cursor, true);
-      return;
-    }
-    if (action.kind === "visual") {
-      ui.mode = ui.mode === "visual" ? "normal" : "visual";
-      return;
-    }
     const map: Partial<Record<Action["kind"], string>> = {
       open: "open",
       save: "save",
@@ -872,22 +861,7 @@
       paste: "pasteKeys",
       cut: "cutKeys",
       clear: "clearKeys",
-      transparent: "transparentKeys",
-      swap: "swapKeys",
-      copyLayer: "copyLayer",
-      pasteLayer: "pasteLayer",
-      clearLayer: "clearLayer",
-      transparentLayer: "transparentLayer",
-      toggleCombos: "toggleComboOverlay",
     };
-    if (action.kind === "nextPanel") {
-      switchPanel(PANELS[(PANELS.indexOf(ui.panel) + 1) % PANELS.length] ?? "combos");
-      return;
-    }
-    if (action.kind === "toggleDiffBase") {
-      void command(ui.view?.diffBase === "git" ? "diffDisk" : "diffGit");
-      return;
-    }
     const id = map[action.kind];
     if (id) void command(id);
   }
@@ -898,7 +872,6 @@
       review ||
       unsaved ||
       rename ||
-      settings ||
       ui.mode === "insert" ||
       ui.mode === "palette"
     );
@@ -910,7 +883,6 @@
     }
     unsaved = null;
     rename = null;
-    settings = false;
     if (ui.mode === "insert" || ui.mode === "palette") ui.mode = "normal";
     if (!hadTransient && clearSelection) {
       ui.cursor = "";
@@ -937,12 +909,6 @@
   }
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    try {
-      ui.vimKeys = localStorage.getItem("vile.vimKeys") === "true";
-      ui.vimRemaps = JSON.parse(localStorage.getItem("vile.vimRemaps") ?? "{}");
-    } catch {
-      ui.vimRemaps = {};
-    }
     void (async () => {
       await refresh();
       await tick();
@@ -1311,52 +1277,6 @@
       </form>
     </div>
   </div>{/if}
-{#if settings}<div class="overlay">
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Settings"
-      tabindex="-1"
-      use:focusScope={() => (settings = false)}
-    >
-      <h2>Keyboard shortcuts</h2>
-      <label
-        ><input
-          type="checkbox"
-          bind:checked={ui.vimKeys}
-          onchange={() => localStorage.setItem("vile.vimKeys", String(ui.vimKeys))}
-        /> Enable vim-style letter bindings</label
-      ><label
-        >Remap letter bindings, JSON object <textarea
-          bind:value={remapsText}
-          rows="5"
-          placeholder={JSON.stringify({ a: "h" })}></textarea></label
-      >
-      <p>Arrows, digits, Delete and conventional platform shortcuts work by default.</p>
-      <div class="row">
-        <button
-          onclick={() => {
-            try {
-              const value = JSON.parse(remapsText);
-              if (
-                !value ||
-                Array.isArray(value) ||
-                typeof value !== "object" ||
-                Object.values(value).some((v) => typeof v !== "string")
-              )
-                throw new Error("Use a JSON object with string values");
-              ui.vimRemaps = value;
-              localStorage.setItem("vile.vimRemaps", JSON.stringify(value));
-              settings = false;
-            } catch (e) {
-              notify(errorText(e), true);
-            }
-          }}>Apply</button
-        ><button onclick={() => (settings = false)}>Cancel</button>
-      </div>
-    </div>
-  </div>{/if}
 {#if ui.mode === "palette"}<Palette
     layerCount={ui.view?.layerCount ?? 0}
     onrun={(id, arg) => {
@@ -1513,11 +1433,6 @@
   .notice {
     font-size: 13px;
     color: var(--cursor);
-  }
-  .dialog label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
   }
   .rename-form {
     display: flex;

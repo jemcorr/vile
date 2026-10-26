@@ -33,8 +33,6 @@ export const ui = $state({
   draftMacro: null as number | null,
   revealMacro: null as number | null,
   sideVisible: true,
-  vimKeys: false,
-  vimRemaps: {} as Record<string, string>,
   swapMark: null as KeyRefDto[] | null,
 });
 

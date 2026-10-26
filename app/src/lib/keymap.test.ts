@@ -3,7 +3,7 @@ import { actionFor as resolveAction } from "./keymap";
 import type { KeyLike } from "./keymap";
 
 function actionFor(mode: Parameters<typeof resolveAction>[0], event: KeyLike) {
-  return resolveAction(mode, event, true, {}, "MacIntel");
+  return resolveAction(mode, event, "MacIntel");
 }
 
 function key(k: string, mods: Partial<KeyLike> = {}): KeyLike {
@@ -11,13 +11,14 @@ function key(k: string, mods: Partial<KeyLike> = {}): KeyLike {
 }
 
 describe("actionFor in normal mode", () => {
-  it("moves with hjkl and arrows", () => {
-    expect(actionFor("normal", key("h"))).toEqual({ kind: "move", dir: "left" });
-    expect(actionFor("normal", key("j"))).toEqual({ kind: "move", dir: "down" });
-    expect(actionFor("normal", key("k"))).toEqual({ kind: "move", dir: "up" });
-    expect(actionFor("normal", key("l"))).toEqual({ kind: "move", dir: "right" });
+  it("moves with arrows, extending with Shift", () => {
     expect(actionFor("normal", key("ArrowLeft"))).toEqual({ kind: "move", dir: "left" });
     expect(actionFor("normal", key("ArrowDown"))).toEqual({ kind: "move", dir: "down" });
+    expect(actionFor("normal", key("ArrowRight", { shiftKey: true }))).toEqual({
+      kind: "move",
+      dir: "right",
+      extend: true,
+    });
   });
 
   it("switches layers with digits", () => {
@@ -25,30 +26,14 @@ describe("actionFor in normal mode", () => {
     expect(actionFor("normal", key("9"))).toEqual({ kind: "layer", layer: 9 });
   });
 
-  it("maps editing keys", () => {
-    expect(actionFor("normal", key(" "))).toEqual({ kind: "toggleSelect" });
-    expect(actionFor("normal", key("v"))).toEqual({ kind: "visual" });
-    expect(actionFor("normal", key("Escape"))).toEqual({ kind: "escape" });
-    expect(actionFor("normal", key("i"))).toEqual({ kind: "insert" });
+  it("maps Enter, Escape, Delete and Backspace", () => {
     expect(actionFor("normal", key("Enter"))).toEqual({ kind: "insert" });
-    expect(actionFor("normal", key("x"))).toEqual({ kind: "clear" });
-    expect(actionFor("normal", key("t"))).toEqual({ kind: "transparent" });
-    expect(actionFor("normal", key("y"))).toEqual({ kind: "copy" });
-    expect(actionFor("normal", key("p"))).toEqual({ kind: "paste" });
-    expect(actionFor("normal", key("s"))).toEqual({ kind: "swap" });
-    expect(actionFor("normal", key("u"))).toEqual({ kind: "undo" });
-    expect(actionFor("normal", key("r", { ctrlKey: true }))).toEqual({ kind: "redo" });
-  });
-
-  it("maps layer keys with shift", () => {
-    expect(actionFor("normal", key("Y", { shiftKey: true }))).toEqual({ kind: "copyLayer" });
-    expect(actionFor("normal", key("P", { shiftKey: true }))).toEqual({ kind: "pasteLayer" });
-    expect(actionFor("normal", key("X", { shiftKey: true }))).toEqual({ kind: "clearLayer" });
-    expect(actionFor("normal", key("T", { shiftKey: true }))).toEqual({ kind: "transparentLayer" });
+    expect(actionFor("normal", key("Escape"))).toEqual({ kind: "escape" });
+    expect(actionFor("normal", key("Delete"))).toEqual({ kind: "clear" });
+    expect(actionFor("normal", key("Backspace"))).toEqual({ kind: "clear" });
   });
 
   it("maps command keys", () => {
-    expect(actionFor("normal", key(":", { shiftKey: true }))).toEqual({ kind: "palette" });
     expect(actionFor("normal", key("k", { metaKey: true }))).toEqual({ kind: "palette" });
     expect(actionFor("normal", key("s", { metaKey: true }))).toEqual({ kind: "save" });
     expect(actionFor("normal", key("o", { metaKey: true }))).toEqual({ kind: "open" });
@@ -59,9 +44,6 @@ describe("actionFor in normal mode", () => {
     expect(actionFor("normal", key("Z", { metaKey: true, shiftKey: true }))).toEqual({
       kind: "redo",
     });
-    expect(actionFor("normal", key("d"))).toEqual({ kind: "toggleDiffBase" });
-    expect(actionFor("normal", key("Tab"))).toEqual({ kind: "nextPanel" });
-    expect(actionFor("normal", key("o"))).toEqual({ kind: "toggleCombos" });
   });
 
   it("ignores unknown keys and modified letters", () => {
@@ -73,60 +55,63 @@ describe("actionFor in normal mode", () => {
 });
 
 describe("actionFor in other modes", () => {
-  it("visual mode uses the same bindings", () => {
-    expect(actionFor("visual", key("l"))).toEqual({ kind: "move", dir: "right" });
-    expect(actionFor("visual", key("Escape"))).toEqual({ kind: "escape" });
-  });
-
   it("text modes leave keys to their inputs", () => {
     expect(actionFor("insert", key("h"))).toBeNull();
+    expect(actionFor("insert", key("Enter"))).toBeNull();
     expect(actionFor("palette", key("Escape"))).toBeNull();
     expect(actionFor("editor", key("x"))).toBeNull();
   });
 });
 
-describe("default layout-independent bindings", () => {
-  it("requires opt-in for letters and permits remapping", () => {
-    for (const letter of ["h", "j", "k", "l", "x", "t", "y", "p", "s", "u", "d", "o", "v", "i"])
-      expect(resolveAction("normal", key(letter))).toBeNull();
-    expect(resolveAction("normal", key("a"), true, { a: "h" })).toEqual({
-      kind: "move",
-      dir: "left",
-    });
+describe("no letter-key bindings", () => {
+  it("binds no bare letter, symbol or Tab key", () => {
+    for (const letter of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+      expect(actionFor("normal", key(letter))).toBeNull();
+    expect(actionFor("normal", key(":", { shiftKey: true }))).toBeNull();
+    expect(actionFor("normal", key(" "))).toBeNull();
+    expect(actionFor("normal", key("Tab"))).toBeNull();
   });
+
+  it("binds no Ctrl+R or Cmd+R redo, so redo stays on Z", () => {
+    expect(resolveAction("normal", key("r", { metaKey: true }), "MacIntel")).toBeNull();
+    expect(resolveAction("normal", key("r", { ctrlKey: true }), "Win32")).toBeNull();
+  });
+});
+
+describe("default layout-independent bindings", () => {
   it("extends selections and supports conventional clipboard and Delete", () => {
-    expect(resolveAction("normal", key("ArrowLeft", { shiftKey: true }))).toEqual({
+    expect(resolveAction("normal", key("ArrowLeft", { shiftKey: true }), "MacIntel")).toEqual({
       kind: "move",
       dir: "left",
       extend: true,
     });
-    expect(resolveAction("normal", key("c", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+    expect(resolveAction("normal", key("c", { metaKey: true }), "MacIntel")).toEqual({
       kind: "copy",
     });
-    expect(resolveAction("normal", key("v", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+    expect(resolveAction("normal", key("v", { metaKey: true }), "MacIntel")).toEqual({
       kind: "paste",
     });
-    expect(resolveAction("normal", key("x", { metaKey: true }), false, {}, "MacIntel")).toEqual({
+    expect(resolveAction("normal", key("x", { metaKey: true }), "MacIntel")).toEqual({
       kind: "cut",
     });
-    expect(resolveAction("normal", key("Delete"))).toEqual({ kind: "clear" });
+    expect(resolveAction("normal", key("Delete"), "MacIntel")).toEqual({ kind: "clear" });
   });
 
   it("uses Ctrl shortcuts on Windows and Linux, while leaving AltGr input alone", () => {
     for (const platform of ["Win32", "Linux x86_64"]) {
-      expect(resolveAction("normal", key("s", { ctrlKey: true }), false, {}, platform)).toEqual({
+      expect(resolveAction("normal", key("s", { ctrlKey: true }), platform)).toEqual({
         kind: "save",
       });
       expect(
-        resolveAction("normal", key("z", { ctrlKey: true, shiftKey: true }), false, {}, platform),
+        resolveAction("normal", key("z", { ctrlKey: true, shiftKey: true }), platform),
       ).toEqual({ kind: "redo" });
-      expect(resolveAction("normal", key("s", { metaKey: true }), false, {}, platform)).toBeNull();
+      expect(resolveAction("normal", key("s", { metaKey: true }), platform)).toBeNull();
     }
     expect(
-      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), false, {}, "Win32"),
+      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), "Win32"),
     ).toBeNull();
     expect(
-      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), false, {}, "Linux x86_64"),
+      resolveAction("normal", key("s", { ctrlKey: true, altKey: true }), "Linux x86_64"),
     ).toBeNull();
   });
 });
@@ -139,10 +124,10 @@ describe("zoom shortcuts", () => {
     expect(actionFor("normal", key("0", { metaKey: true }))).toEqual({ kind: "zoomFit" });
   });
   it("uses Ctrl on Windows and Linux", () => {
-    expect(resolveAction("normal", key("=", { ctrlKey: true }), false, {}, "Win32")).toEqual({
+    expect(resolveAction("normal", key("=", { ctrlKey: true }), "Win32")).toEqual({
       kind: "zoomIn",
     });
-    expect(resolveAction("normal", key("0", { ctrlKey: true }), false, {}, "Linux x86_64")).toEqual({
+    expect(resolveAction("normal", key("0", { ctrlKey: true }), "Linux x86_64")).toEqual({
       kind: "zoomFit",
     });
   });
