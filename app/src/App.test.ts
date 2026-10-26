@@ -603,11 +603,20 @@ describe("desktop editing workflow", () => {
         await settle();
         const card = () => document.querySelector("aside")!;
         const toggle = () => document.querySelector<HTMLButtonElement>(".inspector-toggle")!;
+        // The card reserves no room on the board or the picker bar, expanded or collapsed.
+        const reserved = () => ({
+          paddingRight: document.querySelector<HTMLElement>(".keyboard-viewport")!.style.paddingRight,
+          paddingTop: document.querySelector<HTMLElement>(".keyboard-viewport")!.style.paddingTop,
+          pickerRight: document.querySelector<HTMLElement>(".floating-picker-host")!.style.right,
+        });
+        const noReserve = { paddingRight: "", paddingTop: "", pickerRight: "" };
         expect(card().classList).toContain("floating-card");
         expect(toggle().getAttribute("aria-expanded")).toBe("true");
+        expect(reserved()).toEqual(noReserve);
         toggle().click();
         await settle();
         expect(card().classList).toContain("collapsed");
+        expect(reserved()).toEqual(noReserve);
         expect(toggle().getAttribute("aria-expanded")).toBe("false");
         expect(toggle().getAttribute("aria-label")).toBe("Show inspector");
         expect(localStorage.getItem("vile.inspectorCollapsed")).toBe("true");
