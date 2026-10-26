@@ -13,6 +13,7 @@ pub mod keycode;
 pub mod metadata;
 pub mod ops;
 pub mod pyjson;
+pub mod slots;
 pub mod validate;
 pub use board::{Board, BoardKey};
 pub use diff::{DiffEntry, DiffSection};

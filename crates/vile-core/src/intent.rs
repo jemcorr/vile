@@ -11,10 +11,10 @@
 use crate::board::Board;
 use crate::diff::{DiffEntry, diff};
 use crate::document::{Document, Slot};
-use crate::editor::{FeatureSlotKind, FeatureSlotValue};
 use crate::keycode::Keycode;
 use crate::metadata::Names;
 use crate::ops::{self, KeyRef, Pos};
+use crate::slots::{self, FeatureSlotKind, FeatureSlotValue};
 
 /// A layer needs this many changed keys before a layer-wide story is considered.
 const MIN_LAYER_KEYS: usize = 4;
@@ -24,15 +24,6 @@ const SIMILAR: f64 = 0.8;
 
 /// A reorder is told only when it removes at least this many changed positions.
 const GAIN: usize = 4;
-
-/// The feature families with fixed slot indices, in the order the story checks them.
-const SLOT_KINDS: [FeatureSlotKind; 5] = [
-    FeatureSlotKind::Combo,
-    FeatureSlotKind::Macro,
-    FeatureSlotKind::TapDance,
-    FeatureSlotKind::KeyOverride,
-    FeatureSlotKind::AltRepeat,
-];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intent {
@@ -352,9 +343,9 @@ impl Explainer<'_> {
     }
 
     fn slot_intents(&mut self) {
-        for kind in SLOT_KINDS {
-            let count = slot_count(&self.doc, kind);
-            if count != slot_count(self.current, kind) {
+        for kind in slots::KINDS {
+            let count = slots::count(&self.doc, kind);
+            if count != slots::count(self.current, kind) {
                 continue;
             }
             for a in 0..count {
@@ -380,7 +371,7 @@ impl Explainer<'_> {
                 let Some(value) = self.current_slot(kind, to) else {
                     continue;
                 };
-                if !slot_is_set(&value) {
+                if !slots::is_set(&value) {
                     continue;
                 }
                 let source = (0..count).find(|&from| {
@@ -400,11 +391,11 @@ impl Explainer<'_> {
     }
 
     fn working_slot(&self, kind: FeatureSlotKind, index: usize) -> Option<FeatureSlotValue> {
-        slot_value(&self.doc, kind, index)
+        slots::value(&self.doc, kind, index)
     }
 
     fn current_slot(&self, kind: FeatureSlotKind, index: usize) -> Option<FeatureSlotValue> {
-        slot_value(self.current, kind, index)
+        slots::value(self.current, kind, index)
     }
 
     /// Names follow a swap only when the current names are exactly the swapped names.
@@ -675,126 +666,20 @@ fn apply_one(doc: &mut Document, names: &mut Names, board: Option<&Board>, inten
             b,
             names: follow,
         } => {
-            if let (Some(va), Some(vb)) = (slot_value(doc, *kind, *a), slot_value(doc, *kind, *b)) {
-                put_slot_value(doc, *kind, *a, vb);
-                put_slot_value(doc, *kind, *b, va);
+            if let (Some(va), Some(vb)) =
+                (slots::value(doc, *kind, *a), slots::value(doc, *kind, *b))
+            {
+                slots::put(doc, *kind, *a, vb);
+                slots::put(doc, *kind, *b, va);
             }
             if *follow {
-                swap_names(names, *kind, *a, *b);
+                slots::swap_names(names, *kind, *a, *b);
             }
         }
         Intent::SlotCopied { kind, from, to } => {
-            if let Some(value) = slot_value(doc, *kind, *from) {
-                put_slot_value(doc, *kind, *to, value);
+            if let Some(value) = slots::value(doc, *kind, *from) {
+                slots::put(doc, *kind, *to, value);
             }
-        }
-    }
-}
-
-fn swap_names(names: &mut Names, kind: FeatureSlotKind, a: usize, b: usize) {
-    let map = match kind {
-        FeatureSlotKind::Combo => &mut names.combos,
-        FeatureSlotKind::Macro => &mut names.macros,
-        _ => return,
-    };
-    let (first, second) = (map.remove(&a), map.remove(&b));
-    if let Some(name) = first {
-        map.insert(b, name);
-    }
-    if let Some(name) = second {
-        map.insert(a, name);
-    }
-}
-
-fn slot_count(doc: &Document, kind: FeatureSlotKind) -> usize {
-    match kind {
-        FeatureSlotKind::Combo => doc.combo.as_ref().map_or(0, Vec::len),
-        FeatureSlotKind::Macro => doc.macros.len(),
-        FeatureSlotKind::TapDance => doc.tap_dance.as_ref().map_or(0, Vec::len),
-        FeatureSlotKind::KeyOverride => doc.key_override.as_ref().map_or(0, Vec::len),
-        FeatureSlotKind::AltRepeat => doc.alt_repeat_key.as_ref().map_or(0, Vec::len),
-    }
-}
-
-fn slot_value(doc: &Document, kind: FeatureSlotKind, index: usize) -> Option<FeatureSlotValue> {
-    Some(match kind {
-        FeatureSlotKind::Combo => FeatureSlotValue::Combo(*doc.combo.as_ref()?.get(index)?),
-        FeatureSlotKind::Macro => FeatureSlotValue::Macro(doc.macros.get(index)?.clone()),
-        FeatureSlotKind::TapDance => {
-            FeatureSlotValue::TapDance(*doc.tap_dance.as_ref()?.get(index)?)
-        }
-        FeatureSlotKind::KeyOverride => {
-            FeatureSlotValue::KeyOverride(*doc.key_override.as_ref()?.get(index)?)
-        }
-        FeatureSlotKind::AltRepeat => {
-            FeatureSlotValue::AltRepeat(*doc.alt_repeat_key.as_ref()?.get(index)?)
-        }
-    })
-}
-
-/// Stores `value` in slot `index` when the kinds match and the slot exists.
-fn put_slot_value(
-    doc: &mut Document,
-    kind: FeatureSlotKind,
-    index: usize,
-    value: FeatureSlotValue,
-) {
-    match (kind, value) {
-        (FeatureSlotKind::Combo, FeatureSlotValue::Combo(v)) => {
-            if let Some(cell) = doc.combo.as_mut().and_then(|list| list.get_mut(index)) {
-                *cell = v;
-            }
-        }
-        (FeatureSlotKind::Macro, FeatureSlotValue::Macro(v)) => {
-            if let Some(cell) = doc.macros.get_mut(index) {
-                *cell = v;
-            }
-        }
-        (FeatureSlotKind::TapDance, FeatureSlotValue::TapDance(v)) => {
-            if let Some(cell) = doc.tap_dance.as_mut().and_then(|list| list.get_mut(index)) {
-                *cell = v;
-            }
-        }
-        (FeatureSlotKind::KeyOverride, FeatureSlotValue::KeyOverride(v)) => {
-            if let Some(cell) = doc
-                .key_override
-                .as_mut()
-                .and_then(|list| list.get_mut(index))
-            {
-                *cell = v;
-            }
-        }
-        (FeatureSlotKind::AltRepeat, FeatureSlotValue::AltRepeat(v)) => {
-            if let Some(cell) = doc
-                .alt_repeat_key
-                .as_mut()
-                .and_then(|list| list.get_mut(index))
-            {
-                *cell = v;
-            }
-        }
-        _ => {}
-    }
-}
-
-/// True when the slot holds something, by the rules of the slot editors (slots.ts).
-fn slot_is_set(value: &FeatureSlotValue) -> bool {
-    match value {
-        FeatureSlotValue::Combo(combo) => {
-            combo.keys.iter().any(|&kc| kc != Keycode::NO) || combo.output != Keycode::NO
-        }
-        FeatureSlotValue::Macro(m) => !m.actions.is_empty(),
-        FeatureSlotValue::TapDance(td) => [td.on_tap, td.on_hold, td.on_double_tap, td.on_tap_hold]
-            .iter()
-            .any(|&kc| kc != Keycode::NO),
-        FeatureSlotValue::KeyOverride(ko) => {
-            ko.trigger != Keycode::NO || ko.replacement != Keycode::NO
-        }
-        FeatureSlotValue::AltRepeat(ar) => {
-            ar.keycode != Keycode::NO
-                || ar.alt_keycode != Keycode::NO
-                || ar.allowed_mods != 0
-                || ar.options != 0
         }
     }
 }

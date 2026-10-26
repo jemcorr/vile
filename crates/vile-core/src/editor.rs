@@ -5,12 +5,11 @@ use std::path::{Path, PathBuf};
 
 use crate::board::Board;
 use crate::diff::DiffEntry;
-use crate::document::{
-    AltRepeatKey, Combo, Document, KeyOverride, LoadError, LoadReport, Macro, Slot, TapDance,
-};
+use crate::document::{Document, LoadError, LoadReport, Slot};
 use crate::keycode::Keycode;
 use crate::metadata::{Names, Sidecar, fingerprint, sidecar_path};
 use crate::ops::{OpError, OpResult, Pos};
+use crate::slots;
 
 /// What the user copied last.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,24 +28,7 @@ pub enum Clipboard {
     },
 }
 
-/// A fixed-index feature family. Copying content never changes keycode references.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FeatureSlotKind {
-    Combo,
-    Macro,
-    TapDance,
-    KeyOverride,
-    AltRepeat,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FeatureSlotValue {
-    Combo(Combo),
-    Macro(Macro),
-    TapDance(TapDance),
-    KeyOverride(KeyOverride),
-    AltRepeat(AltRepeatKey),
-}
+pub use crate::slots::{FeatureSlotKind, FeatureSlotValue};
 
 /// What the diff compares the current document with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -292,7 +274,7 @@ impl Editor {
             }
             Some(Clipboard::Feature { kind, .. }) => {
                 return Err(OpError::WrongClipboard {
-                    held: feature_kind_name(*kind),
+                    held: slots::article_name(*kind),
                     wanted: "keys",
                 });
             }
@@ -319,7 +301,7 @@ impl Editor {
             }
             Some(Clipboard::Feature { kind, .. }) => {
                 return Err(OpError::WrongClipboard {
-                    held: feature_kind_name(*kind),
+                    held: slots::article_name(*kind),
                     wanted: "a layer",
                 });
             }
@@ -333,7 +315,7 @@ impl Editor {
         kind: FeatureSlotKind,
         index: usize,
     ) -> Result<(), OpError> {
-        let value = feature_value(&self.doc, kind, index)?;
+        let value = slots::get(&self.doc, kind, index)?;
         let name = match kind {
             FeatureSlotKind::Combo => self.names.combos.get(&index),
             FeatureSlotKind::Macro => self.names.macros.get(&index),
@@ -356,19 +338,19 @@ impl Editor {
             Some(Clipboard::Layer { .. }) => return Err(wrong_feature_clipboard("a layer", kind)),
         };
         if held != kind {
-            return Err(wrong_feature_clipboard(feature_kind_name(held), kind));
+            return Err(wrong_feature_clipboard(slots::article_name(held), kind));
         }
         self.apply_named(|doc, names| {
-            set_feature_value(doc, kind, index, value)?;
-            set_feature_name(names, kind, index, name);
+            slots::set(doc, kind, index, value)?;
+            slots::set_name(names, kind, index, name);
             Ok(Vec::new())
         })
     }
 
     pub fn swap_feature_slots(&mut self, kind: FeatureSlotKind, a: usize, b: usize) -> OpResult {
         self.apply_named(|doc, names| {
-            swap_feature_values(doc, kind, a, b)?;
-            swap_feature_names(names, kind, a, b);
+            slots::swap_values(doc, kind, a, b)?;
+            slots::swap_names(names, kind, a, b);
             Ok(Vec::new())
         })
     }
@@ -516,150 +498,10 @@ impl Editor {
     }
 }
 
-fn feature_kind_name(kind: FeatureSlotKind) -> &'static str {
-    match kind {
-        FeatureSlotKind::Combo => "a combo",
-        FeatureSlotKind::Macro => "a macro",
-        FeatureSlotKind::TapDance => "a tap dance",
-        FeatureSlotKind::KeyOverride => "a key override",
-        FeatureSlotKind::AltRepeat => "an alt repeat slot",
-    }
-}
 fn wrong_feature_clipboard(held: &'static str, wanted: FeatureSlotKind) -> OpError {
     OpError::WrongClipboard {
         held,
-        wanted: feature_kind_name(wanted),
-    }
-}
-fn feature_value(
-    doc: &Document,
-    kind: FeatureSlotKind,
-    index: usize,
-) -> Result<FeatureSlotValue, OpError> {
-    use FeatureSlotKind::*;
-    let (section, value) = match kind {
-        Combo => (
-            "combo",
-            doc.combo
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .copied()
-                .map(FeatureSlotValue::Combo),
-        ),
-        Macro => (
-            "macro",
-            doc.macros.get(index).cloned().map(FeatureSlotValue::Macro),
-        ),
-        TapDance => (
-            "tap_dance",
-            doc.tap_dance
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .copied()
-                .map(FeatureSlotValue::TapDance),
-        ),
-        KeyOverride => (
-            "key_override",
-            doc.key_override
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .copied()
-                .map(FeatureSlotValue::KeyOverride),
-        ),
-        AltRepeat => (
-            "alt_repeat_key",
-            doc.alt_repeat_key
-                .as_ref()
-                .and_then(|v| v.get(index))
-                .copied()
-                .map(FeatureSlotValue::AltRepeat),
-        ),
-    };
-    value.ok_or_else(|| OpError::NoSuchSlot {
-        section,
-        index,
-        count: feature_count(doc, kind),
-    })
-}
-fn feature_count(doc: &Document, kind: FeatureSlotKind) -> usize {
-    use FeatureSlotKind::*;
-    match kind {
-        Combo => doc.combo.as_ref().map_or(0, Vec::len),
-        Macro => doc.macros.len(),
-        TapDance => doc.tap_dance.as_ref().map_or(0, Vec::len),
-        KeyOverride => doc.key_override.as_ref().map_or(0, Vec::len),
-        AltRepeat => doc.alt_repeat_key.as_ref().map_or(0, Vec::len),
-    }
-}
-fn set_feature_value(
-    doc: &mut Document,
-    kind: FeatureSlotKind,
-    index: usize,
-    value: FeatureSlotValue,
-) -> OpResult {
-    use FeatureSlotKind::*;
-    match (kind, value) {
-        (Combo, FeatureSlotValue::Combo(v)) => crate::ops::set_combo(doc, index, v),
-        (Macro, FeatureSlotValue::Macro(v)) => crate::ops::set_macro(doc, index, v),
-        (TapDance, FeatureSlotValue::TapDance(v)) => crate::ops::set_tap_dance(doc, index, v),
-        (KeyOverride, FeatureSlotValue::KeyOverride(v)) => {
-            crate::ops::set_key_override(doc, index, v)
-        }
-        (AltRepeat, FeatureSlotValue::AltRepeat(v)) => {
-            crate::ops::set_alt_repeat_key(doc, index, v)
-        }
-        _ => Err(OpError::Invalid("feature clipboard type mismatch".into())),
-    }
-}
-fn swap_feature_values(doc: &mut Document, kind: FeatureSlotKind, a: usize, b: usize) -> OpResult {
-    if a == b {
-        feature_value(doc, kind, a)?;
-        return Ok(Vec::new());
-    }
-    let av = feature_value(doc, kind, a)?;
-    let bv = feature_value(doc, kind, b)?;
-    set_feature_value(doc, kind, a, bv)?;
-    set_feature_value(doc, kind, b, av)
-}
-fn feature_name_map(
-    names: &mut crate::metadata::Names,
-    kind: FeatureSlotKind,
-) -> Option<&mut std::collections::BTreeMap<usize, String>> {
-    match kind {
-        FeatureSlotKind::Combo => Some(&mut names.combos),
-        FeatureSlotKind::Macro => Some(&mut names.macros),
-        _ => None,
-    }
-}
-fn set_feature_name(
-    names: &mut crate::metadata::Names,
-    kind: FeatureSlotKind,
-    index: usize,
-    name: Option<String>,
-) {
-    if let Some(map) = feature_name_map(names, kind) {
-        if let Some(name) = name {
-            map.insert(index, name);
-        } else {
-            map.remove(&index);
-        }
-    }
-}
-fn swap_feature_names(
-    names: &mut crate::metadata::Names,
-    kind: FeatureSlotKind,
-    a: usize,
-    b: usize,
-) {
-    if let Some(map) = feature_name_map(names, kind) {
-        let av = map.remove(&a);
-        let bv = map.remove(&b);
-        if let Some(v) = av {
-            map.insert(b, v);
-        }
-        if let Some(v) = bv {
-            map.insert(a, v);
-        }
+        wanted: slots::article_name(wanted),
     }
 }
 
