@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-26
+
+### Added
+
+- Rename layers from the layer tab menu or the command palette; a rename is
+  one undo step (`84bf507`).
+
+### Fixed
+
+- Board edits (clear, paste, cut, swaps, drags, picker drops, the keycode
+  dialog and layer operations) are blocked while a macro draft is unsaved, so
+  the draft is never lost (`1436f23`).
+- A failed keyboard definition refresh now shows an error instead of failing
+  silently (`afd2860`).
+
+### Removed
+
+- The unreachable keyboard shortcuts dialog and its letter-key remapping
+  (`deab830`).
+
 ## [0.3.0] - 2026-10-26
 
 ### Added
