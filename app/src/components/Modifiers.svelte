@@ -19,14 +19,16 @@
 <div class="mods" title={reason}>
   {#if disabled && reason}<small>{reason}</small>{/if}
   {#if value === null}<small>Mixed</small>{/if}
-  {#each [[1, "Ctrl"], [2, "Shift"], [4, "Alt"], [8, "Gui"]] as [bit, name]}
-    <button
-      type="button"
-      {disabled}
-      aria-pressed={value === null ? "mixed" : (value & Number(bit)) !== 0}
-      onclick={() => toggle(Number(bit))}>{name}</button
-    >
-  {/each}
+  <div class="segmented" role="group" aria-label="Modifiers">
+    {#each [[1, "Ctrl"], [2, "Shift"], [4, "Alt"], [8, "Gui"]] as [bit, name]}
+      <button
+        type="button"
+        {disabled}
+        aria-pressed={value === null ? "mixed" : (value & Number(bit)) !== 0}
+        onclick={() => toggle(Number(bit))}>{name}</button
+      >
+    {/each}
+  </div>
   <div class="side">
     <span>Side</span>
     <div class="segmented" role="radiogroup" aria-label="Modifier side">
@@ -54,6 +56,7 @@
   }
   button[aria-pressed="true"] {
     background: var(--selected);
+    color: var(--fg);
   }
   small {
     color: var(--muted);

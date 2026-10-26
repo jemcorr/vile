@@ -923,8 +923,18 @@ kbd {
   color: var(--muted);
   font-size: 11px;
 }
+.canvas-app .inspector .hold-options {
+  order: 4;
+}
 .wrap-options summary {
   cursor: pointer;
+}
+.hold-options > .segmented {
+  margin-top: 12px;
+}
+.hold-options > .mods,
+.hold-options > .layer-buttons {
+  margin-top: var(--space-3);
 }
 .wrap-options .mods {
   margin-top: 12px;
@@ -945,6 +955,7 @@ kbd {
 }
 .canvas-app .inspector .segmented {
   align-self: flex-start;
+  width: fit-content;
 }
 .canvas-app .inspector .segmented button {
   min-height: 0;

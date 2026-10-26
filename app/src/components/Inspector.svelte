@@ -83,42 +83,42 @@
         }}>{baseView?.label || (base === null ? "Mixed bases" : "Choose base")}</button
       ><small>{baseView?.description ?? "Each base is preserved"}</small>
     </div>
-    <details class="wrap-options"><summary>Wrap modifiers</summary><Modifiers
-        value={wrap}
-        onchange={(wrapMods) => onpatch({ wrapMods })}
-        disabled={!canWrap}
-        reason={!basic
-          ? "Modifiers need a basic base key"
-          : !canWrap
-            ? "Remove the hold behavior before adding wrap modifiers"
-            : ""}
-      />
-    </details>
-    <div class="control">
-      <span>When held</span>
-      <div class="segmented" role="radiogroup" aria-label="When held">
+    <details class="wrap-options hold-options" open={hold !== null && hold.kind !== "none"}
+      ><summary>Hold modifier</summary>
+      <div class="segmented" role="radiogroup" aria-label="Hold modifier">
         {#each holdKinds as [kind, name, hint]}<button
             type="button"
             role="radio"
             aria-checked={hold?.kind === kind}
             class:active={hold?.kind === kind}
             disabled={kind !== "none" && !canHold}
-            title={kind !== "none" && !canHold ? "Needs a basic base without wrap modifiers" : hint}
+            title={kind !== "none" && !canHold ? "Needs a basic base without a tap modifier" : hint}
             onclick={() => setHold(kind)}>{name}</button
           >{/each}
       </div>
-    </div>
-    {#if hold?.kind === "mod"}<Modifiers
-        value={hold.mods}
-        onchange={(value) =>
-          onpatch({ hold: value & 15 ? { kind: "mod", mods: value } : { kind: "none" } })}
-      />{/if}
-    {#if hold?.kind === "layer"}<div class="layer-buttons">
+      {#if hold?.kind === "mod"}<Modifiers
+          value={hold.mods}
+          onchange={(value) =>
+            onpatch({ hold: value & 15 ? { kind: "mod", mods: value } : { kind: "none" } })}
+        />{/if}
+      {#if hold?.kind === "layer"}<div class="layer-buttons">
         {#each Array.from({ length: Math.min(layerCount, 16) }, (_, i) => i) as i}<button
             class:active={hold.layer === i}
             onclick={() => onpatch({ hold: { kind: "layer", layer: i } })}>L{i}</button
           >{/each}
       </div>{/if}
+    </details>
+    <details class="wrap-options"><summary>Tap modifier</summary><Modifiers
+        value={wrap}
+        onchange={(wrapMods) => onpatch({ wrapMods })}
+        disabled={!canWrap}
+        reason={!basic
+          ? "Modifiers need a basic base key"
+          : !canWrap
+            ? "Remove the hold modifier before adding a tap modifier"
+            : ""}
+      />
+    </details>
   {:else if keys.length && keys.every((key) => key.parts.kind === "oneShot" || key.parts.kind === "layerMod")}
     <Modifiers value={mods} onchange={(value) => onpatch({ mods: value })} />
   {:else if keys.some((key) => key.parts.kind === "raw")}
