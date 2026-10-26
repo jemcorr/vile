@@ -939,12 +939,18 @@ kbd {
   padding: var(--space-1) var(--space-2);
   min-height: 27px;
 }
-.canvas-app .inspector .mods label {
+.canvas-app .inspector .mods .side > span {
   color: var(--muted);
   font-size: 11px;
 }
-.canvas-app .inspector .mods label select {
-  width: 98px;
+.canvas-app .inspector .segmented {
+  align-self: flex-start;
+}
+.canvas-app .inspector .segmented button {
+  min-height: 0;
+}
+.canvas-app .inspector .segmented button:disabled {
+  opacity: 0.45;
 }
 .canvas-app .toolbar {
   height: 60px;
@@ -2191,7 +2197,8 @@ kbd {
 }
 
 /* Keyboard / Matrix toggle in the toolbar. Same look as the workspace switcher. */
-.board-view-switch {
+.board-view-switch,
+.segmented {
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -2200,14 +2207,16 @@ kbd {
   border: 1px solid var(--subtle-edge);
   border-radius: 9px;
 }
-.board-view-switch button {
+.board-view-switch button,
+.segmented button {
   padding: var(--space-1) var(--space-3);
   border-color: transparent;
   background: transparent;
   color: var(--muted);
   font-size: 11px;
 }
-.board-view-switch button.active {
+.board-view-switch button.active,
+.segmented button.active {
   border-color: var(--edge);
   background: var(--control);
   color: var(--fg);

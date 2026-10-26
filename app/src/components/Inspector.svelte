@@ -49,6 +49,11 @@
       current = false;
     };
   });
+  const holdKinds = [
+    ["none", "None", "Only the tap action"],
+    ["mod", "Mod", "Hold for modifiers, tap for the base"],
+    ["layer", "Layer", "Hold for a layer, tap for the base"],
+  ] as const;
   function setHold(kind: string): void {
     const value: HoldBehavior =
       kind === "mod"
@@ -89,16 +94,20 @@
             : ""}
       />
     </details>
-    <label
-      >When held <select value={hold?.kind ?? "mixed"} onchange={(e) => setHold(e.currentTarget.value)}
-        ><option disabled value="mixed">Mixed</option><option value="none">None</option><option
-          value="mod"
-          disabled={!canHold}>Mod{!canHold ? " (needs basic base without wrap mods)" : ""}</option
-        ><option value="layer" disabled={!canHold}
-          >Layer{!canHold ? " (needs basic base without wrap mods)" : ""}</option
-        ></select
-      ></label
-    >
+    <div class="control">
+      <span>When held</span>
+      <div class="segmented" role="radiogroup" aria-label="When held">
+        {#each holdKinds as [kind, name, hint]}<button
+            type="button"
+            role="radio"
+            aria-checked={hold?.kind === kind}
+            class:active={hold?.kind === kind}
+            disabled={kind !== "none" && !canHold}
+            title={kind !== "none" && !canHold ? "Needs a basic base without wrap modifiers" : hint}
+            onclick={() => setHold(kind)}>{name}</button
+          >{/each}
+      </div>
+    </div>
     {#if hold?.kind === "mod"}<Modifiers
         value={hold.mods}
         onchange={(value) =>

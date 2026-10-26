@@ -27,18 +27,22 @@
       onclick={() => toggle(Number(bit))}>{name}</button
     >
   {/each}
-  <label
-    >Side <select
-      {disabled}
-      value={(value ?? 0) & 16 ? "right" : "left"}
-      onchange={(e) =>
-        onchange(
-          ((value ?? 0) & 15) === 0
-            ? 0
-            : ((value ?? 0) & 15) | (e.currentTarget.value === "right" ? 16 : 0),
-        )}><option value="left">Left</option><option value="right">Right</option></select
-    ></label
-  >
+  <div class="side">
+    <span>Side</span>
+    <div class="segmented" role="radiogroup" aria-label="Modifier side">
+      {#each [["left", "Left"], ["right", "Right"]] as [side, name]}<button
+          type="button"
+          role="radio"
+          {disabled}
+          aria-checked={((value ?? 0) & 16 ? "right" : "left") === side}
+          class:active={((value ?? 0) & 16 ? "right" : "left") === side}
+          title={`${name}-hand modifiers`}
+          onclick={() =>
+            onchange(((value ?? 0) & 15) === 0 ? 0 : ((value ?? 0) & 15) | (side === "right" ? 16 : 0))}
+          >{name}</button
+        >{/each}
+    </div>
+  </div>
 </div>
 
 <style>
@@ -54,9 +58,10 @@
   small {
     color: var(--muted);
   }
-  label {
+  .side {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    width: 100%;
   }
 </style>

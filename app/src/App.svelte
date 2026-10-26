@@ -56,7 +56,7 @@
   const canvasMenuLabels: Record<string, string> = { clearKeys: 'Clear keys', transparentKeys: 'Make transparent', copyKeys: 'Copy', cutKeys: 'Cut', pasteKeys: 'Paste', swapKeys: 'Swap with…', editKey: 'Type keycode…', copyLayer: 'Copy layer', pasteLayer: 'Paste layer', clearLayer: 'Clear layer', transparentLayer: 'Make layer transparent', swapLayer: 'Swap layer with…', moveLayer: 'Move layer to…', mirrorLeftToRight: 'Mirror left to right', mirrorRightToLeft: 'Mirror right to left', mirrorSwap: 'Swap halves' };
   let viewportWidth = $state(1280);
   let viewportHeight = $state(820);
-  const INSPECTOR_WIDTH = 340;
+  const INSPECTOR_WIDTH = 280;
   // 390 was the old default, saved for every viewer whether or not they resized; read it as unset.
   const OLD_INSPECTOR_WIDTH = 390;
   function savedPanelSizes(): { side: number; picker: number } {
@@ -77,8 +77,8 @@
     }
   }
   let panelSizes = $state(savedPanelSizes());
-  // The Keymap inspector is a floating card: 240 to 360 px, never wider than the window less 2 x 16 px.
-  const sideMax = $derived(Math.max(240, Math.min(360, viewportWidth - 32)));
+  // The Keymap inspector is a floating card: 240 to 320 px, never wider than the window less 2 x 16 px.
+  const sideMax = $derived(Math.max(240, Math.min(320, viewportWidth - 32)));
   const pickerMax = $derived(Math.max(120, viewportHeight - 240));
   const sideWidth = $derived(Math.min(panelSizes.side, sideMax));
   function readFlag(key: string): boolean {
