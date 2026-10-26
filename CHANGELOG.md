@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+### Added
+
+- Zoom and pan on the keymap canvas: pinch or Cmd-scroll to zoom around the
+  pointer, Cmd-= and Cmd-- to step, Cmd-0 to fit, two-finger scroll or
+  middle-drag to pan, and fit / zoom controls in the corner. The fit or zoom
+  level is remembered per viewer. Zooming with the controls or the keyboard
+  keeps the whole cursor key in view (`e8269a8`, `7daf483`, `318a593`).
+- Shift-arrow selection grows and shrinks a box from an anchor, as in a
+  spreadsheet. Keyboard view uses the visible grid; Matrix view uses electrical
+  rows and columns (`06b8b24`, `4b30ae2`).
+- A changes sheet replaces the Review page and the save dialog. The toolbar
+  count, Review & save, and Cmd-S open it. It groups changes by layer and
+  feature in plain language with jump links, compares with the last save or the
+  last commit, and states what saving writes (`88f0396`–`bdaae8e`).
+- The sheet summarises intent: swaps, moves, cleared or transparent keys,
+  copied layers and slots, and reordered layers each read as one change, and
+  the count matches the rows. Uncertain cases fall back to per-key rows
+  (`65bb339`–`292626f`).
+- Changed fields, feature slots and layer tabs show the yellow changed dot, and
+  every marker follows the chosen comparison (`5dee2e9`, `ebe3d0b`).
+
+### Changed
+
+- The key inspector is a collapsible floating card. Fit leaves room for it on
+  wide windows; on narrow windows the collapsed card sits below the layer tabs
+  (`40651b6`, `499e0a7`, `c0c652d`).
+- Marquee selection also starts in the gaps between keys (`263e9aa`).
+- The window has a minimum size of 640 × 540 (`f376fde`).
+- Releases are built from a tag through one workflow that also publishes the
+  assets and checksums (`11fb87f`, `2fadad4`). The README links the latest
+  release (`479985c`).
+
+## [0.1.1] - 2026-10-25
+
+### Fixed
+
+- Key override and alternate repeat option rows show the same padded hover
+  whether their switch is on or off (`a8864ee`).
+- Shift-click and Cmd-click (Ctrl-click on Linux and Windows) add or remove a
+  key from the selection (`b9efd4e`).
+- Keys removed from the selection no longer look selected. Selected keys use an
+  accent ring over their own colour, and the cursor outline shows only during
+  keyboard navigation (`24db02c`).
+- Marquee selection starts anywhere in the keymap canvas, not only over the
+  keyboard (`b344d41`).
+
+### Changed
+
 - Updated direct npm, Rust, and GitHub Actions dependencies to their latest
   compatible stable releases. Enabled TypeScript 7.0.2 through `svelte-check`
   native mode while retaining TypeScript 6.0.3 for the checker API.
