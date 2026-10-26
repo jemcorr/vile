@@ -8,7 +8,7 @@ use crate::keycode::{Keycode, KeycodeKind, QK_MACRO, QK_TAP_DANCE};
 use crate::metadata::Names;
 use crate::ops::{self, OpError, OpResult};
 
-/// A fixed-index feature family. Copying content never changes keycode references.
+/// A fixed-index feature family. Copying never renumbers keycode references; swapping does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FeatureSlotKind {
     Combo,
@@ -217,8 +217,8 @@ pub fn swap_names(names: &mut Names, kind: FeatureSlotKind, a: usize, b: usize) 
     }
 }
 
-/// Exchanges the contents of slots `a` and `b` through the validating operations. Names are not
-/// touched. Copying never renumbers references; see `swap` in commit 3.
+/// Exchanges the contents of slots `a` and `b` through the validating operations. Names and
+/// keycode references are not touched; `swap` renumbers the references.
 pub fn swap_values(doc: &mut Document, kind: FeatureSlotKind, a: usize, b: usize) -> OpResult {
     if a == b {
         get(doc, kind, a)?;
@@ -390,4 +390,79 @@ pub fn uses(doc: &Document) -> Vec<SlotUse> {
             })
         })
         .collect()
+}
+
+/// Exchanges the references to slots `a` and `b` of `kind` in every keycode of the document: the
+/// layout, the knobs, every feature and the slots' own contents. Returns how many keycodes
+/// changed. Does nothing for kinds without references. Errors before any change when a referenced
+/// slot would need an index above 255.
+pub fn exchange_references(
+    doc: &mut Document,
+    kind: FeatureSlotKind,
+    a: usize,
+    b: usize,
+) -> Result<usize, OpError> {
+    if !has_references(kind) || a == b {
+        return Ok(0);
+    }
+    check_exchange(doc, kind, a, b)?;
+    let mut changed = 0;
+    doc.for_each_keycode_mut(&mut |kc| {
+        let Some((referenced, index)) = referenced_slot(*kc) else {
+            return;
+        };
+        if referenced != kind || (index != a && index != b) {
+            return;
+        }
+        let target = if index == a { b } else { a };
+        if let Some(new) = slot_keycode(kind, target) {
+            *kc = new;
+            changed += 1;
+        }
+    });
+    Ok(changed)
+}
+
+/// Swaps the contents of slots `a` and `b` and renumbers every reference to them. Names are not
+/// touched. Errors leave the document unchanged.
+pub fn swap(doc: &mut Document, kind: FeatureSlotKind, a: usize, b: usize) -> OpResult {
+    get(doc, kind, a)?;
+    get(doc, kind, b)?;
+    if a == b {
+        return Ok(Vec::new());
+    }
+    check_exchange(doc, kind, a, b)?;
+    swap_values(doc, kind, a, b)?;
+    exchange_references(doc, kind, a, b)?;
+    Ok(Vec::new())
+}
+
+/// Refuses a swap that would need a keycode for an index above 255 that a keycode already plays.
+fn check_exchange(
+    doc: &Document,
+    kind: FeatureSlotKind,
+    a: usize,
+    b: usize,
+) -> Result<(), OpError> {
+    if !has_references(kind) {
+        return Ok(());
+    }
+    let word = match kind {
+        FeatureSlotKind::Macro => "macro",
+        _ => "tap dance",
+    };
+    for (index, other) in [(a, b), (b, a)] {
+        if slot_keycode(kind, index).is_none() && is_referenced(doc, kind, other) {
+            return Err(OpError::Invalid(format!(
+                "{word} {other} is used by keys that cannot point at {word} {index}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn is_referenced(doc: &Document, kind: FeatureSlotKind, index: usize) -> bool {
+    doc.keycodes()
+        .iter()
+        .any(|(_, kc)| referenced_slot(*kc) == Some((kind, index)))
 }

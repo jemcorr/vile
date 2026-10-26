@@ -347,9 +347,10 @@ impl Editor {
         })
     }
 
+    /// Swaps two slots with their names and renumbers every keycode that plays either one.
     pub fn swap_feature_slots(&mut self, kind: FeatureSlotKind, a: usize, b: usize) -> OpResult {
         self.apply_named(|doc, names| {
-            slots::swap_values(doc, kind, a, b)?;
+            slots::swap(doc, kind, a, b)?;
             slots::swap_names(names, kind, a, b);
             Ok(Vec::new())
         })

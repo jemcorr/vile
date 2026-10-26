@@ -111,6 +111,27 @@ fn copy_and_paste_a_layer() {
 }
 
 #[test]
+fn swapping_slots_is_one_undo_step() {
+    let mut ed = Editor::new(common::load("corne.vil"), None, None);
+    ed.apply_named(|_, names| {
+        names.macros.insert(2, "a".into());
+        names.macros.insert(3, "b".into());
+        Ok(Vec::new())
+    })
+    .unwrap();
+    let named = (ed.doc().clone(), ed.names().clone());
+    ed.swap_feature_slots(vile_core::FeatureSlotKind::Macro, 2, 3)
+        .unwrap();
+    let swapped = (ed.doc().clone(), ed.names().clone());
+    assert_eq!(swapped.1.macros[&2], "b");
+    assert_eq!(swapped.1.macros[&3], "a");
+    assert!(ed.undo());
+    assert_eq!((ed.doc().clone(), ed.names().clone()), named);
+    assert!(ed.redo());
+    assert_eq!((ed.doc().clone(), ed.names().clone()), swapped);
+}
+
+#[test]
 fn diff_is_against_the_base() {
     let mut ed = Editor::new(common::load("corne_v32.vil"), None, Some(common::board()));
     let lt = common::kc(ed.doc(), "LT8(KC_ESCAPE)");

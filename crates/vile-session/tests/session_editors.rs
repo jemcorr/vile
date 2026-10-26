@@ -213,10 +213,19 @@ fn feature_clipboard_is_typed_and_paste_undoes_content_and_name_together() {
             .flat_map(|layer| layer.iter().map(|cell| cell.wire.clone()))
             .collect::<Vec<_>>()
     };
+    // Swapping renumbers references: the M0 key on layer 0 now plays slot 1, and nothing else moves.
+    let renumbered: Vec<String> = keycodes(&before)
+        .into_iter()
+        .map(|wire| if wire == "M0" { "M1".to_string() } else { wire })
+        .collect();
+    assert_eq!(keycodes(&swapped), renumbered);
     assert_eq!(
-        keycodes(&swapped),
-        keycodes(&before),
-        "M0 references remain attached to slot 0"
+        swapped.layers[0]
+            .iter()
+            .find(|cell| cell.id == "r6c1")
+            .unwrap()
+            .wire,
+        "M1"
     );
     assert_eq!(swapped.names.macros[&0], "close cell");
     assert_eq!(swapped.names.macros[&1], "Jupyter cell");
