@@ -15,6 +15,7 @@
   import { comboOverlays } from "./lib/combos";
   import { changeCount, changeGroups, compareErrorText, type ChangeJump } from "./lib/changes";
   import { renderLayerSheet } from "./lib/layer-export";
+  import { configureUpdater, restartToUpdate, startAutoChecks, updater } from "./lib/updater.svelte";
   import type {
     OpDto,
     DiffBase,
@@ -234,8 +235,8 @@
   let menu: { kind: "keys" | "layer"; x: number; y: number } | null = $state(null);
   let layerAction: string | null = $state(null);
   let review: { revision: number; saveAs: boolean; error: string; focusSave: boolean } | null = $state(null);
-  let unsaved: "open" | "close" | null = $state(null);
-  let afterSave: "open" | "close" | null = $state(null);
+  let unsaved: "open" | "close" | "restart" | null = $state(null);
+  let afterSave: "open" | "close" | "restart" | null = $state(null);
   let rename: { kind: "layer" | "macro" | "combo"; index: number; name: string } | null =
     $state(null);
   // Whether the pointer went down on the rename scrim, so a drag out of the name field does not cancel.
@@ -269,6 +270,11 @@
   }
   const compact = $derived(viewportWidth < 900);
   const drafts = $derived(Object.values(ui.drafts).some(Boolean));
+  configureUpdater({
+    hasUnsavedWork: () => Boolean(ui.view?.dirty) || drafts,
+    openRestartDialog: () => (unsaved = "restart"),
+  });
+  $effect(() => (updater.autoChecks ? startAutoChecks() : undefined));
   const fileName = $derived(ui.view?.path?.split(/[\\/]/).pop() || "this layout");
   const groups = $derived(ui.view ? changeGroups(ui.view) : []);
   const total = $derived(changeCount(groups));
@@ -655,6 +661,7 @@
       const action = afterSave;
       afterSave = null;
       if (action === "open") await open();
+      else if (action === "restart") await restartToUpdate(false);
       else await api.closeWindow();
     }
   }
@@ -1269,8 +1276,9 @@
             const action = unsaved;
             unsaved = null;
             if (action === "open") void open(true);
+            else if (action === "restart") void restartToUpdate(true);
             else void api.closeWindow();
-          }}>Discard and {unsaved === "open" ? "open" : "close"}</button
+          }}>Discard and {unsaved === "open" ? "open" : unsaved === "restart" ? "restart" : "close"}</button
         ><button onclick={() => (unsaved = null)}>Cancel</button>
       </div>
     </div>

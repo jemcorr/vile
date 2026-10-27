@@ -51,6 +51,9 @@ export const api = {
   refreshDefinition: (): Promise<ViewModel> =>
     invoke<ViewModel>("refresh_definition", { revision }).then(observe),
   closeWindow: (): Promise<void> => invoke("close_window", { revision }),
+  updateSupport: (): Promise<void> => invoke<void>("update_support"),
+  restartApp: (discard: boolean): Promise<void> =>
+    invoke<void>("restart_app", { revision, discard }),
   smokeReport: (renderedKeys: number, layerCount: number, boardName: string): Promise<void> =>
     invoke<void>("smoke_report", { renderedKeys, layerCount, boardName }),
 };
