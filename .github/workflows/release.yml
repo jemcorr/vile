@@ -82,8 +82,17 @@ jobs:
         working-directory: app
       - run: npm run build
         working-directory: app
+      - name: Check the updater signing key is set
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not set."; exit 1; }
+
       - run: npm run tauri -- build --bundles ${{ matrix.bundle }}
         working-directory: app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Package macOS app
         if: runner.os == 'macOS'
@@ -92,6 +101,10 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent \
             target/release/bundle/macos/vile.app \
             "release-assets/vile_${VERSION}_macos_$(uname -m).app.zip"
+          cp target/release/bundle/macos/vile.app.tar.gz \
+            "release-assets/vile_${VERSION}_macos_$(uname -m).app.tar.gz"
+          cp target/release/bundle/macos/vile.app.tar.gz.sig \
+            "release-assets/vile_${VERSION}_macos_$(uname -m).app.tar.gz.sig"
 
       - name: Package Linux installer
         if: runner.os == 'Linux'
@@ -100,6 +113,7 @@ jobs:
           mapfile -t packages < <(find target/release/bundle/deb -maxdepth 1 -type f -name '*.deb')
           test "${#packages[@]}" -eq 1
           cp "${packages[0]}" "release-assets/vile_${VERSION}_linux_amd64.deb"
+          cp "${packages[0]}.sig" "release-assets/vile_${VERSION}_linux_amd64.deb.sig"
 
       - name: Package Windows installer
         if: runner.os == 'Windows'
@@ -109,6 +123,7 @@ jobs:
           $installers = @(Get-ChildItem target/release/bundle/nsis -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw "Expected one NSIS installer; found $($installers.Count)." }
           Copy-Item $installers[0].FullName "release-assets/vile_$($env:VERSION)_windows_x64_setup.exe"
+          Copy-Item "$($installers[0].FullName).sig" "release-assets/vile_$($env:VERSION)_windows_x64_setup.exe.sig"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -168,8 +183,17 @@ jobs:
         working-directory: app
       - run: npm run build
         working-directory: app
+      - name: Check the updater signing key is set
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "TAURI_SIGNING_PRIVATE_KEY is not set."; exit 1; }
+
       - run: npm run tauri -- build --bundles appimage
         working-directory: app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Package and inspect AppImage
         run: |
@@ -178,6 +202,7 @@ jobs:
           mapfile -t appimages < <(find target/release/bundle/appimage -maxdepth 1 -type f -iname '*.appimage')
           test "${#appimages[@]}" -eq 1
           cp "${appimages[0]}" "$appimage"
+          cp "${appimages[0]}.sig" "$appimage.sig"
           chmod +x "$appimage"
           file "$appimage" | grep -E 'ELF 64-bit.*x86-64'
 
@@ -244,14 +269,49 @@ jobs:
           pattern: vile-*
           merge-multiple: true
 
-      - name: Create the release
+      - name: Check the release files and set the signatures aside
         env:
-          GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#v}"
-          test "$(ls release-assets | wc -l)" -eq 4
-          (cd release-assets && sha256sum -- * > SHA256SUMS && sha256sum -c SHA256SUMS)
+          expected=$(printf '%s\n' \
+            "vile_${version}_linux_amd64.AppImage" \
+            "vile_${version}_linux_amd64.AppImage.sig" \
+            "vile_${version}_linux_amd64.deb" \
+            "vile_${version}_linux_amd64.deb.sig" \
+            "vile_${version}_macos_arm64.app.tar.gz" \
+            "vile_${version}_macos_arm64.app.tar.gz.sig" \
+            "vile_${version}_macos_arm64.app.zip" \
+            "vile_${version}_windows_x64_setup.exe" \
+            "vile_${version}_windows_x64_setup.exe.sig" | sort)
+          actual=$(ls -A release-assets | sort)
+          if [ "$actual" != "$expected" ]; then
+            printf 'Expected these release files:\n%s\nFound:\n%s\n' "$expected" "$actual"
+            exit 1
+          fi
+          mkdir signatures
+          mv release-assets/*.sig signatures/
+
+      - name: Verify every updater signature against the release version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#v}"
+          sudo apt-get install -y minisign
+          node -p "require('./app/src-tauri/tauri.conf.json').plugins.updater.pubkey" | base64 -d > updater.pub
+          for sig in signatures/*.sig; do
+            asset=$(basename "$sig" .sig)
+            base64 -d "$sig" > "$asset.minisig"
+            minisign -V -p updater.pub -m "release-assets/$asset" -x "$asset.minisig" | tee "$asset.verify"
+            grep -Eq "version:${version//./[.]}([[:space:]]|$)" "$asset.verify" \
+              || { echo "$asset is not signed for version $version."; exit 1; }
+          done
+
+      - name: Write the release notes and the updater manifest
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#v}"
           # The notes are this version's changelog section, without its heading.
           awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
@@ -259,8 +319,27 @@ jobs:
             found { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md || { echo "CHANGELOG.md has no section for $version."; exit 1; }
+          node tools/latest-json.mjs --version "$version" --notes notes.md \
+            --base-url "https://github.com/educorrea17/vile/releases/download/$TAG" \
+            --assets release-assets --sigs signatures > release-assets/latest.json
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          (cd release-assets && sha256sum -- * > SHA256SUMS && sha256sum -c SHA256SUMS)
           if gh release view "$TAG" > /dev/null 2>&1; then
             echo "Release $TAG already exists; not overwriting it."
             exit 1
           fi
-          gh release create "$TAG" --verify-tag --title "vile $TAG" --notes-file notes.md release-assets/*
+          gh release create "$TAG" --verify-tag --latest --title "vile $TAG" --notes-file notes.md release-assets/*
+
+      - name: Check the published updater manifest
+        if: ${{ !github.event.repository.private }}
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#v}"
+          curl -fsSL https://github.com/educorrea17/vile/releases/latest/download/latest.json \
+            | jq -e --arg v "$version" '.version == $v'
