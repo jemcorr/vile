@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Box selection picks every key the box touches, not only keys whose centre
+  is inside it (`bbce9e7`).
+
 ## [0.3.1] - 2026-10-26
 
 ### Added
