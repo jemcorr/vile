@@ -2,10 +2,12 @@
 
 mod layer_export;
 
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use tauri::utils::config::BundleType;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use vile_session::{
@@ -264,6 +266,64 @@ fn smoke_report(rendered_keys: u32, layer_count: u32, board_name: String) {
     }
 }
 
+/// Reason shown when this copy of vile cannot install updates on its platform.
+const UNSUPPORTED_REASON: &str = "This copy of vile cannot update itself";
+
+/// Reports why this copy cannot install updates, or succeeds when it can.
+#[tauri::command]
+fn update_support() -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Err("Development builds do not update".into());
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let bundle = tauri::utils::platform::bundle_type();
+    let appimage = std::env::var_os("APPIMAGE").is_some();
+    let reason = if cfg!(target_os = "macos") {
+        macos_update_reason(&exe)
+    } else if cfg!(target_os = "linux") {
+        linux_update_reason(bundle, appimage)
+    } else if cfg!(target_os = "windows") {
+        windows_update_reason(bundle)
+    } else {
+        Some(UNSUPPORTED_REASON)
+    };
+    reason.map_or(Ok(()), |reason| Err(reason.into()))
+}
+
+// Only a copy inside an app bundle may replace itself. A binary in target/
+// would overwrite the build output, and a translocated app is read-only.
+fn macos_update_reason(exe: &Path) -> Option<&'static str> {
+    let in_bundle = exe.parent().is_some_and(|dir| {
+        dir.file_name() == Some(OsStr::new("MacOS"))
+            && dir.parent().is_some_and(|contents| {
+                contents.file_name() == Some(OsStr::new("Contents"))
+                    && contents.parent().and_then(Path::extension) == Some(OsStr::new("app"))
+            })
+    });
+    if !in_bundle {
+        Some("This copy of vile is not an app bundle")
+    } else if exe.to_string_lossy().contains("/AppTranslocation/") {
+        Some("Move vile to the Applications folder to get updates")
+    } else {
+        None
+    }
+}
+
+fn linux_update_reason(bundle: Option<BundleType>, appimage: bool) -> Option<&'static str> {
+    match bundle {
+        Some(BundleType::Deb) => None,
+        Some(BundleType::AppImage) if appimage => None,
+        _ => Some(UNSUPPORTED_REASON),
+    }
+}
+
+fn windows_update_reason(bundle: Option<BundleType>) -> Option<&'static str> {
+    match bundle {
+        Some(BundleType::Nsis) => None,
+        _ => Some(UNSUPPORTED_REASON),
+    }
+}
+
 fn main() {
     if smoke_enabled() {
         std::thread::spawn(|| {
@@ -325,7 +385,8 @@ fn main() {
             macro_usage,
             close_window,
             refresh_definition,
-            smoke_report
+            smoke_report,
+            update_support
         ])
         .build(tauri::generate_context!())
         .expect("error while building vile");
@@ -337,4 +398,59 @@ fn main() {
             let _ = handle.emit("request-close", ());
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_bundle_copy_can_update() {
+        let exe = Path::new("/Applications/vile.app/Contents/MacOS/vile-app");
+        assert_eq!(macos_update_reason(exe), None);
+    }
+
+    #[test]
+    fn translocated_copy_asks_for_the_applications_folder() {
+        let exe = Path::new(
+            "/private/var/folders/x1/T/AppTranslocation/3F2A/d/vile.app/Contents/MacOS/vile-app",
+        );
+        assert_eq!(
+            macos_update_reason(exe),
+            Some("Move vile to the Applications folder to get updates")
+        );
+    }
+
+    #[test]
+    fn bare_build_binary_is_not_a_bundle() {
+        let exe = Path::new("/Users/me/git/vile/target/release/vile-app");
+        assert_eq!(
+            macos_update_reason(exe),
+            Some("This copy of vile is not an app bundle")
+        );
+    }
+
+    #[test]
+    fn deb_and_appimage_copies_can_update() {
+        assert_eq!(linux_update_reason(Some(BundleType::Deb), false), None);
+        assert_eq!(linux_update_reason(Some(BundleType::AppImage), true), None);
+    }
+
+    #[test]
+    fn appimage_without_its_env_and_unbundled_copies_cannot_update() {
+        assert_eq!(
+            linux_update_reason(Some(BundleType::AppImage), false),
+            Some(UNSUPPORTED_REASON)
+        );
+        assert_eq!(linux_update_reason(None, false), Some(UNSUPPORTED_REASON));
+    }
+
+    #[test]
+    fn only_the_nsis_installer_copy_can_update_on_windows() {
+        assert_eq!(windows_update_reason(Some(BundleType::Nsis)), None);
+        assert_eq!(
+            windows_update_reason(Some(BundleType::Msi)),
+            Some(UNSUPPORTED_REASON)
+        );
+    }
 }
