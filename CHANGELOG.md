@@ -14,6 +14,8 @@ later versions arrive automatically.
 
 ### Fixed
 
+- The macOS app no longer needs Homebrew's `xz`. Earlier macOS builds failed to
+  launch on Macs without it (`7893c3b`).
 - Box selection picks every key the box touches, not only keys whose centre
   is inside it (`bbce9e7`).
 
