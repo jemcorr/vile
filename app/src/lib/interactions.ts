@@ -41,12 +41,43 @@ export function marqueeKeys(keys: BoardKeyDto[], a: Point, b: Point): string[] {
     right = Math.max(a.x, b.x),
     top = Math.min(a.y, b.y),
     bottom = Math.max(a.y, b.y);
+  const box: Point[] = [
+    { x: left, y: top },
+    { x: right, y: top },
+    { x: right, y: bottom },
+    { x: left, y: bottom },
+  ];
   return keys
-    .filter((key) => {
-      const p = rotate(key, { x: key.x + key.w / 2, y: key.y + key.h / 2 });
-      return p.x >= left && p.x <= right && p.y >= top && p.y <= bottom;
-    })
+    .filter((key) =>
+      keyRects(key).some((rect) => {
+        const corners = (
+          [
+            [0, 0],
+            [rect.w, 0],
+            [rect.w, rect.h],
+            [0, rect.h],
+          ] as [number, number][]
+        ).map(([dx, dy]) => rotate(key, { x: key.x + rect.x + dx, y: key.y + rect.y + dy }));
+        const a = ((key.r ?? 0) * Math.PI) / 180;
+        // Separating axes: the marquee's own and the key's rotated ones.
+        const axes: Point[] = [
+          { x: 1, y: 0 },
+          { x: 0, y: 1 },
+          { x: Math.cos(a), y: Math.sin(a) },
+          { x: -Math.sin(a), y: Math.cos(a) },
+        ];
+        return axes.every((axis) => {
+          const project = (points: Point[]) => points.map((p) => p.x * axis.x + p.y * axis.y);
+          const k = project(corners),
+            m = project(box);
+          return Math.min(...m) < Math.max(...k) && Math.max(...m) > Math.min(...k);
+        });
+      }),
+    )
     .map((key) => key.id);
+}
+function keyRects(key: BoardKeyDto): Rect[] {
+  return [{ x: 0, y: 0, w: key.w, h: key.h }, ...(key.secondary ? [key.secondary] : [])];
 }
 export function bounds(keys: BoardKeyDto[]): Rect {
   const points = keys.flatMap((key) => {
