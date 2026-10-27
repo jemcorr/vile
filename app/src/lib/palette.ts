@@ -36,7 +36,19 @@ export const COMMANDS: PaletteCommand[] = [
   { id: "zoomIn", title: "View: zoom in", arg: "none" },
   { id: "zoomOut", title: "View: zoom out", arg: "none" },
   { id: "zoomFit", title: "View: fit keyboard", arg: "none" },
+  { id: "checkUpdates", title: "Check for updates", arg: "none" },
+  { id: "restartToUpdate", title: "Restart to update", arg: "none" },
+  { id: "autoUpdatesOff", title: "Updates: turn off automatic checks", arg: "none" },
+  { id: "autoUpdatesOn", title: "Updates: turn on automatic checks", arg: "none" },
 ];
+
+/** Update commands work without a layout, so they never get the "Open a layout first" reason. */
+const UPDATE_COMMANDS = new Set([
+  "checkUpdates",
+  "restartToUpdate",
+  "autoUpdatesOff",
+  "autoUpdatesOn",
+]);
 
 const SHORTCUTS: Record<string, string | ((modifier: string) => string)> = {
   open: (modifier) => `${modifier}O`,
@@ -80,7 +92,7 @@ export function commandReason(
   view: { canUndo: boolean; canRedo: boolean; board: { canMirror?: boolean } | null } | null,
   hasSelection: boolean,
 ): string {
-  if (id === "open") return "";
+  if (id === "open" || UPDATE_COMMANDS.has(id)) return "";
   if (!view) return "Open a layout first";
   if (id === "undo" && !view.canUndo) return "Nothing to undo";
   if (id === "redo" && !view.canRedo) return "Nothing to redo";

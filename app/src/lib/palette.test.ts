@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { COMMANDS, filterCommands, parseLayerArg, updateShortcutLabels } from "./palette";
+import {
+  COMMANDS,
+  commandReason,
+  filterCommands,
+  parseLayerArg,
+  updateShortcutLabels,
+} from "./palette";
 
 describe("filterCommands", () => {
   it("returns everything for an empty query", () => {
@@ -60,5 +66,28 @@ describe("zoom commands", () => {
     expect(filterCommands("zoom").map((command) => command.id)).toEqual(
       expect.arrayContaining(["zoomIn", "zoomOut"]),
     );
+  });
+});
+
+describe("update commands", () => {
+  const updateIds = ["checkUpdates", "restartToUpdate", "autoUpdatesOff", "autoUpdatesOn"];
+
+  it("list four commands with exact titles, no argument and no shortcut", () => {
+    const found = COMMANDS.filter((command) => updateIds.includes(command.id));
+    expect(
+      found.map((command) => [command.id, command.title, command.arg, command.shortcut]),
+    ).toEqual([
+      ["checkUpdates", "Check for updates", "none", ""],
+      ["restartToUpdate", "Restart to update", "none", ""],
+      ["autoUpdatesOff", "Updates: turn off automatic checks", "none", ""],
+      ["autoUpdatesOn", "Updates: turn on automatic checks", "none", ""],
+    ]);
+  });
+
+  it("do not blame a missing layout", () => {
+    for (const id of updateIds) {
+      expect(commandReason(id, null, false)).toBe("");
+    }
+    expect(commandReason("save", null, false)).toBe("Open a layout first");
   });
 });

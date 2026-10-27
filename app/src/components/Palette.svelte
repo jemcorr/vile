@@ -7,6 +7,7 @@
   } from "../lib/palette";
 
   import { ui } from "../lib/state.svelte";
+  import { updateReason } from "../lib/updater.svelte";
   import { focusScope } from "../lib/focus";
 
   interface Props {
@@ -101,7 +102,8 @@
       />
       <ul>
         {#each list as command, i (command.id)}
-          {@const disabledReason = commandReason(command.id, ui.view, ui.selection.length > 0)}
+          {@const disabledReason =
+            updateReason(command.id) || commandReason(command.id, ui.view, ui.selection.length > 0)}
           <li>
             <button
               type="button"

@@ -15,7 +15,16 @@
   import { comboOverlays } from "./lib/combos";
   import { changeCount, changeGroups, compareErrorText, type ChangeJump } from "./lib/changes";
   import { renderLayerSheet } from "./lib/layer-export";
-  import { configureUpdater, restartToUpdate, startAutoChecks, updater } from "./lib/updater.svelte";
+  import {
+    checkForUpdates,
+    configureUpdater,
+    requestRestart,
+    restartToUpdate,
+    setAutoChecks,
+    startAutoChecks,
+    updateReason,
+    updater,
+  } from "./lib/updater.svelte";
   import type {
     OpDto,
     DiffBase,
@@ -462,6 +471,8 @@
     }
   }
   function reason(id: string): string {
+    const updates = updateReason(id);
+    if (updates) return updates;
     return busy
       ? "An operation is in progress"
       : commandReason(id, ui.view, ui.selection.length > 0);
@@ -698,6 +709,19 @@
     }
     if (id === "save" || id === "saveAs") {
       beginSave(id === "saveAs");
+      return;
+    }
+    if (id === "checkUpdates") {
+      void checkForUpdates({ manual: true });
+      return;
+    }
+    if (id === "restartToUpdate") {
+      await requestRestart();
+      return;
+    }
+    if (id === "autoUpdatesOn" || id === "autoUpdatesOff") {
+      setAutoChecks(id === "autoUpdatesOn");
+      notify(id === "autoUpdatesOn" ? "Automatic update checks are on" : "Automatic update checks are off");
       return;
     }
     if (id === "exportPng" && ui.view) {
