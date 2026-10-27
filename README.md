@@ -23,8 +23,10 @@ npx --yes npm@12.2.1 --prefix app run tauri -- dev --no-watch
 To build the app for your current operating system, run:
 
 ```sh
-npx --yes npm@12.2.1 --prefix app run tauri -- build
+npx --yes npm@12.2.1 --prefix app run tauri -- build --no-sign
 ```
+
+`--no-sign` skips updater signing. Only the release workflow has the signing key.
 
 ## Edit a layout
 

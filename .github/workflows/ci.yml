@@ -67,5 +67,5 @@ jobs:
         working-directory: app
       - run: npm run build
         working-directory: app
-      - run: npm run tauri -- build --bundles ${{ matrix.bundle }}
+      - run: npm run tauri -- build --bundles ${{ matrix.bundle }} --no-sign
         working-directory: app
