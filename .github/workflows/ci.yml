@@ -65,6 +65,8 @@ jobs:
         working-directory: app
       - run: npm test
         working-directory: app
+      - run: node --test tools/
+        if: runner.os == 'Linux'
       - run: npm run build
         working-directory: app
       - run: npm run tauri -- build --bundles ${{ matrix.bundle }} --no-sign
