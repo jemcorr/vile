@@ -8,6 +8,27 @@ layers, review the changes, then save the file.
 Download the macOS Apple silicon, Linux x86_64, or Windows x64 app from the
 [latest release](https://github.com/educorrea17/vile/releases/latest).
 
+## Updates
+
+vile can update itself. Automatic checks are off by default. To turn them on,
+open the command menu (`⌘K` or `Ctrl+K`) and choose **Updates: turn on automatic
+checks**. vile then checks about 10 seconds after launch and once a day,
+downloads a new version in the background, and offers **Restart to update**.
+Choose **Updates: turn off automatic checks** to stop. **Check for updates**
+always works.
+
+Each check sends a request to github.com. The request carries your IP address
+and the updater's User-Agent. It sends no layout data.
+
+- **macOS:** keep vile in Applications. A copy run from Downloads cannot update.
+- **Linux, Debian package:** an update asks for an administrator password
+  (pkexec).
+- **Linux, AppImage:** an update replaces the AppImage file in place.
+- **Windows:** the installer window appears briefly during an update.
+
+Version 0.3.1 and older cannot update themselves. Install the release that adds
+updates once by hand. Later versions update automatically.
+
 ## Run from source
 
 Install Node.js 26.12.1 and Rust 1.90 or newer. Tauri also needs system build

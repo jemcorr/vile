@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+0.3.1 and older cannot update themselves. Install 0.4.0 once from this release;
+later versions arrive automatically.
+
+### Added
+
+- vile can update itself. Restart to update appears once a new version is
+  downloaded. Automatic checks are off by default; turn them on with "Updates:
+  turn on automatic checks" in the command menu. "Check for updates" always
+  works (`b83bd19`, `5a8e4a7`).
+
 ### Fixed
 
 - Box selection picks every key the box touches, not only keys whose centre
