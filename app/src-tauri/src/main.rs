@@ -324,6 +324,26 @@ fn windows_update_reason(bundle: Option<BundleType>) -> Option<&'static str> {
     }
 }
 
+/// Restarts vile so an installed update takes effect. Unsaved changes stop the
+/// restart unless the user chose to discard them.
+#[tauri::command]
+fn restart_app(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    revision: u64,
+    discard: bool,
+) -> Result<(), String> {
+    with_session(&state, |s| {
+        s.check_revision(revision)?;
+        if s.view().is_some_and(|v| v.dirty) && !discard {
+            return Err("Save or discard changes before restarting".into());
+        }
+        Ok(())
+    })?;
+    app.request_restart();
+    Ok(())
+}
+
 fn main() {
     if smoke_enabled() {
         std::thread::spawn(|| {
@@ -386,12 +406,15 @@ fn main() {
             close_window,
             refresh_definition,
             smoke_report,
-            update_support
+            update_support,
+            restart_app
         ])
         .build(tauri::generate_context!())
         .expect("error while building vile");
     app.run(|handle, event| {
-        if let tauri::RunEvent::ExitRequested { api, .. } = event
+        // A restart must not ask the web view to confirm a close.
+        if let tauri::RunEvent::ExitRequested { code, api, .. } = event
+            && code != Some(tauri::RESTART_EXIT_CODE)
             && !handle.webview_windows().is_empty()
         {
             api.prevent_exit();
