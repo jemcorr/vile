@@ -57,3 +57,8 @@ File-changing commands print a diff and leave the input unchanged unless you
 pass `--write` or `--output PATH`.
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## License
+
+vile is licensed under the GNU General Public License, version 3 or later
+(GPL-3.0-or-later). See [LICENSE](LICENSE).
