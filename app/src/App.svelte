@@ -207,7 +207,7 @@
       return;
     }
     toastVisible = true;
-    if (ui.messageError) return;
+    if (ui.messageError || ui.messageSticky) return;
     const timer = setTimeout(() => (toastVisible = false), ui.messageAction ? 6000 : 3000);
     return () => clearTimeout(timer);
   });
@@ -220,7 +220,8 @@
   function runToastAction(): void {
     const action = ui.messageAction;
     if (!action) return;
-    ui.jump = action.jump;
+    if ("run" in action) action.run();
+    else ui.jump = action.jump;
     toastVisible = false;
   }
   async function refreshGeometry(): Promise<void> {
@@ -1194,7 +1195,7 @@
       </div>
     </div>{/if}
   <div class="toast" class:shown={toastVisible || busyShown} role="status" aria-live="polite">
-    <span title={busy ? undefined : ui.messageDetail || undefined}>{busy ? "Working…" : ui.message}</span>{#if ui.messageAction}<button class="toast-action" onclick={runToastAction}>{ui.messageAction.label}</button>{/if}{#if ui.messageError}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
+    <span title={busy ? undefined : ui.messageDetail || undefined}>{busy ? "Working…" : ui.message}</span>{#if ui.messageAction}<button class="toast-action" onclick={runToastAction}>{ui.messageAction.label}</button>{/if}{#if ui.messageError || ui.messageSticky}<button class="toast-dismiss" aria-label="Dismiss message" onclick={() => (toastVisible = false)}>Dismiss</button>{/if}
   </div>
   {#if ui.view?.warnings.length}<div class="warnings" role="status">
       {ui.view.warnings.join(" · ")}

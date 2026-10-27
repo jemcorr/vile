@@ -4,6 +4,9 @@ import type { KeyRefDto, ViewModel } from "./types";
 import type { Mode, Panel } from "./modes";
 import type { ChangeJump } from "./changes";
 
+/** A button on a toast. A jump opens what the message names; a run calls back into the app. */
+export type ToastAction = { label: string; jump: ChangeJump } | { label: string; run: () => void };
+
 export const ui = $state({
   view: null as ViewModel | null,
   generation: 0,
@@ -20,8 +23,10 @@ export const ui = $state({
   /** Full text behind a short message, shown on hover. */
   messageDetail: "",
   messageSeq: 0,
-  /** A button on the toast that jumps to what the message names. */
-  messageAction: null as { label: string; jump: ChangeJump } | null,
+  /** A button on the toast that jumps to what the message names, or runs an action. */
+  messageAction: null as ToastAction | null,
+  /** A sticky toast stays until dismissed or replaced. */
+  messageSticky: false,
   /** A jump a toast action asked for; the app performs it once and clears it. */
   jump: null as ChangeJump | null,
   panel: "combos" as Panel,
@@ -42,13 +47,15 @@ export const ui = $state({
 export function notify(
   text: string,
   error = false,
-  action: { label: string; jump: ChangeJump } | null = null,
+  action: ToastAction | null = null,
   detail = "",
+  sticky = false,
 ): void {
   ui.message = text;
   ui.messageError = error;
   ui.messageAction = action;
   ui.messageDetail = detail;
+  ui.messageSticky = sticky;
   ui.messageSeq += 1;
 }
 

@@ -474,6 +474,32 @@ describe("desktop editing workflow", () => {
     expect(document.querySelector(".toast-action")).toBeNull();
   });
 
+  it("runs a toast action and keeps a sticky message until it is dismissed", async () => {
+    vi.useFakeTimers();
+    try {
+      app = mount(App, { target: document.body });
+      await settle();
+      const run = vi.fn();
+      notify("vile 0.4.1 is ready", false, { label: "Restart to update", run }, "", true);
+      await tick();
+      const toast = document.querySelector(".toast")!;
+      vi.advanceTimersByTime(10000);
+      await tick();
+      expect(toast.classList.contains("shown")).toBe(true);
+      button("Dismiss").click();
+      await tick();
+      expect(toast.classList.contains("shown")).toBe(false);
+      notify("vile 0.4.1 is ready", false, { label: "Restart to update", run }, "", true);
+      await tick();
+      button("Restart to update").click();
+      await tick();
+      expect(run).toHaveBeenCalledOnce();
+      expect(toast.classList.contains("shown")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not swap a key when the pointer lands in its visible gutter", async () => {
     app = mount(App, { target: document.body });
     await settle();
