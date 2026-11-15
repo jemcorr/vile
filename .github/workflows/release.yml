@@ -320,7 +320,7 @@ jobs:
           ' CHANGELOG.md > notes.md
           test -s notes.md || { echo "CHANGELOG.md has no section for $version."; exit 1; }
           node tools/latest-json.mjs --version "$version" --notes notes.md \
-            --base-url "https://github.com/educorrea17/vile/releases/download/$TAG" \
+            --base-url "https://github.com/jemcorr/vile/releases/download/$TAG" \
             --assets release-assets --sigs signatures > release-assets/latest.json
 
       - name: Create the release
@@ -341,5 +341,5 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#v}"
-          curl -fsSL https://github.com/educorrea17/vile/releases/latest/download/latest.json \
+          curl -fsSL https://github.com/jemcorr/vile/releases/latest/download/latest.json \
             | jq -e --arg v "$version" '.version == $v'

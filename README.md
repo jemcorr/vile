@@ -6,7 +6,7 @@ layers, review the changes, then save the file.
 ## Download
 
 Download the macOS Apple silicon, Linux x86_64, or Windows x64 app from the
-[latest release](https://github.com/educorrea17/vile/releases/latest).
+[latest release](https://github.com/jemcorr/vile/releases/latest).
 
 ## Updates
 

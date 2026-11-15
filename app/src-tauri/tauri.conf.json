@@ -52,7 +52,7 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZENzFCMDEwQTJBN0UzRDEKUldUUjQ2ZWlFTEJ4YlI1ZVlJejQyaEU5anp4NjgyRXpVQ1BueENkbUJkZjlXTUplSlJJcmtNa24K",
-      "endpoints": ["https://github.com/educorrea17/vile/releases/latest/download/latest.json"],
+      "endpoints": ["https://github.com/jemcorr/vile/releases/latest/download/latest.json"],
       "requireSignedVersion": true,
       "windows": { "installMode": "passive" }
     }
