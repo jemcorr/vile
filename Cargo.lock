@@ -4401,7 +4401,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vile-app"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde_json",
  "tauri",
@@ -4415,7 +4415,7 @@ dependencies = [
 
 [[package]]
 name = "vile-cli"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "vile-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4439,7 +4439,7 @@ dependencies = [
 
 [[package]]
 name = "vile-device"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "hidapi",
  "serde",
@@ -4451,7 +4451,7 @@ dependencies = [
 
 [[package]]
 name = "vile-session"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",

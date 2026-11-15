@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-11-15
 
 0.3.1 and older cannot update themselves. Install 0.4.0 once from this release;
 later versions arrive automatically.
